@@ -74,6 +74,15 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# flutter_secure_storage_linux vendors an older nlohmann/json whose literal
+# operators (`operator "" _json`) recent clang flags with
+# -Wdeprecated-literal-operator, and apply_standard_settings' -Werror turns
+# that into a hard build error. Downgrade just that warning for the plugin.
+if(TARGET flutter_secure_storage_linux_plugin)
+  target_compile_options(flutter_secure_storage_linux_plugin
+    PRIVATE -Wno-error=deprecated-literal-operator)
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

@@ -1,67 +1,53 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/auth/auth_controller.dart';
+import 'package:tuma_app/features/auth/name_screen.dart';
+import 'package:tuma_app/features/auth/otp_screen.dart';
+import 'package:tuma_app/features/auth/phone_screen.dart';
+import 'package:tuma_app/features/auth/splash_screen.dart';
+import 'package:tuma_app/features/home/home_shell.dart';
 
-/// App router.
-///
-/// Only the root exists today. Real routes land slice by slice
-/// (A1 navigation shell first) — each designed and approved before code.
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final session = container.read(sessionProvider);
+    final sub = state.matchedLocation;
+
+    // The OTP and name screens carry their arguments in `extra`; a cold
+    // start on them has none — bounce back to the start of the flow.
+    if ((sub == '/auth/otp' || sub == '/auth/name') && state.extra == null) {
+      return '/auth/phone';
+    }
+
+    return session.when(
+      data: (snapshot) {
+        // Loading: stay put — the splash is still working.
+        if (snapshot is SessionLoading) return null;
+        final onAuthFlow = sub.startsWith('/auth');
+        if (snapshot is SessionUser) {
+          return onAuthFlow || sub == '/' ? '/home' : null;
+        }
+        // Anonymous: the auth flow is the only place to be.
+        return onAuthFlow ? null : '/auth/phone';
+      },
+      loading: () => null,
+      error: (_, _) => '/auth/phone',
+    );
+  },
+  refreshListenable: sessionRouterRefresher,
   routes: [
+    GoRoute(path: '/', builder: (_, _) => const SplashScreen()),
+    GoRoute(path: '/auth/phone', builder: (_, _) => const PhoneScreen()),
     GoRoute(
-      path: '/',
-      builder: (context, state) => const _RootPlaceholder(),
+      path: '/auth/otp',
+      builder: (_, state) => OtpScreen(phone: state.extra! as String),
     ),
+    GoRoute(
+      path: '/auth/name',
+      builder: (_, state) => NameScreen(args: state.extra! as NameScreenArgs),
+    ),
+    GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
   ],
 );
-
-/// Temporary shell screen proving the app boots with the Tuma identity.
-/// Replaced by the real splash + navigation shell in slice A1.
-class _RootPlaceholder extends StatelessWidget {
-  const _RootPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 112,
-              height: 112,
-              decoration: const BoxDecoration(
-                color: AppColors.onPrimary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.delivery_dining_rounded,
-                size: 64,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Tuma',
-              style: textTheme.displaySmall?.copyWith(
-                color: AppColors.onPrimary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Everything you crave, delivered.',
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.onPrimary.withValues(alpha: 0.85),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

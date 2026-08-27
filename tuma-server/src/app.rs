@@ -3,7 +3,7 @@ use crate::error::validation_errors_to_field_errors;
 use crate::middleware::{auth_context, csrf_origin_check, required_auth};
 use crate::routes::auth::{logout, otp_request, otp_verify};
 use crate::routes::health_check;
-use crate::routes::me::me;
+use crate::routes::me::{me, update_me};
 use crate::routes::openapi_json;
 use axum::extract::FromRequest;
 use axum::http::StatusCode;
@@ -80,7 +80,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
 
     // Routes any authenticated role may use.
     let authenticated = Router::new()
-        .route("/me", get(me))
+        .route("/me", get(me).patch(update_me))
         .route("/auth/logout", post(logout))
         .layer(middleware::from_fn(required_auth));
 

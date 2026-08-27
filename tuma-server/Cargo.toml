@@ -9,6 +9,7 @@ edition = "2024"
 name = "tuma-server"
 version.workspace = true
 edition.workspace = true
+default-run = "tuma-server"
 
 [dependencies]
 accounts = { path = "accounts" }

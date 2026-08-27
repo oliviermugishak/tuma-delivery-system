@@ -3,21 +3,24 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
 
-/// Tuma theme — evolve-emerald.
+/// Tuma theme — dark-on-navy identity.
 ///
 /// Poppins carries headlines/display, Inter carries body/labels.
-/// Component-level styling (buttons, chips, sheets) grows slice by slice;
-/// keep this file to global defaults only.
+/// Component-level styling grows slice by slice; this file holds global
+/// defaults only.
 abstract final class AppTheme {
-  static ThemeData light() {
+  static ThemeData dark() {
     final base = ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
+      brightness: Brightness.dark,
+      colorScheme: const ColorScheme.dark(
         primary: AppColors.primary,
-        secondary: AppColors.accent,
-        error: AppColors.error,
+        onPrimary: AppColors.onPrimary,
+        secondary: AppColors.primaryDeep,
+        onSecondary: AppColors.onPrimary,
         surface: AppColors.surface,
+        onSurface: AppColors.onSurface,
+        error: AppColors.error,
       ),
       scaffoldBackgroundColor: AppColors.surface,
     );
@@ -37,21 +40,21 @@ abstract final class AppTheme {
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.text,
+        foregroundColor: AppColors.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: textTheme.titleLarge?.copyWith(
-          color: AppColors.text,
+          color: AppColors.onSurface,
           fontWeight: FontWeight.w800,
         ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: AppColors.card,
+        color: AppColors.surfaceAlt,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.cardBorder),
+          side: const BorderSide(color: AppColors.surfaceBorder),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -65,15 +68,15 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.card,
-        hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
+        fillColor: AppColors.surfaceAlt,
+        hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          borderSide: const BorderSide(color: AppColors.surfaceBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.cardBorder),
+          borderSide: const BorderSide(color: AppColors.surfaceBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

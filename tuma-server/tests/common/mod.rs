@@ -39,6 +39,10 @@ impl TestClient {
         self.client.post(self.url(path)).json(&body)
     }
 
+    pub fn patch_json(&self, path: &str, body: serde_json::Value) -> reqwest::RequestBuilder {
+        self.client.patch(self.url(path)).json(&body)
+    }
+
     pub fn url(&self, path: &str) -> String {
         assert!(path.starts_with("/"), "missing / for url path");
         format!("http://{}/api{}", self.base_url, path)

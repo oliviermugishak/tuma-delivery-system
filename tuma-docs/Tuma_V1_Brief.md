@@ -49,6 +49,7 @@ auth:      POST /auth/otp/request    (phone → 6-digit code)
            POST /auth/logout
            POST /auth/password       (change password)
            GET  /me                  (current user + role)
+           PATCH /me                  (update own profile: name)
 admin:     POST  /admin/merchants    (admin creates merchant accounts)
            GET   /admin/merchants
            PATCH /admin/merchants/:id  (enable/disable)

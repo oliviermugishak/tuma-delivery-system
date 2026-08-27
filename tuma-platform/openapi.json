@@ -135,6 +135,44 @@
             "description": "Missing or invalid credentials"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Updates the caller's own profile. Name is the only mutable field in V1\n(see tuma-docs/Tuma_API_Architecture.md §3). Used by the mobile name\ncapture step: OTP verify consumes the code, so a fresh user's name lands\nhere, not in a second verify call.",
+        "operationId": "update_me",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty name"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
       }
     },
     "/v1/openapi.json": {
@@ -263,6 +301,17 @@
           },
           "user": {
             "$ref": "#/components/schemas/MeResponse"
+          }
+        }
+      },
+      "UpdateMeInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       }

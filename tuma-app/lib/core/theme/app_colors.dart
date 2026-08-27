@@ -1,35 +1,38 @@
 import 'dart:ui';
 
-/// Tuma design tokens — the evolve-emerald identity.
+/// Tuma brand tokens.
 ///
-/// Source: tuma-docs/Tuma_Flutter_Mobile_App_Engineering_Spec.md (ch 4).
-/// This file is the ONLY place raw hex values may appear in the app.
+/// The brand mark is a gold rider-glove over a deep-navy field. Tokens are
+/// the only place raw hex values may appear in the app (see AGENTS.md).
 abstract final class AppColors {
   // Brand -----------------------------------------------------------------
-  /// Emerald — trust, navigation, filled CTAs, selected chips.
-  static const Color primary = Color(0xFF0B6E4F);
+  /// Gold — primary action, the brand mark itself, filled CTAs.
+  static const Color primary = Color(0xFFFDBB01);
 
-  /// Deep emerald — cart bar and dark emphasis where white must pop.
-  static const Color primaryDark = Color(0xFF08412F);
-
-  /// Orange — energy: promos, popular badges, sheet CTAs. Use sparingly.
-  static const Color accent = Color(0xFFFF7A1A);
+  /// Orange — emphasis and energy where the gold is too soft.
+  static const Color primaryDeep = Color(0xFFFC7701);
 
   // Surfaces --------------------------------------------------------------
-  /// Warm greige scaffold background.
-  static const Color surface = Color(0xFFF7F7F5);
+  /// Dark navy scaffold — the field the gold mark sits on.
+  static const Color surface = Color(0xFF061323);
 
-  /// Cards, sheets, inputs.
-  static const Color card = Color(0xFFFFFFFF);
+  /// Lighter navy — sheets, cards, app bars over the dark scaffold.
+  static const Color surfaceAlt = Color(0xFF0B1A3D);
 
-  /// Hairline borders for cards, dividers, inputs.
-  static const Color cardBorder = Color(0xFFECECE8);
+  /// Borders and dividers on dark surfaces.
+  static const Color surfaceBorder = Color(0x14D3DEE9);
 
   // Text ------------------------------------------------------------------
-  static const Color text = Color(0xFF1B1B1F);
-  static const Color textMuted = Color(0xFF6B6B70);
-  static const Color onPrimary = Color(0xFFFFFFFF);
+  /// Primary text on dark surfaces.
+  static const Color onSurface = Color(0xFFD3DEE9);
+
+  /// Muted text on dark surfaces.
+  static const Color onSurfaceMuted = Color(0x99D3DEE9);
+
+  /// Text placed on gold/orange fills.
+  static const Color onPrimary = Color(0xFF061323);
 
   // Feedback --------------------------------------------------------------
-  static const Color error = Color(0xFFD64545);
+  static const Color error = Color(0xFFFF6B6B);
+  static const Color success = Color(0xFF4ECDC4);
 }

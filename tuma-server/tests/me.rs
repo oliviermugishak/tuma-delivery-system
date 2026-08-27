@@ -3,7 +3,7 @@ mod common;
 use accounts::jwt;
 use common::{MIGRATOR, TestClient, seed_customer, spawn_app, token_for};
 use secrecy::ExposeSecret;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn me_without_credentials_is_rejected(pool: sqlx::PgPool) {
@@ -117,4 +117,79 @@ async fn me_is_rejected_for_a_deactivated_user(pool: sqlx::PgPool) {
         .await
         .unwrap();
     assert_eq!(response.status(), 401);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn patch_me_updates_the_callers_name(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let user = seed_customer(&app.pool, "+250780000006").await;
+    let token = token_for(&app, &user, 3600);
+
+    let response = client
+        .patch_json("/v1/me", json!({ "name": "  Aline  " }))
+        .bearer_auth(token.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["id"], user.id.to_string());
+    assert_eq!(body["name"], "Aline"); // stored trimmed
+
+    // And the change is persisted, not just echoed.
+    let response = client
+        .get("/v1/me")
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["name"], "Aline");
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn patch_me_without_credentials_is_rejected(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+
+    let response = client
+        .patch_json("/v1/me", json!({ "name": "Aline" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn patch_me_rejects_a_whitespace_only_name(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let user = seed_customer(&app.pool, "+250780000007").await;
+    let token = token_for(&app, &user, 3600);
+
+    let response = client
+        .patch_json("/v1/me", json!({ "name": "   " }))
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 400);
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn patch_me_rejects_a_missing_name(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let user = seed_customer(&app.pool, "+250780000008").await;
+    let token = token_for(&app, &user, 3600);
+
+    let response = client
+        .patch_json("/v1/me", json!({}))
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 400);
 }
