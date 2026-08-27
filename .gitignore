@@ -1,0 +1,26 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+pubspec.lock.bak
+
+# Environment & secrets — never commit
+**/.env
+!**/.env.example
+
+# Agent scratch
+.zcode/
+
+# Editors & OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.iml

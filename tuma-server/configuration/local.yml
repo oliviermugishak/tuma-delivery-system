@@ -1,0 +1,11 @@
+application:
+  host: 127.0.0.1
+  cookie_secure: false
+database:
+  host: localhost
+  username: postgres
+  password: password123
+  require_ssl: false
+secret:
+  # Local development only — never reuse this value in staging/production.
+  jwt_signing_key: "dG9rZW4tb25seS1mb3ItbG9jYWwtZGV2ZWxvcG1lbnQtdHVtYS1zZXJ2ZXItMDAx"

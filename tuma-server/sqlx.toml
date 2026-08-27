@@ -1,0 +1,3 @@
+[migrate]
+create-schemas = ["tuma"]
+table-name = "tuma._sqlx_migrations"
