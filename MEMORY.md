@@ -27,22 +27,36 @@ phone, drawn on a real map. Never simulated.
 - **Hand-to-hand contract:** every feature reviewed by the founder; every Flutter line written with the founder; every slice starts as a few approved lines of design before code. (2026-08-27)
 - **Simplicity budget for V1:** 6 tables, ~10 endpoints, 6 order statuses (`placed, accepted, preparing, picked_up, delivered, cancelled`). Cash-on-delivery first; MTN MoMo after the loop works. (2026-08-27)
 - **The TypeScript scaffold** (pnpm workspace, Fastify, packages/*) **was removed** — superseded by the Rust decision. The v2.0 blueprint's Fastify chapters are reference-only. (2026-08-27)
+- **Foundations before features:** auth + RBAC are built before stores/products. The iteration order is: identity on the API → mobile splash/login/home on the real API → platform admin + merchant wings → then stores/products. (2026-08-27)
+- **Three roles in V1:** `customer`, `merchant`, `admin` (of the blueprint's nine; mapping + promotion path documented in the auth doc). Merchant accounts are **created by admin** — no self-signup in V1. (2026-08-27)
+- **Auth shape:** 2 credential methods (phone+OTP for customers — register and login are one flow; email+password for merchant/admin), 1 token format (HS256 JWT), 2 transports (httpOnly cookies + silent refresh for web — kanombe-sda pattern; Bearer + 30-day token for mobile). Dev OTP is a fixed code from `local.yml`. (2026-08-27)
+- **Platform stack decided:** React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query + TanStack Router + Orval (pnpm). This **overrides** the earlier "tuma-platform stays a template until V1.5/V2.5" decision — the platform joins the Foundations iteration. (2026-08-27)
+- **OpenAPI is the contract:** served at `/api/v1/openapi.json`, exported via `run.sh openapi`; platform client is Orval-generated (never hand-edited), mobile client is hand-written Dart. (2026-08-27)
+- **API versioning:** everything business under `/api/v1`, additive-only within v1, `/api/health` unversioned. (2026-08-27)
+- **Logo:** the founder has logo files — they are provided when the mobile splash is built (slice S3). (2026-08-27)
 
 ## Current state
 
-- `tuma-server/` — V0 skeleton: health endpoint at `/api/health`, app-config crate, `configuration/*.yml`, migrations 00–01 (schema + trigger helpers), test harness. `cargo build` + `clippy` clean. **DB-dependent checks pending** (migrate, tests, boot) — need docker.
-- `tuma-app/` — V0 skeleton: flutter create (android, ios, linux, web), counter boilerplate stripped, evolve-emerald tokens in `lib/core/theme/`, router shell with temporary root placeholder, smoke test passing, analyzer clean.
-- `tuma-platform/` — template README only.
-- `tuma-docs/` — Master Blueprint v2.0 (long-term reference), Flutter spec v1.1 (design reference), **V1 Brief (working truth)**.
-- **Next slices** (each designed with the founder before code): server S1 stores + products schema + endpoints → app A1 navigation shell. See brief for the full order.
+**Iteration: Foundations (auth + RBAC + first real clients).** Slice map S0–S8 lives in the approved plan and the two architecture docs.
+
+- `tuma-docs/` — V1 Brief (updated: foundations-first build order, evolved users table, auth endpoints) + **Tuma_Auth_and_RBAC_Architecture.md** + **Tuma_API_Architecture.md** (both approved 2026-08-27) + blueprint/Flutter spec as long-term references.
+- `tuma-server/` — **S0–S2 done, 22 tests green.** `/api/v1` nesting, OpenAPI at `/api/v1/openapi.json` + `export_openapi` bin; `accounts` crate (users/roles/jwt/password/otp), migrations 00–02, auth-context middleware (Bearer or cookie, fresh user lookup per request), `required_auth` + `require_role` guards, CSRF origin check, `GET /v1/me`, customer OTP (`otp/request` + `otp/verify`, register+login in one flow, dev fixed code `123456` from local.yml), Bearer `logout`, `seed_admin` bin, `.sqlx` offline cache committed. **Next: S3 mobile foundation** (api client, secure storage, splash + founder's logo, auth bootstrap).
+- `tuma-app/` — V0 skeleton (emerald tokens, router shell). Awaiting S3 (api client, splash with founder's logo, auth bootstrap).
+- `tuma-platform/` — template README + exported `openapi.json` until S6 scaffolds the shadcn app.
 
 ## Environment notes
 
 - Arch Linux. Flutter 3.47.1 / Dart 3.13.1 · cargo/rustc 1.98.0-nightly · sqlx-cli 0.9.0 · Docker Compose 5.5.0.
 - Docker images on this machine: `postgres:18`, `redis:7`, `mysql:8.0`.
-- **Docker socket is not accessible from agent sandboxes** — the founder runs `docker compose up -d` and friends; agents should not block on docker.
+- **Dev Postgres:** container `tuma-postgres-dev` (compose in `tuma-server/`, postgres/password123, db `tuma`). Volume mounts at `/var/lib/postgresql` — **never `/var/lib/postgresql/data`** (founder rule, new postgres paradigm).
+- **SQLx offline cache:** `.sqlx/` is committed (CI builds against it); after changing any query, run `cargo sqlx prepare --workspace` with `DATABASE_URL` set.
+- SQLx custom enums need schema-qualified `type_name` (e.g. `tuma.user_role`) or runtime lookups fail outside the schema's search_path.
 - Reference project (pattern book, do not modify): `~/Work/projects/kanombe-sda`.
 
 ## Decision log
 
+- **2026-08-27** — S2 customer OTP landed: `otp/request` + `otp/verify` (register and login are one flow), Bearer `logout`, dev fixed code from `local.yml`, 11 new tests (cooldown, attempt cap, code consumption, CSRF origin, validation) — 22 total green.
+- **2026-08-27** — S1 identity core landed: `accounts` crate, migration 02, auth middleware with fresh user lookup (deactivated users lose access immediately), `/v1/me`, seed_admin, 11 tests green. Old squatter containers removed by founder; dev container is `tuma-postgres-dev`. Founder: tests passing is the verification bar — no extra smoke theater.
+- **2026-08-27** — Foundations iteration approved: auth + RBAC before stores/products. Two architecture docs written and adopted (auth/RBAC, API). Brief updated (build order flipped, users table evolved, platform in scope). Platform stack locked: React + Vite + Tailwind + shadcn/ui + TanStack Query + Orval. Merchant accounts admin-created. Logo files to be provided by founder at S3.
+- **2026-08-27** — `run.sh` dev runner added at repo root: `./run.sh mobile` (flutter run) and `./run.sh api` (cargo run). New day-to-day commands get added there as slices land.
 - **2026-08-27** — Production vision docs written: Master Blueprint v2.0, Flutter spec v1.1, then the one-page V1 Brief superseded both as working truth. TS monorepo scaffolded, then removed after the Rust decision. Monorepo restructured: `tuma-server` (Rust skeleton) + `tuma-app` (Flutter skeleton) + `tuma-platform` (template) + `tuma-docs`. Hand-to-hand contract adopted.

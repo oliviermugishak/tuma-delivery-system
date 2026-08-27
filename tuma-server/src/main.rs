@@ -34,7 +34,11 @@ async fn main() {
             .expect("Failed to run database migrations");
     }
 
-    let app_state = AppState::new(connection_pool);
+    let app_state = AppState::new(
+        connection_pool,
+        config.secret.jwt_signing_key.clone(),
+        config.auth.dev_otp_code.clone(),
+    );
     let app = build_app_with_state(app_state);
     let address = format!("{}:{}", config.application.host, config.application.port);
 

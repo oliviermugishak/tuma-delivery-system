@@ -10,6 +10,17 @@ pub struct Config {
     pub application: AppConfig,
     pub database: DbConfig,
     pub secret: SecretConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct AuthConfig {
+    /// Fixed OTP code for local development only. When set, `otp/request`
+    /// issues this code instead of a random one. Must stay absent from
+    /// production config — real delivery (SMS) lands with its own slice.
+    #[serde(default)]
+    pub dev_otp_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

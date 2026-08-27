@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-config"]
+members = ["app-config", "accounts"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,8 +11,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+accounts = { path = "accounts" }
 app-config = { path = "app-config" }
 axum = { version = "0.8.9", features = ["macros"] }
+axum-extra = { version = "0.12.6", features = ["cookie"] }
 config = "0.15.25"
 serde = { version = "1.0.229", features = ["derive"] }
 serde-aux = "4.7.0"

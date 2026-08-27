@@ -15,27 +15,43 @@ This is the working source of truth for V1. The big blueprint (`Tuma_Master_Prod
 
 - **Backend: Rust** — Axum (HTTP), SQLx (PostgreSQL), serde. Chosen because the founder thinks in Rust.
 - **Database:** PostgreSQL.
-- **Mobile:** the existing Flutter app, living wherever the founder wants — the only contract between app and backend is the HTTP API.
-- **Map:** flutter_map (already in the app) + real GPS from the rider's phone.
+- **Mobile:** the Flutter app in `tuma-app/` — the contract between app and backend is the HTTP API.
+- **Web platform:** `tuma-platform/` — React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client generated from the server's OpenAPI (Orval). Admin + merchant wings.
+- **Map:** flutter_map + real GPS from the rider's phone.
+- **Architecture docs:** `Tuma_Auth_and_RBAC_Architecture.md` and `Tuma_API_Architecture.md` — the foundations, approved 2026-08-27.
 
-## The entire database (6 tables)
+## The database (6 domain tables + auth plumbing)
 
 ```text
-users        (id, phone, name)
+users        (id, role, name, phone, email, password_hash, is_active)
+             role: customer | merchant | admin        ← see auth architecture doc
 stores       (id, name, description, image_url, lat, lng, delivery_fee, is_open)
 products     (id, store_id, name, description, price, image_url, is_available)
 orders       (id, user_id, store_id, status, subtotal, delivery_fee, total,
               address_text, address_lat, address_lng, created_at)
 order_items  (id, order_id, product_name, unit_price, quantity)   ← name+price snapshotted at order time
 deliveries   (id, order_id, rider_name, rider_phone, lat, lng, updated_at)   ← the killer feature
+
+auth plumbing:
+auth_otps      (phone, code_hash, expires_at, attempts, created_at)
+refresh_tokens (token_hash, user_id, expires_at, revoked_at, created_at)
 ```
 
 Money is integer RWF, never floats.
 Order status is one enum, six values: `placed, accepted, preparing, picked_up, delivered, cancelled`.
 
-## The entire API (~10 endpoints)
+## The API (all business routes under `/api/v1`)
 
 ```text
+auth:      POST /auth/otp/request    (phone → 6-digit code)
+           POST /auth/otp/verify     (code → account + token; register & login are one flow)
+           POST /auth/login          (email + password → web session cookies)
+           POST /auth/logout
+           POST /auth/password       (change password)
+           GET  /me                  (current user + role)
+admin:     POST  /admin/merchants    (admin creates merchant accounts)
+           GET   /admin/merchants
+           PATCH /admin/merchants/:id  (enable/disable)
 customer:  GET  /stores
            GET  /stores/:id            (with its products)
            POST /orders
@@ -44,7 +60,6 @@ customer:  GET  /stores
            GET  /orders/:id/tracking   (real lat/lng + status)
 rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s)
 ops:       POST /orders/:id/status     (advance the six statuses)
-auth:      POST /auth/login            (phone + OTP, minimal)
 ```
 
 ## How real tracking works (simple and real)
@@ -62,11 +77,12 @@ Cash on delivery first (zero integration). MTN MoMo once the loop works.
 
 ## Not building in V1 (on purpose)
 
-Merchant web app, admin console, dispatch engine, promotions, refunds, rider earnings, Redis, Kafka, microservices — until the loop is real and something actually hurts.
+Dispatch engine, promotions, refunds, rider earnings, rider accounts (riders are name+phone on the delivery for now), SMS gateway (dev OTP is a fixed code until then), MTN MoMo, Redis, Kafka, microservices — until the loop is real and something actually hurts.
 
 ## Build order
 
-1. Rust backend: schema + `/stores` + `/orders` (cash checkout).
-2. Point the Flutter app at the real API instead of seeds.
-3. Rider mode in the app + real GPS tracking on the real map.
-4. Polish: OTP login, order history, reorder.
+1. **Foundations (current iteration):** auth + RBAC on the API · mobile app splash + register/login + home on the real API · web platform (shadcn) login + admin merchant management. See the two architecture docs.
+2. Stores + products: schema, `/stores`, merchant menu management on the platform, home feed in the app.
+3. Orders: cart, cash checkout, order flow, status updates.
+4. Rider mode in the app + real GPS tracking on the real map.
+5. Polish: order history, reorder.

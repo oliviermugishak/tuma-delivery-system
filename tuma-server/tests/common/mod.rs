@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+use accounts::UserRole;
+use accounts::jwt;
+use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use tuma_server::app::AppState;
@@ -14,9 +17,9 @@ pub struct TestClient {
 }
 
 impl TestClient {
-    pub fn new(base_url: String) -> Self {
+    pub fn new(base_url: &str) -> Self {
         Self {
-            base_url,
+            base_url: base_url.to_string(),
             client: reqwest::Client::builder()
                 .cookie_store(true)
                 .build()
@@ -43,7 +46,7 @@ impl TestClient {
 }
 
 pub struct TestApp {
-    pub pool: Option<PgPool>,
+    pub pool: PgPool,
     pub address: String,
     pub config: Config,
 }
@@ -57,7 +60,11 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
     let port = listener.local_addr().unwrap().port();
     let address = format!("{}:{}", config.application.host, port);
 
-    let state = AppState::new(pool.clone());
+    let state = AppState::new(
+        pool.clone(),
+        config.secret.jwt_signing_key.clone(),
+        config.auth.dev_otp_code.clone(),
+    );
     let app = build_app_with_state(state);
 
     std::mem::forget(tokio::spawn(async {
@@ -65,8 +72,37 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
     }));
 
     TestApp {
-        pool: Some(pool),
+        pool,
         address,
         config,
     }
+}
+
+/// Seed a customer row directly — tests own the database, no OTP needed.
+pub async fn seed_customer(pool: &PgPool, phone: &str) -> accounts::User {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    accounts::users::create_customer(&mut conn, phone, None)
+        .await
+        .expect("failed to seed customer")
+}
+
+/// Seed a merchant/admin row with a known password ("Password123").
+pub async fn seed_staff(pool: &PgPool, role: UserRole, email: &str) -> accounts::User {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    let password_hash = accounts::password::hash("Password123")
+        .await
+        .expect("failed to hash password");
+    accounts::users::create_staff(&mut conn, role, None, email, &password_hash)
+        .await
+        .expect("failed to seed staff user")
+}
+
+/// Mint a real signed token the way the server would.
+pub fn token_for(app: &TestApp, user: &accounts::User, ttl_secs: usize) -> String {
+    let claims = jwt::Claims::new(user.id, user.role, ttl_secs);
+    jwt::generate(
+        &claims,
+        app.config.secret.jwt_signing_key.expose_secret().as_bytes(),
+    )
+    .expect("failed to mint token")
 }

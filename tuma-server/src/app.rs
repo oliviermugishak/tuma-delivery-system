@@ -1,16 +1,23 @@
 use crate::error::ApiErrorResponse;
 use crate::error::validation_errors_to_field_errors;
+use crate::middleware::{auth_context, csrf_origin_check, required_auth};
+use crate::routes::auth::{logout, otp_request, otp_verify};
 use crate::routes::health_check;
+use crate::routes::me::me;
+use crate::routes::openapi_json;
 use axum::extract::FromRequest;
 use axum::http::StatusCode;
+use axum::middleware;
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
+use secrecy::SecretString;
 use serde::de::DeserializeOwned;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse};
+use uuid::Uuid;
 use validator::Validate;
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -18,13 +25,40 @@ pub type AppResult<T> = Result<T, AppError>;
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db_pool: Arc<PgPool>,
+    pub jwt_signing_key: SecretString,
+    /// Fixed OTP code for local development (see app-config `AuthConfig`).
+    pub dev_otp_code: Option<String>,
 }
 
 impl AppState {
-    pub fn new(db_pool: PgPool) -> Self {
+    pub fn new(
+        db_pool: PgPool,
+        jwt_signing_key: SecretString,
+        dev_otp_code: Option<String>,
+    ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
+            jwt_signing_key,
+            dev_otp_code,
         }
+    }
+}
+
+/// Who is making this request. Built once per request by the `auth_context`
+/// middleware (Bearer header or session cookie) and read by guards/handlers
+/// via `Extension<UserContext>`. `None` user means anonymous.
+#[derive(Clone, Debug, Default)]
+pub struct UserContext {
+    pub user: Option<accounts::User>,
+}
+
+impl UserContext {
+    pub fn user_id(&self) -> Option<Uuid> {
+        self.user.as_ref().map(|user| user.id)
+    }
+
+    pub fn role(&self) -> Option<accounts::UserRole> {
+        self.user.as_ref().map(|user| user.role)
     }
 }
 
@@ -40,16 +74,33 @@ pub fn allowed_origins() -> Vec<String> {
 }
 
 pub fn build_app_with_state(state: AppState) -> Router {
-    let public = Router::new().route("/health", get(health_check));
-
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new())
         .on_response(DefaultOnResponse::new());
 
-    // nest() strips the /api prefix before the inner middleware runs.
+    // Routes any authenticated role may use.
+    let authenticated = Router::new()
+        .route("/me", get(me))
+        .route("/auth/logout", post(logout))
+        .layer(middleware::from_fn(required_auth));
+
+    // Business routes live under /api/v1, namespaced by audience
+    // (/auth, /me, /admin, /merchant, ...). The OpenAPI contract is served
+    // alongside them. See tuma-docs/Tuma_API_Architecture.md.
+    let v1 = Router::new()
+        .route("/openapi.json", get(openapi_json))
+        .route("/auth/otp/request", post(otp_request))
+        .route("/auth/otp/verify", post(otp_verify))
+        .merge(authenticated);
+
+    // Layer order (outermost runs first): trace → auth context → CSRF → CORS.
+    // /api/health stays unversioned: it is an infra probe, not business API.
     let api = Router::new()
-        .merge(public)
+        .route("/health", get(health_check))
+        .nest("/v1", v1)
         .layer(cors_layer())
+        .layer(middleware::from_fn(csrf_origin_check))
+        .layer(middleware::from_fn_with_state(state.clone(), auth_context))
         .layer(trace_layer)
         .with_state(state);
 

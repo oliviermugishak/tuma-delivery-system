@@ -15,7 +15,7 @@ Read this before doing anything in this repository.
 |---|---|
 | `tuma-server/` | Rust backend: Axum + SQLx + PostgreSQL. House style mirrors `~/Work/projects/kanombe-sda` (layered YAML config, compile-time-checked SQLx, numbered SQL migrations, bunyan tracing, utoipa OpenAPI, integration test harness). |
 | `tuma-app/` | Flutter customer app. Design tokens in `lib/core/theme/`. |
-| `tuma-platform/` | Template only — admin + merchant web, lands V1.5/V2.5. Do not build it early. |
+| `tuma-platform/` | Web platform: admin + merchant wings. React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client Orval-generated from the server's OpenAPI. |
 | `tuma-docs/` | Documentation. Doc changes are founder decisions. |
 
 ## The hand-to-hand contract
@@ -54,10 +54,23 @@ Server conventions: layered config (`configuration/*.yml` + `APP_*__*` env, `DAT
 - Structure: `lib/core/{theme,router,constants,utils}`, `lib/features/<feature>/`, `lib/shared/widgets/`.
 - One dominant action per screen; price legible before commitment; every screen handles loading/empty/error.
 - New dependencies only with the slice that needs them, named in the slice design.
+- The API client in `lib/core/api/` is **hand-written** — typed per slice against the OpenAPI contract, never code-generated.
+
+## Platform conventions
+
+- Stack: React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query + TanStack Router, pnpm.
+- `src/api/generated/` is **Orval output — never hand-edited**. After any server API change: `./run.sh openapi` then `pnpm generate:api`, and review the generated diff as part of the slice.
+- Auth is cookie-based (httpOnly session) — no tokens in JS state. Dev server proxies `/api` to the local server.
+- Wings by role: `/admin/*`, `/merchant/*`, shared login. See `tuma-docs/Tuma_API_Architecture.md`.
 
 ## Commands
 
 ```bash
+# dev runner (root) — day-to-day commands live here
+./run.sh mobile                      # flutter run
+./run.sh api                         # cargo run the server
+./run.sh openapi                     # export OpenAPI spec to tuma-platform/openapi.json
+
 # server
 cd tuma-server
 docker compose up -d                     # dev postgres:18
@@ -65,6 +78,7 @@ source init_db.fish                      # DATABASE_URL
 cargo sqlx migrate run
 cargo run                                # :8080, health at /api/health
 cargo fmt && cargo clippy --workspace --all-targets && cargo test
+cargo sqlx prepare --workspace           # refresh .sqlx offline cache after query changes
 
 # app
 cd tuma-app

@@ -19,7 +19,15 @@ checkout, and watch the delivery move on a real map.
 2. [`AGENTS.md`](AGENTS.md) — how humans and AI agents work in this repo (hand-to-hand contract).
 3. [`tuma-docs/Tuma_Master_Product_Design_Engineering_Blueprint.md`](tuma-docs/Tuma_Master_Product_Design_Engineering_Blueprint.md) — long-term reference only.
 
-## Quickstart
+## Dev runner
+
+```bash
+./run.sh mobile          # flutter run (extra args pass through, e.g. -d linux)
+./run.sh api             # cargo run the API server
+./run.sh help
+```
+
+## Quickstart (first-time setup)
 
 ### Server
 
