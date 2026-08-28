@@ -36,15 +36,16 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let password_hash = accounts::password::hash(&password).await?;
-    let user = accounts::users::create_staff(
-        &mut conn,
-        UserRole::Admin,
-        Some("Tuma Admin"),
-        &email,
-        &password_hash,
-    )
-    .await?;
+    let accounts = accounts::AccountManager::new(1);
+    let user = accounts
+        .create_staff(
+            &mut conn,
+            UserRole::Admin,
+            Some("Tuma Admin"),
+            &email,
+            &password,
+        )
+        .await?;
 
     println!("seeded admin {email} ({})", user.id);
     Ok(())

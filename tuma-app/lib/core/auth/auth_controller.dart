@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/auth_api.dart';
 import 'package:tuma_app/core/api/models/authenticated_user.dart';
+import 'package:tuma_app/core/api/store_api.dart';
 import 'package:tuma_app/core/auth/token_storage.dart';
 
 /// Holds the in-memory bearer token. `null` = anonymous. Hydrated on
@@ -35,6 +36,10 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 final authApiProvider = Provider<AuthApi>(
   (ref) => AuthApi(ref.read(apiClientProvider)),
+);
+
+final storeApiProvider = Provider<StoreApi>(
+  (ref) => StoreApi(ref.read(apiClientProvider)),
 );
 
 /// What we know about the current session.

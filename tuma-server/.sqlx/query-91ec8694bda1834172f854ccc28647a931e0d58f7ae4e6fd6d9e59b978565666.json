@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM tuma.users\n        WHERE id = $1 AND role = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "tuma.user_role",
+            "kind": {
+              "Enum": [
+                "customer",
+                "merchant",
+                "admin"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "91ec8694bda1834172f854ccc28647a931e0d58f7ae4e6fd6d9e59b978565666"
+}

@@ -25,7 +25,9 @@ This is the working source of truth for V1. The big blueprint (`Tuma_Master_Prod
 ```text
 users        (id, role, name, phone, email, password_hash, is_active)
              role: customer | merchant | admin        ← see auth architecture doc
-stores       (id, name, description, image_url, lat, lng, delivery_fee, is_open)
+stores       (id, merchant_id, name, description, image_url, address_text,
+              lat, lng, delivery_fee, is_open)
+               merchant_id: a merchant can have several stores, ownership resolved server-side
 products     (id, store_id, name, description, price, image_url, is_available)
 orders       (id, user_id, store_id, status, subtotal, delivery_fee, total,
               address_text, address_lat, address_lng, created_at)
@@ -53,8 +55,15 @@ auth:      POST /auth/otp/request    (phone → 6-digit code)
 admin:     POST  /admin/merchants    (admin creates merchant accounts)
            GET   /admin/merchants
            PATCH /admin/merchants/:id  (enable/disable)
-customer:  GET  /stores
-           GET  /stores/:id            (with its products)
+merchant:  POST  /merchant/stores    (create a store — merchants can have several)
+           GET   /merchant/stores
+           GET   /merchant/stores/:id
+           PATCH /merchant/stores/:id  (name, description, address, fee, is_open)
+           GET   /merchant/products    (across all own stores)
+           POST  /merchant/products    (store_id picks which own store)
+           PATCH /merchant/products/:id
+customer:  GET  /stores              (open stores only)
+           GET  /stores/:id            (with its available products)
            POST /orders
            GET  /orders
            GET  /orders/:id

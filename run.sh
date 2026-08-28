@@ -14,6 +14,7 @@ Usage: ./run.sh <command> [args]
 Commands:
   mobile    Run the Flutter app (flutter run; extra args pass through, e.g. ./run.sh mobile -d linux)
   api       Run the Rust API server (cargo run; needs dev Postgres up, see tuma-server/docker-compose.yml)
+  platform  Run the web platform dev server (pnpm dev on :3000, proxies /api to :8080)
   openapi   Export the OpenAPI spec to tuma-platform/openapi.json (for platform client codegen)
   help      Show this help
 EOF
@@ -27,7 +28,15 @@ cmd_mobile() {
 cmd_api() {
   cd "$ROOT_DIR/tuma-server"
   export APP_ENV="${APP_ENV:-local}"
+  # The platform dev server (:3000) proxies /api here; its browser requests
+  # carry Origin: http://localhost:3000, which the CSRF check must allow.
+  export TUMA_CORS_ORIGIN="${TUMA_CORS_ORIGIN:-http://localhost:3000}"
   exec cargo run "$@"
+}
+
+cmd_platform() {
+  cd "$ROOT_DIR/tuma-platform"
+  exec pnpm dev "$@"
 }
 
 cmd_openapi() {
@@ -41,6 +50,7 @@ shift || true
 case "$command" in
   mobile) cmd_mobile "$@" ;;
   api) cmd_api "$@" ;;
+  platform) cmd_platform "$@" ;;
   openapi) cmd_openapi "$@" ;;
   help | -h | --help) usage ;;
   *)

@@ -18,6 +18,7 @@ pub struct MeResponse {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub is_active: bool,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 

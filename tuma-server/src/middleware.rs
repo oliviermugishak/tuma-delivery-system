@@ -5,12 +5,45 @@ use axum::extract::{Request, State};
 use axum::http::Method;
 use axum::http::header::{AUTHORIZATION, ORIGIN};
 use axum::middleware::Next;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use secrecy::ExposeSecret;
 
 pub const AUTH_COOKIE: &str = "tuma-auth-token";
 pub const REFRESH_COOKIE: &str = "tuma-auth-refresh";
+/// Both session cookies live under `/api`: the refresh cookie must reach
+/// every API request so silent refresh can see it wherever the session
+/// lapses, not only on `/auth/*`.
+const COOKIE_PATH: &str = "/api";
+
+/// Short-lived access JWT cookie (15 min).
+pub(crate) fn auth_cookie(token: String, secure: bool) -> Cookie<'static> {
+    Cookie::build((AUTH_COOKIE.to_string(), token))
+        .path(COOKIE_PATH)
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .secure(secure)
+        .max_age(time::Duration::seconds(jwt::WEB_ACCESS_TTL_SECS as i64))
+        .build()
+}
+
+/// Long-lived opaque refresh cookie (30 days). Only its hash is stored
+/// server-side (see accounts::refresh_tokens).
+pub(crate) fn refresh_cookie(token: String, secure: bool) -> Cookie<'static> {
+    Cookie::build((REFRESH_COOKIE.to_string(), token))
+        .path(COOKIE_PATH)
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .secure(secure)
+        .max_age(time::Duration::seconds(jwt::WEB_REFRESH_TTL_SECS as i64))
+        .build()
+}
+
+/// Identity (name + path) of an expired cookie, for `CookieJar::remove`.
+pub(crate) fn expire_cookie(name: &'static str) -> Cookie<'static> {
+    Cookie::build((name, "")).path(COOKIE_PATH).build()
+}
 
 /// Builds the per-request [`UserContext`] from either an `Authorization:
 /// Bearer` header (mobile) or the session cookie (web).
@@ -19,21 +52,30 @@ pub const REFRESH_COOKIE: &str = "tuma-auth-refresh";
 /// or deleted user loses access on their very next request, even while
 /// holding a long-lived mobile token. One primary-key lookup per
 /// authenticated request is a fair price for that.
+///
+/// Cookie sessions get silent refresh: an expired or missing access cookie
+/// with a live refresh cookie re-mints the access cookie on the response.
+/// A dead refresh cookie clears both cookies. Bearer clients never touch
+/// cookies.
 pub async fn auth_context(
     State(app): State<AppState>,
     mut request: Request,
     next: Next,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response, AppError> {
     let jar = CookieJar::from_headers(request.headers());
-    let token: Option<String> = bearer_token(&request).map(str::to_string).or_else(|| {
+    let bearer = bearer_token(&request).map(str::to_string);
+    let token = bearer.clone().or_else(|| {
         jar.get(AUTH_COOKIE)
             .map(|cookie| cookie.value().to_string())
     });
+    let secret = app.jwt_signing_key.expose_secret().as_bytes();
 
     let mut context = UserContext::default();
-    if let Some(token) = token {
-        let secret = app.jwt_signing_key.expose_secret().as_bytes();
-        match jwt::verify(&token, secret) {
+    let mut remint: Option<String> = None;
+    let mut clear_session = false;
+
+    match token.as_deref() {
+        Some(token) => match jwt::verify(token, secret) {
             Ok(claims) => {
                 let mut conn = app.db_pool.acquire().await?;
                 match accounts::users::by_id(&mut conn, claims.sub).await {
@@ -47,15 +89,86 @@ pub async fn auth_context(
                     Err(error) => return Err(AppError::Database(error)),
                 }
             }
-            Err(_) => {
-                // Invalid or expired token: the request continues anonymous;
-                // route guards turn that into a 401 where needed.
+            // An invalid *cookie* token may just be expired — try refresh.
+            // An invalid *bearer* token is simply rejected (guards 401).
+            Err(_) if bearer.is_none() => match silent_refresh(&app, &jar).await? {
+                Refresh::Renewed { user, access } => {
+                    context.user = Some(user);
+                    remint = Some(access);
+                }
+                Refresh::Dead => clear_session = true,
+                Refresh::NoCookie => {}
+            },
+            Err(_) => {}
+        },
+        // No access token at all — a browser may still hold a live refresh
+        // cookie (no cookie present makes this a cheap no-op).
+        None => match silent_refresh(&app, &jar).await? {
+            Refresh::Renewed { user, access } => {
+                context.user = Some(user);
+                remint = Some(access);
             }
-        }
+            Refresh::Dead => clear_session = true,
+            Refresh::NoCookie => {}
+        },
     }
 
     request.extensions_mut().insert(context);
-    Ok(next.run(request).await)
+    let mut response = next.run(request).await;
+    if let Some(access) = remint {
+        let jar = jar.add(auth_cookie(access, app.cookie_secure));
+        response = apply_jar(jar, response);
+    } else if clear_session {
+        let jar = jar
+            .remove(expire_cookie(AUTH_COOKIE))
+            .remove(expire_cookie(REFRESH_COOKIE));
+        response = apply_jar(jar, response);
+    }
+    Ok(response)
+}
+
+/// Apply a cookie jar's pending changes (adds/removals only — the jar's
+/// delta) to an already-built response. The tuple merge routes through
+/// `IntoResponseParts`, which is the only public way to fold a jar into an
+/// existing response.
+fn apply_jar(jar: CookieJar, response: Response) -> Response {
+    (jar, response).into_response()
+}
+
+enum Refresh {
+    /// Live refresh token and active user — here is a fresh access JWT.
+    Renewed {
+        user: accounts::User,
+        access: String,
+    },
+    /// A refresh cookie was present but dead (expired, revoked, or its user
+    /// gone/inactive). The caller should clear the session cookies.
+    Dead,
+    /// No refresh cookie; nothing to do.
+    NoCookie,
+}
+
+async fn silent_refresh(app: &AppState, jar: &CookieJar) -> Result<Refresh, AppError> {
+    let Some(refresh) = jar
+        .get(REFRESH_COOKIE)
+        .map(|cookie| cookie.value().to_string())
+    else {
+        return Ok(Refresh::NoCookie);
+    };
+    let mut conn = app.db_pool.acquire().await?;
+    let Some(user_id) = accounts::refresh_tokens::validate(&mut conn, &refresh).await? else {
+        return Ok(Refresh::Dead);
+    };
+    let Some(user) = accounts::users::by_id(&mut conn, user_id).await? else {
+        return Ok(Refresh::Dead);
+    };
+    if !user.is_active {
+        return Ok(Refresh::Dead);
+    }
+    let claims = jwt::Claims::new(user.id, user.role, jwt::WEB_ACCESS_TTL_SECS);
+    let access = jwt::generate(&claims, app.jwt_signing_key.expose_secret().as_bytes())
+        .map_err(|e| AppError::Internal(format!("token generation failed: {e}")))?;
+    Ok(Refresh::Renewed { user, access })
 }
 
 fn bearer_token(request: &Request) -> Option<&str> {

@@ -1,5 +1,7 @@
+pub mod admin;
 pub mod auth;
 pub mod me;
+pub mod stores;
 
 use crate::api_doc::ApiDoc;
 use crate::app::{AppError, AppResult};

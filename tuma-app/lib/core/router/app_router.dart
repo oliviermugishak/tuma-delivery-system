@@ -6,7 +6,8 @@ import 'package:tuma_app/features/auth/name_screen.dart';
 import 'package:tuma_app/features/auth/otp_screen.dart';
 import 'package:tuma_app/features/auth/phone_screen.dart';
 import 'package:tuma_app/features/auth/splash_screen.dart';
-import 'package:tuma_app/features/home/home_shell.dart';
+import 'package:tuma_app/features/home/app_shell.dart';
+import 'package:tuma_app/features/store/store_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -48,6 +49,11 @@ final GoRouter appRouter = GoRouter(
       path: '/auth/name',
       builder: (_, state) => NameScreen(args: state.extra! as NameScreenArgs),
     ),
-    GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
+    GoRoute(path: '/home', builder: (_, _) => const AppShell()),
+    GoRoute(
+      path: '/stores/:id',
+      builder: (_, state) =>
+          StoreScreen(storeId: state.pathParameters['id']!),
+    ),
   ],
 );

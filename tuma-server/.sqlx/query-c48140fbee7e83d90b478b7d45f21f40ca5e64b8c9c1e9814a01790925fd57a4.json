@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT s.id, s.name, s.address_text, s.delivery_fee, s.is_open,\n               s.created_at, COUNT(p.id) as \"product_count!\"\n        FROM tuma.stores s\n        LEFT JOIN tuma.products p ON p.store_id = s.id\n        WHERE s.merchant_id = $1\n        GROUP BY s.id\n        ORDER BY s.created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "delivery_fee",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "delivery_fee"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "is_open",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "is_open"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "tuma.stores",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "product_count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "c48140fbee7e83d90b478b7d45f21f40ca5e64b8c9c1e9814a01790925fd57a4"
+}

@@ -29,6 +29,383 @@
         }
       }
     },
+    "/v1/admin/customers": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "list_customers",
+        "responses": {
+          "200": {
+            "description": "All customer accounts, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        }
+      }
+    },
+    "/v1/admin/customers/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Hard-delete a customer. Permanent — the platform confirms before\ncalling. Scoped to customers: a merchant or admin id is a 404.",
+        "operationId": "delete_customer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer user id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Customer deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No customer with that id"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Edit a customer (name, phone, active flag). A taken phone is a 409.",
+        "operationId": "update_customer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer user id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No customer with that id"
+          },
+          "409": {
+            "description": "Phone already taken"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/admin/merchants": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "list_merchants",
+        "responses": {
+          "200": {
+            "description": "All merchant accounts, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "create_merchant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMerchantInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Merchant created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Email already taken"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/admin/merchants/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "One merchant account with everything the admin detail page shows: the\naccount itself and their stores with product counts. Admin sees facts;\nthe merchant manages the menu — it stays out of the admin's response.\nUnknown ids and non-merchant ids are the same 404.",
+        "operationId": "get_merchant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Merchant user id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The merchant and their stores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MerchantDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No merchant with that id"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Hard-delete a merchant. Their stores and products follow via ON DELETE\nCASCADE — this is permanent, and the platform confirms before calling.",
+        "operationId": "delete_merchant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Merchant user id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Merchant deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No merchant with that id"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Edit a merchant (name, email, active flag). A taken email is a 409.",
+        "operationId": "update_merchant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Merchant user id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMerchantInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated merchant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No merchant with that id"
+          },
+          "409": {
+            "description": "Email already taken"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/admin/summary": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Platform-wide counts for the admin dashboard.",
+        "operationId": "summary",
+        "responses": {
+          "200": {
+            "description": "Platform-wide counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        }
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Merchant/admin sign-in for the platform. Sets the two session cookies\n(15-min access JWT + 30-day opaque refresh); the body is empty.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Session cookies set (tuma-auth-token + tuma-auth-refresh)"
+          },
+          "401": {
+            "description": "One generic error for every failure path"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
     "/v1/auth/logout": {
       "post": {
         "tags": [
@@ -114,6 +491,39 @@
         }
       }
     },
+    "/v1/auth/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change the caller's own password. Merchant/admin only in practice —\ncustomers have no password (OTP accounts), which is a 400.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "Account has no password (OTP sign-in)"
+          },
+          "401": {
+            "description": "Not authenticated, or current password is wrong"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
     "/v1/me": {
       "get": {
         "tags": [
@@ -175,6 +585,354 @@
         }
       }
     },
+    "/v1/merchant/products": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "list_own_products",
+        "responses": {
+          "200": {
+            "description": "The merchant's full menu, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "create_product",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Product added to the menu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "The store_id is not one of this merchant's stores"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/products/{id}": {
+      "delete": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "Hard-delete one of the merchant's products. Permanent — the platform\nconfirms before calling.",
+        "operationId": "delete_product",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Product deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "Not one of this merchant's products"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "update_product",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "Not one of this merchant's products"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/stores": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "list_own_stores",
+        "responses": {
+          "200": {
+            "description": "The merchant's stores, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoreResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "create_own_store",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStoreInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Store created (starts closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/stores/{id}": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "get_own_store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One of the merchant's stores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "Not one of this merchant's stores"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "Hard-delete one of the merchant's stores. Its products follow via\nON DELETE CASCADE — permanent, and the platform confirms before calling.",
+        "operationId": "delete_own_store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Store deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "Not one of this merchant's stores"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "update_own_store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStoreInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a merchant"
+          },
+          "404": {
+            "description": "Not one of this merchant's stores"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
     "/v1/openapi.json": {
       "get": {
         "tags": [
@@ -195,10 +953,298 @@
           }
         }
       }
+    },
+    "/v1/stores": {
+      "get": {
+        "tags": [
+          "stores"
+        ],
+        "operationId": "list_stores",
+        "responses": {
+          "200": {
+            "description": "Open stores, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoreResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          }
+        }
+      }
+    },
+    "/v1/stores/{id}": {
+      "get": {
+        "tags": [
+          "stores"
+        ],
+        "operationId": "get_store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The store and its available products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreWithProductsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          },
+          "404": {
+            "description": "No open store with that id"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AdminStoreResponse": {
+        "type": "object",
+        "description": "A store inside the admin's merchant detail — standing facts plus how\nmany products it has. No location or image until something displays them.",
+        "required": [
+          "id",
+          "name",
+          "delivery_fee",
+          "is_open",
+          "product_count",
+          "created_at"
+        ],
+        "properties": {
+          "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delivery_fee": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_open": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "product_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminSummaryResponse": {
+        "type": "object",
+        "required": [
+          "merchants",
+          "customers",
+          "stores",
+          "open_stores",
+          "products"
+        ],
+        "properties": {
+          "customers": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "merchants": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "open_stores": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "products": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stores": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ChangePasswordInput": {
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateMerchantInput": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateProductInput": {
+        "type": "object",
+        "required": [
+          "store_id",
+          "name",
+          "price"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_available": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Defaults to true."
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Integer RWF, server-owned truth for the order snapshot later."
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which of the merchant's stores this product joins."
+          }
+        }
+      },
+      "CreateStoreInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivery_fee": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Integer RWF. Defaults to 0 (free delivery)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "MeResponse": {
         "type": "object",
         "description": "The authenticated user. Deliberately not the raw `accounts::User` —\nresponse types never carry `password_hash`.",
@@ -243,6 +1289,59 @@
             "examples": [
               "customer"
             ]
+          }
+        }
+      },
+      "MerchantDetailResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "is_active",
+          "created_at",
+          "stores"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "examples": [
+              "merchant"
+            ]
+          },
+          "stores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminStoreResponse"
+            }
           }
         }
       },
@@ -304,6 +1403,173 @@
           }
         }
       },
+      "ProductResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "store_id",
+          "name",
+          "price",
+          "is_available",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_available": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StoreResponse": {
+        "type": "object",
+        "description": "A store as the API returns it. Integer RWF for money, ISO-8601 times.",
+        "required": [
+          "id",
+          "merchant_id",
+          "name",
+          "delivery_fee",
+          "is_open",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delivery_fee": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_open": {
+            "type": "boolean"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StoreWithProductsResponse": {
+        "type": "object",
+        "required": [
+          "store",
+          "products"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductResponse"
+            }
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreResponse"
+          }
+        }
+      },
+      "UpdateCustomerInput": {
+        "type": "object",
+        "description": "Admin edits to a customer account. Same semantics as merchant edits:\nprovided fields overwrite, an empty name clears it, absent fields keep\ntheir value. Phone stays editable because a typo'd number during OTP\nsignup is exactly the kind of thing an admin corrects. `is_active`\nrides the same endpoint.",
+        "properties": {
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateMeInput": {
         "type": "object",
         "required": [
@@ -312,6 +1578,122 @@
         "properties": {
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateMerchantInput": {
+        "type": "object",
+        "description": "Admin edits to a merchant account. Every field is optional: provided\nfields overwrite, an empty name clears it, absent fields keep their\ncurrent value. `is_active` rides the same endpoint — toggling is an\nedit like any other.",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateProductInput": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_available": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "UpdateStoreInput": {
+        "type": "object",
+        "properties": {
+          "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivery_fee": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_open": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

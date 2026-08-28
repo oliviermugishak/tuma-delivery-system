@@ -5,6 +5,7 @@
 //! and errors that never reveal whether a phone number is known.
 
 use crate::User;
+use crate::manager::{AccountManager, CreateAccountError};
 use crate::users;
 use rand::RngExt;
 use sha2::{Digest, Sha256};
@@ -31,6 +32,10 @@ pub enum VerifyError {
     /// wrong code. Callers must not distinguish these externally.
     #[error("invalid or expired code")]
     InvalidCode,
+    /// The phone was registered between code issue and verify (two devices
+    /// racing on the same number). Retrying signs into the existing account.
+    #[error("a user with this phone number already exists")]
+    PhoneTaken,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -94,6 +99,7 @@ pub async fn request(
 /// customer is fetched-or-created (register and login are one flow). If
 /// `name` is given and the user has none yet, it is set.
 pub async fn verify(
+    accounts: &AccountManager,
     conn: &mut PgConnection,
     phone: &str,
     code: &str,
@@ -133,7 +139,20 @@ pub async fn verify(
 
     let user = match users::by_phone(conn, phone).await? {
         Some(user) => user,
-        None => users::create_customer(conn, phone, name).await?,
+        None => {
+            accounts
+                .create_customer(conn, phone, name)
+                .await
+                .map_err(|error| match error {
+                    CreateAccountError::PhoneTaken => VerifyError::PhoneTaken,
+                    // A customer insert touches only the phone unique
+                    // constraint and hashes nothing — no other arm can fire.
+                    CreateAccountError::EmailTaken | CreateAccountError::Password(_) => {
+                        unreachable!("customer creation cannot conflict on email or password")
+                    }
+                    CreateAccountError::Database(error) => VerifyError::Database(error),
+                })?
+        }
     };
 
     // A returning customer who never gave a name can still provide one.

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM tuma.products p\n        USING tuma.stores s\n        WHERE p.id = $1 AND p.store_id = s.id AND s.merchant_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a34f40af65f6233f15180d81c0c98e8b718fca6fdad85be7bbc8334123665fa"
+}

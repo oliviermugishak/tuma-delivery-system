@@ -36,8 +36,10 @@ async fn main() {
 
     let app_state = AppState::new(
         connection_pool,
+        std::sync::Arc::new(accounts::AccountManager::new(4)),
         config.secret.jwt_signing_key.clone(),
         config.auth.dev_otp_code.clone(),
+        config.application.cookie_secure,
     );
     let app = build_app_with_state(app_state);
     let address = format!("{}:{}", config.application.host, config.application.port);

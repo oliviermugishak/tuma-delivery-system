@@ -43,6 +43,10 @@ impl TestClient {
         self.client.patch(self.url(path)).json(&body)
     }
 
+    pub fn delete(&self, path: &str) -> reqwest::RequestBuilder {
+        self.client.delete(self.url(path))
+    }
+
     pub fn url(&self, path: &str) -> String {
         assert!(path.starts_with("/"), "missing / for url path");
         format!("http://{}/api{}", self.base_url, path)
@@ -66,8 +70,10 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
 
     let state = AppState::new(
         pool.clone(),
+        std::sync::Arc::new(accounts::AccountManager::new(4)),
         config.secret.jwt_signing_key.clone(),
         config.auth.dev_otp_code.clone(),
+        config.application.cookie_secure,
     );
     let app = build_app_with_state(state);
 
@@ -85,7 +91,8 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
 /// Seed a customer row directly — tests own the database, no OTP needed.
 pub async fn seed_customer(pool: &PgPool, phone: &str) -> accounts::User {
     let mut conn = pool.acquire().await.expect("failed to acquire connection");
-    accounts::users::create_customer(&mut conn, phone, None)
+    accounts::AccountManager::new(1)
+        .create_customer(&mut conn, phone, None)
         .await
         .expect("failed to seed customer")
 }
@@ -93,10 +100,8 @@ pub async fn seed_customer(pool: &PgPool, phone: &str) -> accounts::User {
 /// Seed a merchant/admin row with a known password ("Password123").
 pub async fn seed_staff(pool: &PgPool, role: UserRole, email: &str) -> accounts::User {
     let mut conn = pool.acquire().await.expect("failed to acquire connection");
-    let password_hash = accounts::password::hash("Password123")
-        .await
-        .expect("failed to hash password");
-    accounts::users::create_staff(&mut conn, role, None, email, &password_hash)
+    accounts::AccountManager::new(1)
+        .create_staff(&mut conn, role, None, email, "Password123")
         .await
         .expect("failed to seed staff user")
 }
@@ -109,4 +114,40 @@ pub fn token_for(app: &TestApp, user: &accounts::User, ttl_secs: usize) -> Strin
         app.config.secret.jwt_signing_key.expose_secret().as_bytes(),
     )
     .expect("failed to mint token")
+}
+
+/// Extract a cookie's value from a response's `Set-Cookie` headers.
+/// Returns `Some("")` for clearing cookies, `None` if the cookie is absent.
+pub fn cookie_value(response: &reqwest::Response, name: &str) -> Option<String> {
+    response
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .find_map(|line| {
+            let value = line.strip_prefix(&format!("{name}="))?;
+            Some(value.split(';').next().unwrap_or_default().to_string())
+        })
+}
+
+/// All raw `Set-Cookie` header lines, for asserting cookie attributes.
+pub fn set_cookie_lines(response: &reqwest::Response) -> Vec<&str> {
+    response
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .collect()
+}
+
+/// Email + password login over the cookie transport.
+pub async fn login(client: &TestClient, email: &str, password: &str) -> reqwest::Response {
+    client
+        .post_json(
+            "/v1/auth/login",
+            serde_json::json!({ "email": email, "password": password }),
+        )
+        .send()
+        .await
+        .expect("failed to call /auth/login")
 }
