@@ -1,5 +1,5 @@
-//! Customer, merchant, and admin order endpoints on the re-architected
-//! domain: one checkout → one order group → one store order per store.
+//! Customer and merchant order endpoints on the re-architected domain: one
+//! checkout → one order group → one store order per store.
 //!
 //! Customer endpoints:
 //! - `POST /v1/orders` — checkout: items from many stores, one address,
@@ -14,12 +14,15 @@
 //! Merchant endpoints:
 //! - `GET /v1/merchant/orders` — incoming store orders across authorized
 //!   stores (limit/offset paging)
+//! - `GET /v1/merchant/store-orders/{id}` — the fulfillment sheet: items,
+//!   delivery address, customer contact
 //! - `PATCH /v1/merchant/store-orders/{id}` — advance status
 //!
-//! Admin endpoints:
-//! - `PATCH /v1/admin/store-orders/{id}` — advance any store order
-//! - `POST /v1/admin/payments/{id}/collect` — mark a pending cash payment
-//!   collected (its allocations settle with it)
+//! Order operations are the merchants' monopoly: the admin has no
+//! order-mutation endpoints. Payment allocations are created automatically
+//! at checkout as passive records — there is no collection action until a
+//! real money system exists (then it becomes automatic, e.g. a MoMo
+//! webhook).
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
 use axum::extract::{Path, Query, State};
@@ -661,101 +664,4 @@ pub async fn advance_store_order(
         address_text: row.address_text,
         created_at: row.created_at,
     }))
-}
-
-// ---------------------------------------------------------------------------
-// Admin endpoints
-// ---------------------------------------------------------------------------
-
-/// Advance any store order. The platform's control plane answer when a
-/// merchant cannot.
-#[utoipa::path(
-    patch,
-    path = "/v1/admin/store-orders/{id}",
-    params(("id" = Uuid, Path, description = "Store order id")),
-    request_body = AdvanceStatusInput,
-    responses(
-        (status = 200, description = "Store order advanced", body = MerchantStoreOrderResponse),
-        (status = 400, description = "Invalid or illegal status transition"),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not an admin"),
-        (status = 404, description = "No store order with that id"),
-    ),
-    tag = "admin"
-)]
-#[tracing::instrument(name = "Admin advance store order", skip_all)]
-pub async fn advance_store_order_admin(
-    State(app): State<AppState>,
-    Extension(context): Extension<UserContext>,
-    Path(id): Path<Uuid>,
-    axum::Json(input): axum::Json<AdvanceStatusInput>,
-) -> AppResult<Json<MerchantStoreOrderResponse>> {
-    let _ = context; // the admin capability was enforced by the guard
-    let next = OrderStatus::from_label(&input.status)
-        .ok_or_else(|| AppError::BadRequest("invalid status value".into()))?;
-
-    let mut conn = app.db_pool.acquire().await?;
-    let (_, merchant_id, store_id) = orders::store_order_scope(&mut conn, id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("order not found".into()))?;
-    let order = orders::advance_store_order_status(&mut conn, id, next).await?;
-    let row =
-        orders::store_orders_for_merchant_scoped(&mut conn, merchant_id, Some(&[store_id]), 200, 0)
-            .await?
-            .into_iter()
-            .find(|row| row.id == order.id)
-            .ok_or_else(|| AppError::Internal("advanced order disappeared".into()))?;
-    Ok(Json(MerchantStoreOrderResponse {
-        id: row.id,
-        number: row.number,
-        store_id: row.store_id,
-        store_name: row.store_name,
-        status: row.status,
-        total: row.total,
-        address_text: row.address_text,
-        created_at: row.created_at,
-    }))
-}
-
-/// Mark a pending cash payment collected. Its allocations settle with it —
-/// the ledger records who received what without any inference.
-#[utoipa::path(
-    post,
-    path = "/v1/admin/payments/{id}/collect",
-    params(("id" = Uuid, Path, description = "Payment id")),
-    responses(
-        (status = 200, description = "Payment collected", body = PaymentResponse),
-        (status = 400, description = "Only a pending payment can be collected"),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not an admin"),
-        (status = 404, description = "No payment with that id"),
-    ),
-    tag = "admin"
-)]
-#[tracing::instrument(name = "Collect payment", skip_all)]
-pub async fn collect_payment(
-    State(app): State<AppState>,
-    Extension(context): Extension<UserContext>,
-    Path(id): Path<Uuid>,
-) -> AppResult<Json<PaymentResponse>> {
-    let _ = context; // the admin capability was enforced by the guard
-    let mut conn = app.db_pool.acquire().await?;
-    let payment = orders::collect_payment(&mut conn, id).await?;
-    Ok(Json(PaymentResponse {
-        id: payment.id,
-        order_group_id: payment.order_group_id,
-        amount: payment.amount,
-        currency: payment.currency,
-        status: payment.status,
-    }))
-}
-
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct PaymentResponse {
-    pub id: Uuid,
-    pub order_group_id: Uuid,
-    pub amount: i64,
-    pub currency: String,
-    #[schema(value_type = String)]
-    pub status: commerce::PaymentStatus,
 }

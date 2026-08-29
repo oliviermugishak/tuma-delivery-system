@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { advanceStoreOrder, advanceStoreOrderAdmin, cancelStoreOrder, changePassword, checkout, collectPayment, createMerchant, createOwnStore, createProduct, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteStoreProduct, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProducts, listStoreProducts, listStores, login, logout, me, openapiJson, type Options, otpRequest, otpVerify, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateStoreProduct } from '../sdk.gen';
-import type { AdvanceStoreOrderAdminData, AdvanceStoreOrderAdminResponse, AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CollectPaymentData, CollectPaymentResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductsData, ListProductsResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateStoreProductData, UpdateStoreProductResponse } from '../types.gen';
+import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteStoreProduct, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProducts, listStoreProducts, listStores, login, logout, me, openapiJson, type Options, otpRequest, otpVerify, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateStoreProduct } from '../sdk.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductsData, ListProductsResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateStoreProductData, UpdateStoreProductResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -175,42 +175,6 @@ export const updateMerchantMutation = (options?: Partial<Options<UpdateMerchantD
     const mutationOptions: UseMutationOptions<UpdateMerchantResponse, DefaultError, Options<UpdateMerchantData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateMerchant({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Mark a pending cash payment collected. Its allocations settle with it —
- * the ledger records who received what without any inference.
- */
-export const collectPaymentMutation = (options?: Partial<Options<CollectPaymentData>>): UseMutationOptions<CollectPaymentResponse, DefaultError, Options<CollectPaymentData>> => {
-    const mutationOptions: UseMutationOptions<CollectPaymentResponse, DefaultError, Options<CollectPaymentData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await collectPayment({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Advance any store order. The platform's control plane answer when a
- * merchant cannot.
- */
-export const advanceStoreOrderAdminMutation = (options?: Partial<Options<AdvanceStoreOrderAdminData>>): UseMutationOptions<AdvanceStoreOrderAdminResponse, DefaultError, Options<AdvanceStoreOrderAdminData>> => {
-    const mutationOptions: UseMutationOptions<AdvanceStoreOrderAdminResponse, DefaultError, Options<AdvanceStoreOrderAdminData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await advanceStoreOrderAdmin({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

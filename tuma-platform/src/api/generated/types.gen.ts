@@ -337,14 +337,6 @@ export type OtpVerifyResponse = {
     user: MeResponse;
 };
 
-export type PaymentResponse = {
-    amount: number;
-    currency: string;
-    id: string;
-    order_group_id: string;
-    status: string;
-};
-
 /**
  * A catalog product as the API returns it.
  */
@@ -784,86 +776,6 @@ export type UpdateMerchantResponses = {
 };
 
 export type UpdateMerchantResponse = UpdateMerchantResponses[keyof UpdateMerchantResponses];
-
-export type CollectPaymentData = {
-    body?: never;
-    path: {
-        /**
-         * Payment id
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/v1/admin/payments/{id}/collect';
-};
-
-export type CollectPaymentErrors = {
-    /**
-     * Only a pending payment can be collected
-     */
-    400: unknown;
-    /**
-     * Not authenticated
-     */
-    401: unknown;
-    /**
-     * Not an admin
-     */
-    403: unknown;
-    /**
-     * No payment with that id
-     */
-    404: unknown;
-};
-
-export type CollectPaymentResponses = {
-    /**
-     * Payment collected
-     */
-    200: PaymentResponse;
-};
-
-export type CollectPaymentResponse = CollectPaymentResponses[keyof CollectPaymentResponses];
-
-export type AdvanceStoreOrderAdminData = {
-    body: AdvanceStatusInput;
-    path: {
-        /**
-         * Store order id
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/v1/admin/store-orders/{id}';
-};
-
-export type AdvanceStoreOrderAdminErrors = {
-    /**
-     * Invalid or illegal status transition
-     */
-    400: unknown;
-    /**
-     * Not authenticated
-     */
-    401: unknown;
-    /**
-     * Not an admin
-     */
-    403: unknown;
-    /**
-     * No store order with that id
-     */
-    404: unknown;
-};
-
-export type AdvanceStoreOrderAdminResponses = {
-    /**
-     * Store order advanced
-     */
-    200: MerchantStoreOrderResponse;
-};
-
-export type AdvanceStoreOrderAdminResponse = AdvanceStoreOrderAdminResponses[keyof AdvanceStoreOrderAdminResponses];
 
 export type SummaryData = {
     body?: never;

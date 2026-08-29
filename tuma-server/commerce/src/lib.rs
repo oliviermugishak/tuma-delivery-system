@@ -21,6 +21,6 @@ pub mod orders;
 pub use orders::{
     AllocationStatus, CancelError, CheckoutCreated, CheckoutError, GroupDetail, GroupStatus,
     MerchantStoreOrderRow, NewCheckout, NewCheckoutItem, OrderGroup, OrderItem, OrderStatus,
-    Payment, PaymentAllocation, PaymentError, PaymentProvider, PaymentStatus, StockShort,
-    StoreOrder, StoreOrderDetail, TransitionError,
+    Payment, PaymentAllocation, PaymentProvider, PaymentStatus, StockShort, StoreOrder,
+    StoreOrderDetail, TransitionError,
 };

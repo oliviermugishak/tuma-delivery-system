@@ -48,8 +48,6 @@ use utoipa::OpenApi;
         crate::routes::orders::list_merchant_orders,
         crate::routes::orders::get_merchant_store_order,
         crate::routes::orders::advance_store_order,
-        crate::routes::orders::advance_store_order_admin,
-        crate::routes::orders::collect_payment,
     )
 )]
 pub struct ApiDoc;

@@ -872,8 +872,11 @@ async fn the_six_status_machine_is_enforced(pool: sqlx::PgPool) {
     assert_eq!(body["status"], "completed");
 }
 
+/// Order operations are the merchants' monopoly: the platform admin has no
+/// order-mutation or payment-collection endpoints at all. Allocations exist
+/// as passive records, created automatically at checkout.
 #[sqlx::test(migrator = "MIGRATOR")]
-async fn admin_controls_orders_and_collects_cash(pool: sqlx::PgPool) {
+async fn admin_has_no_order_endpoints(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     common::seed_admin(&app.pool, "admin@example.com").await;
     let admin = TestClient::new(&app.address);
@@ -904,73 +907,63 @@ async fn admin_controls_orders_and_collects_cash(pool: sqlx::PgPool) {
     .unwrap();
     let order_id = group["store_orders"][0]["id"].as_str().unwrap().to_string();
 
-    // Admin advances any order.
-    let response = admin
-        .patch_json(
-            &format!("/v1/admin/store-orders/{order_id}"),
-            json!({ "status": "accepted" }),
-        )
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 200);
-
-    // The payment ledger: one payment, one allocation, amounts explicit.
-    let (payment_id, allocation_amount): (Uuid, i64) = sqlx::query_as(
-        r#"
-        SELECT p.id, pa.amount
-        FROM commerce.payments p
-        JOIN commerce.payment_allocations pa ON pa.payment_id = p.id
-        WHERE p.order_group_id = $1
-        "#,
-    )
-    .bind(group["id"].as_str().unwrap().parse::<Uuid>().unwrap())
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
+    // The order-advance and collection endpoints do not exist on the admin
+    // namespace — they were removed on purpose: store orders belong to the
+    // merchants alone. The routes answer 404 (not even 403): nothing is
+    // there to authorize.
     assert_eq!(
-        allocation_amount,
-        5000 * 2 + 1500,
-        "the store's explicit slice"
+        admin
+            .patch_json(
+                &format!("/v1/admin/store-orders/{order_id}"),
+                json!({ "status": "accepted" }),
+            )
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404,
+        "admin cannot advance orders — no such route"
+    );
+    assert_eq!(
+        admin
+            .post(&format!("/v1/admin/store-orders/{order_id}/collect"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404,
+        "no collection route anywhere — the money system is not built"
     );
 
-    // Collect the cash: payment → collected, allocations → settled.
-    let response = admin
-        .post(&format!("/v1/admin/payments/{payment_id}/collect"))
-        .send()
+    // The payment ledger: one payment, one allocation, created automatically
+    // at checkout with the store's explicit slice — passive records, no
+    // endpoint mutates them.
+    let (payment_status, allocation_amount, allocation_status): (String, i64, String) =
+        sqlx::query_as(
+            r#"
+            SELECT p.status::text, pa.amount, pa.status::text
+            FROM commerce.payments p
+            JOIN commerce.payment_allocations pa ON pa.payment_id = p.id
+            WHERE p.order_group_id = $1
+            "#,
+        )
+        .bind(group["id"].as_str().unwrap().parse::<Uuid>().unwrap())
+        .fetch_one(&app.pool)
         .await
         .unwrap();
-    assert_eq!(response.status(), 200);
-    let body: Value = response.json().await.unwrap();
-    assert_eq!(body["status"], "collected");
-    assert_eq!(body["amount"], 5000 * 2 + 1500);
+    assert_eq!(payment_status, "pending");
+    assert_eq!(allocation_amount, 5000 * 2 + 1500);
+    assert_eq!(allocation_status, "pending");
 
-    let (allocation_status,): (String,) = sqlx::query_as(
-        "SELECT status::text FROM commerce.payment_allocations WHERE payment_id = $1",
-    )
-    .bind(payment_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
-    assert_eq!(allocation_status, "settled");
-
-    // Collecting twice is refused.
-    let response = admin
-        .post(&format!("/v1/admin/payments/{payment_id}/collect"))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), 400);
-
-    // Non-admins cannot touch the controls.
+    // The merchant's own surface is untouched and fully operational.
     let response = aline
         .client
-        .post(&format!("/v1/admin/payments/{payment_id}/collect"))
+        .get(&format!("/v1/merchant/store-orders/{order_id}"))
         .bearer_auth(&aline.token)
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), 403);
+    assert_eq!(response.status(), 200);
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

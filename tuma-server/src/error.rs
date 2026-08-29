@@ -4,7 +4,6 @@ use crate::domain::stores::StoreError;
 use accounts::otp::VerifyError;
 use accounts::{ChangePasswordError, CreateAccountError};
 use commerce::CheckoutError;
-use commerce::PaymentError;
 use commerce::TransitionError;
 use serde::Serialize;
 use validator::ValidationErrors;
@@ -143,16 +142,6 @@ impl From<TransitionError> for AppError {
             // for something the state machine won't allow.
             TransitionError::Illegal { .. } => AppError::BadRequest(error.to_string()),
             TransitionError::Database(error) => AppError::Database(error),
-        }
-    }
-}
-
-impl From<PaymentError> for AppError {
-    fn from(error: PaymentError) -> Self {
-        match error {
-            PaymentError::NotFound => AppError::NotFound(error.to_string()),
-            PaymentError::NotPending => AppError::BadRequest(error.to_string()),
-            PaymentError::Database(error) => AppError::Database(error),
         }
     }
 }

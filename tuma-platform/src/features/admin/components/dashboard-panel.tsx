@@ -96,9 +96,9 @@ export function DashboardPanel() {
                 {summary.data.orders_in_progress}
               </p>
               <CardDescription>
-                Store orders not yet delivered or cancelled. Merchants
-                fulfill them on their own boards — the admin control-plane
-                page lands next.
+                Store orders not yet delivered or cancelled. Store orders
+                belong to the merchants — they fulfill them on their own
+                boards; this count is platform visibility only.
               </CardDescription>
             </CardHeader>
           </Card>

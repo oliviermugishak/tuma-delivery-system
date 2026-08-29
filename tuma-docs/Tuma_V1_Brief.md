@@ -80,9 +80,7 @@ admin:     POST  /admin/merchants    (create business + owner account + owner me
            GET   /admin/merchants    / GET /admin/merchants/:id
            PATCH /admin/merchants/:id  / DELETE /admin/merchants/:id
            GET   /admin/customers    / PATCH /admin/customers/:id  / DELETE /admin/customers/:id
-           GET   /admin/summary
-           PATCH /admin/store-orders/:id   (advance any store order)
-           POST  /admin/payments/:id/collect   (mark a cash payment collected)
+           GET   /admin/summary      (platform counts; orders_in_progress is read-only visibility)
 
 merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE /merchant/stores/:id
            POST /merchant/products   / GET /merchant/products  (merchant CATALOG)
@@ -91,6 +89,7 @@ merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE 
            GET  /merchant/store-products       (across own stores)
            PATCH|DELETE /merchant/store-products/:id
            GET  /merchant/orders         (store orders across authorized stores)
+           GET  /merchant/store-orders/:id     (fulfillment sheet: items, address, customer contact)
            PATCH /merchant/store-orders/:id (advance status)
 
 customer:  GET  /stores              (open stores only)
@@ -102,6 +101,16 @@ customer:  GET  /stores              (open stores only)
            GET  /orders/:id/tracking   (real lat/lng + status — build order #4)
 
 rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s — #4)
+```
+
+**Store orders are the merchants' monopoly.** The admin namespace has no
+order endpoints — no advancing, no collecting. Order logic lives with the
+business that fulfills it; the admin's only visibility is the passive
+`orders_in_progress` count in the summary. Payment allocations are created
+automatically at checkout as passive records (the per-merchant separation
+of the one customer payment); there is no collection action anywhere until
+a real money system exists, at which point collection becomes automatic
+(e.g. a MoMo webhook), never a manual button.
 ```
 
 ## How checkout works (the core redesign)
@@ -123,7 +132,7 @@ No simulation, no dispatch engine, no WebSocket yet — polling is enough for V1
 
 ## Payments
 
-Cash on delivery first (zero integration). One payment per checkout, allocated explicitly per store order; collection is marked manually by admin until MoMo lands. MTN MoMo after the loop works — the provider reference and idempotency keys are already reserved in the schema.
+Cash on delivery first (zero integration). One payment per checkout, with its per-store allocation rows created automatically at checkout — the record of how the customer's money separates per merchant. There is **no collection action anywhere in V1**: no money system exists yet, so nothing reconciles manually. When MoMo lands, collection becomes automatic (provider webhook), never a button. The provider reference and idempotency keys are already reserved in the schema.
 
 ## Not building in V1 (on purpose)
 

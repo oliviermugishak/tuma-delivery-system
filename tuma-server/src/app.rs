@@ -17,8 +17,8 @@ use crate::routes::health_check;
 use crate::routes::me::{me, update_me};
 use crate::routes::openapi_json;
 use crate::routes::orders::{
-    advance_store_order, advance_store_order_admin, checkout, collect_payment,
-    get_merchant_store_order, get_order, list_merchant_orders, list_orders,
+    advance_store_order, checkout, get_merchant_store_order, get_order, list_merchant_orders,
+    list_orders,
 };
 use crate::routes::stores::{
     create_own_store, delete_own_store, get_own_store, get_store, list_own_stores, list_stores,
@@ -253,8 +253,6 @@ pub fn build_app_with_state(state: AppState) -> Router {
             patch(update_customer).delete(delete_customer),
         )
         .route("/summary", get(summary))
-        .route("/store-orders/{id}", patch(advance_store_order_admin))
-        .route("/payments/{id}/collect", post(collect_payment))
         .layer(middleware::from_fn(require_admin));
 
     // Merchant audience namespace: stores + catalog + incoming orders.
