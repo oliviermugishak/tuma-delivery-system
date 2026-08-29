@@ -62,7 +62,12 @@ final _store = {
 final _menuItem = {
   'id': 'menu-1',
   'name': 'Ibirazi',
-  'description': 'Rice & beans',
+  // Long enough to overflow a non-scrolling sheet on the test surface —
+  // the product-sheet regression test depends on it overflowing.
+  'description':
+      'Slow-cooked rice and beans the Aline way — bay leaves, a whisper of '
+          'palm oil, and a full hour over low heat. ' *
+      8,
   'price': 3500,
   'image_url': null,
   'is_available': true,
@@ -451,6 +456,37 @@ void main() {
     expect(cart.total, 3500 * 2 + 1500);
 
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('product sheet scrolls a long description without overflowing',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    // Open the store, then the product sheet — the stub's description is
+    // far taller than the sheet's height cap, so the old fixed-Column
+    // sheet threw a RenderFlex overflow here.
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+    await tester.tap(find.text('Ibirazi').first);
+    await _settle(tester);
+
+    // The sheet renders the identity and the full description (the row
+    // behind the sheet shows the same snippet — hence findsWidgets).
+    expect(find.text('Ibirazi'), findsWidgets);
+    expect(find.textContaining('Slow-cooked'), findsWidgets);
+
+    // …and the content scrolls instead of clipping or throwing. Bounded
+    // pumps only: the sheet's route animation and the drag's ballistic
+    // settle keep scheduling frames, so pumpAndSettle would never return.
+    await tester.drag(
+      find.byType(SingleChildScrollView).last,
+      const Offset(0, -400),
+    );
+    for (var i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+    }
     expect(tester.takeException(), isNull);
   });
 }

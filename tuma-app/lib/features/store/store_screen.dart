@@ -238,69 +238,81 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
   }
 
   /// Product tap → bottom sheet: picture, name, price, full description.
+  ///
+  /// The sheet's content scrolls: a Column sized to its children inside a
+  /// height-capped sheet overflows (yellow-black stripes) the moment a
+  /// merchant writes a long description. `isScrollControlled` lifts the
+  /// default half-screen cap, the box bounds the sheet at ~85% of the
+  /// screen, and the scroll view carries anything taller.
   void _showProduct(BuildContext context, MenuItem product) {
     final textTheme = Theme.of(context).textTheme;
     final description = product.description;
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surfaceAlt,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(999),
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetContext).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: RemoteImage(
-                    url: product.imageUrl,
-                    seed: product.name,
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child: RemoteImage(
+                      url: product.imageUrl,
+                      seed: product.name,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                product.name,
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                formatRwf(product.price),
-                style: textTheme.titleMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (description != null && description.isNotEmpty) ...[
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
                 Text(
-                  description,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                    height: 1.5,
+                  product.name,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  formatRwf(product.price),
+                  style: textTheme.titleMedium?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (description != null && description.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    description,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
