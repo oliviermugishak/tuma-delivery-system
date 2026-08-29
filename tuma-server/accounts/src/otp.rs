@@ -4,9 +4,9 @@
 //! 60-second resend cooldown, 5 attempts per code, codes hashed at rest,
 //! and errors that never reveal whether a phone number is known.
 
-use crate::User;
+use crate::customers;
 use crate::manager::{AccountManager, CreateAccountError};
-use crate::users;
+use crate::users::{self, Account};
 use rand::RngExt;
 use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
@@ -58,7 +58,7 @@ pub async fn request(
 ) -> Result<(), RequestError> {
     let recent = sqlx::query!(
         r#"
-        SELECT created_at FROM tuma.auth_otps
+        SELECT created_at FROM accounts.auth_otps
         WHERE phone = $1 AND created_at > now() - make_interval(secs => $2)
         "#,
         phone,
@@ -77,7 +77,7 @@ pub async fn request(
 
     sqlx::query!(
         r#"
-        INSERT INTO tuma.auth_otps (phone, code_hash, expires_at)
+        INSERT INTO accounts.auth_otps (phone, code_hash, expires_at)
         VALUES ($1, $2, $3)
         ON CONFLICT (phone) DO UPDATE
         SET code_hash = EXCLUDED.code_hash,
@@ -95,19 +95,27 @@ pub async fn request(
     Ok(())
 }
 
+/// What a successful verification yields: the authenticated account and its
+/// customer profile (register and login are one flow).
+#[derive(Debug, Clone)]
+pub struct OtpSignIn {
+    pub account: Account,
+    pub customer: customers::Customer,
+}
+
 /// Verify `code` for `phone`. On success the code is consumed and the
-/// customer is fetched-or-created (register and login are one flow). If
-/// `name` is given and the user has none yet, it is set.
+/// account + customer profile are fetched-or-created. If `name` is given
+/// and the profile has none yet, it is set.
 pub async fn verify(
     accounts: &AccountManager,
     conn: &mut PgConnection,
     phone: &str,
     code: &str,
     name: Option<&str>,
-) -> Result<User, VerifyError> {
+) -> Result<OtpSignIn, VerifyError> {
     let row = sqlx::query!(
         r#"
-        SELECT code_hash, expires_at, attempts FROM tuma.auth_otps
+        SELECT code_hash, expires_at, attempts FROM accounts.auth_otps
         WHERE phone = $1
         "#,
         phone,
@@ -122,7 +130,7 @@ pub async fn verify(
             // Burn an attempt even on a dead code; errors stay generic.
             sqlx::query!(
                 r#"
-                UPDATE tuma.auth_otps SET attempts = attempts + 1
+                UPDATE accounts.auth_otps SET attempts = attempts + 1
                 WHERE phone = $1
                 "#,
                 phone,
@@ -133,34 +141,34 @@ pub async fn verify(
         return Err(VerifyError::InvalidCode);
     }
 
-    sqlx::query!(r#"DELETE FROM tuma.auth_otps WHERE phone = $1"#, phone)
+    sqlx::query!(r#"DELETE FROM accounts.auth_otps WHERE phone = $1"#, phone)
         .execute(&mut *conn)
         .await?;
 
-    let user = match users::by_phone(conn, phone).await? {
-        Some(user) => user,
-        None => {
-            accounts
-                .create_customer(conn, phone, name)
-                .await
-                .map_err(|error| match error {
-                    CreateAccountError::PhoneTaken => VerifyError::PhoneTaken,
-                    // A customer insert touches only the phone unique
-                    // constraint and hashes nothing — no other arm can fire.
-                    CreateAccountError::EmailTaken | CreateAccountError::Password(_) => {
-                        unreachable!("customer creation cannot conflict on email or password")
-                    }
-                    CreateAccountError::Database(error) => VerifyError::Database(error),
-                })?
-        }
+    let account = match users::by_phone(conn, phone).await? {
+        Some(account) => account,
+        None => accounts
+            .create_phone_account(conn, phone)
+            .await
+            .map_err(|error| match error {
+                // A customer insert touches only the phone unique
+                // constraint and hashes nothing — no other arm can fire.
+                CreateAccountError::PhoneTaken => VerifyError::PhoneTaken,
+                CreateAccountError::EmailTaken | CreateAccountError::Password(_) => {
+                    unreachable!("customer creation cannot conflict on email or password")
+                }
+                CreateAccountError::Database(error) => VerifyError::Database(error),
+            })?,
     };
 
+    let mut customer = customers::ensure_for_user(conn, account.id).await?;
+
     // A returning customer who never gave a name can still provide one.
-    if user.name.is_none()
+    if customer.name.is_none()
         && let Some(name) = name
     {
-        return Ok(users::set_name(conn, user.id, name).await?);
+        customer = customers::set_name(conn, account.id, name).await?;
     }
 
-    Ok(user)
+    Ok(OtpSignIn { account, customer })
 }

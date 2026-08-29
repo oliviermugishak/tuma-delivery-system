@@ -24,3 +24,4 @@ pubspec.lock.bak
 .vscode/
 *.log
 *.iml
+user_root_password.txt

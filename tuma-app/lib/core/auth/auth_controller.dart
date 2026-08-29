@@ -5,6 +5,7 @@ import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/auth_api.dart';
 import 'package:tuma_app/core/api/models/authenticated_user.dart';
 import 'package:tuma_app/core/api/store_api.dart';
+import 'package:tuma_app/core/api/order_api.dart';
 import 'package:tuma_app/core/auth/token_storage.dart';
 
 /// Holds the in-memory bearer token. `null` = anonymous. Hydrated on
@@ -40,6 +41,10 @@ final authApiProvider = Provider<AuthApi>(
 
 final storeApiProvider = Provider<StoreApi>(
   (ref) => StoreApi(ref.read(apiClientProvider)),
+);
+
+final orderApiProvider = Provider<OrderApi>(
+  (ref) => OrderApi(ref.read(apiClientProvider)),
 );
 
 /// What we know about the current session.

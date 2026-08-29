@@ -22,7 +22,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { CreateStoreDialog } from '@/features/merchant/components/create-store-dialog'
 import { StoreCard } from '@/features/merchant/components/store-card'
-import { useOwnProducts } from '@/features/merchant/hooks/use-products'
+import { useStoreProducts } from '@/features/merchant/hooks/use-store-products'
 import { useOwnStores } from '@/features/merchant/hooks/use-stores'
 
 /**
@@ -32,33 +32,33 @@ import { useOwnStores } from '@/features/merchant/hooks/use-stores'
  */
 export function DashboardPanel() {
   const stores = useOwnStores()
-  const products = useOwnProducts()
+  const assortment = useStoreProducts()
   const [createOpen, setCreateOpen] = useState(false)
 
   const stats = useMemo(() => {
     const storeList = stores.data ?? []
-    const productList = products.data ?? []
+    const items = assortment.data ?? []
     return {
       stores: storeList.length,
       openStores: storeList.filter((store) => store.is_open).length,
-      products: productList.length,
-      available: productList.filter((product) => product.is_available).length,
+      items: items.length,
+      available: items.filter((item) => item.is_available).length,
     }
-  }, [stores.data, products.data])
+  }, [stores.data, assortment.data])
 
   const productCounts = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const product of products.data ?? []) {
-      counts.set(product.store_id, (counts.get(product.store_id) ?? 0) + 1)
+    for (const item of assortment.data ?? []) {
+      counts.set(item.store_id, (counts.get(item.store_id) ?? 0) + 1)
     }
     return counts
-  }, [products.data])
+  }, [assortment.data])
 
-  const isLoading = stores.isLoading || products.isLoading
-  const isError = stores.isError || products.isError
+  const isLoading = stores.isLoading || assortment.isLoading
+  const isError = stores.isError || assortment.isError
   const retry = () => {
     void stores.refetch()
-    void products.refetch()
+    void assortment.refetch()
   }
 
   return (
@@ -69,8 +69,8 @@ export function DashboardPanel() {
             Dashboard
           </h2>
           <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-            Your business at a glance — stores, availability and menu, live
-            from the server.
+            Your business at a glance — stores, assortment and
+            availability, live from the server.
           </p>
         </div>
         <Button
@@ -78,7 +78,7 @@ export function DashboardPanel() {
           render={(props) => <Link {...props} to="/merchant/menu" />}
         >
           <UtensilsCrossed data-icon="inline-start" />
-          Manage menu
+          Manage assortment
         </Button>
       </div>
 
@@ -99,7 +99,7 @@ export function DashboardPanel() {
         </Card>
       ) : null}
 
-      {stores.isSuccess && products.isSuccess ? (
+      {stores.isSuccess && assortment.isSuccess ? (
         <>
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Stores" value={stats.stores} icon={Building2} />
@@ -108,7 +108,7 @@ export function DashboardPanel() {
               value={stats.openStores}
               icon={DoorOpen}
             />
-            <StatCard label="Products" value={stats.products} icon={Package} />
+            <StatCard label="Assortment" value={stats.items} icon={Package} />
             <StatCard
               label="Available"
               value={stats.available}
@@ -142,8 +142,8 @@ export function DashboardPanel() {
                       No stores yet
                     </p>
                     <p className="mx-auto max-w-sm text-sm text-muted-foreground">
-                      Create your first store — then add products to its menu
-                      and open it for orders.
+                      Create your first store — then attach catalog products
+                      to its assortment and open it for orders.
                     </p>
                   </div>
                   <Button onClick={() => setCreateOpen(true)}>
@@ -166,12 +166,20 @@ export function DashboardPanel() {
           </section>
 
           <Card className="mt-10 max-w-3xl">
-            <CardHeader>
-              <CardTitle className="text-base">Orders</CardTitle>
-              <CardDescription>
-                Order activity and sales appear here once customers can
-                order — that lands with the orders iteration.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="grid gap-1.5">
+                <CardTitle className="text-base">Orders</CardTitle>
+                <CardDescription>
+                  Incoming store orders live on the Orders page — accept,
+                  prepare, and hand them off there.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                render={(props) => <Link {...props} to="/merchant/orders" />}
+              >
+                Open Orders
+              </Button>
             </CardHeader>
           </Card>
         </>

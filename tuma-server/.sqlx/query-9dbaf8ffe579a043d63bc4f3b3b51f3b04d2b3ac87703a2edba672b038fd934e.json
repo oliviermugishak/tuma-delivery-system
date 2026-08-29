@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT status AS \"status: OrderStatus\" FROM commerce.store_orders\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: OrderStatus",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9dbaf8ffe579a043d63bc4f3b3b51f3b04d2b3ac87703a2edba672b038fd934e"
+}

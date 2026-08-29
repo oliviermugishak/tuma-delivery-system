@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, RefreshCw, Store, Trash2 } from 'lucide-react'
 
-import type { MeResponse } from '@/api/generated'
+import type { MerchantResponse } from '@/api/generated'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,14 +33,14 @@ export function MerchantsPanel() {
   const updateMerchant = useUpdateMerchant()
   const deleteMerchant = useDeleteMerchant()
   const [createOpen, setCreateOpen] = useState(false)
-  const [editing, setEditing] = useState<MeResponse | null>(null)
+  const [editing, setEditing] = useState<MerchantResponse | null>(null)
   const [editOpen, setEditOpen] = useState(false)
-  const [deleting, setDeleting] = useState<MeResponse | null>(null)
+  const [deleting, setDeleting] = useState<MerchantResponse | null>(null)
 
-  const toggleActive = (merchant: MeResponse, next: boolean) => {
+  const toggleStatus = (merchant: MerchantResponse, suspend: boolean) => {
     updateMerchant.mutate({
       path: { id: merchant.id },
-      body: { is_active: next },
+      body: { status: suspend ? 'suspended' : 'active' },
     })
   }
 
@@ -66,7 +66,8 @@ export function MerchantsPanel() {
             Merchants
           </h2>
           <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-            Create and manage merchant accounts. Open one to see its stores.
+            Create and manage merchant businesses. Open one to see its
+            stores and members.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -92,7 +93,7 @@ export function MerchantsPanel() {
               <MerchantTable
                 merchants={merchants.data}
                 pendingId={pendingId}
-                onToggleActive={toggleActive}
+                onToggleStatus={toggleStatus}
                 onEdit={(merchant) => {
                   setEditing(merchant)
                   setEditOpen(true)
@@ -121,11 +122,13 @@ export function MerchantsPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {deleting?.name || deleting?.email || 'merchant'}?
+              Delete {deleting?.name || 'merchant'}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the account and everything it owns —
-              its stores and their products. This cannot be undone.
+              This permanently deletes the business and everything it owns —
+              its stores, their assortments, and its catalog. Owner accounts
+              survive (they are identities, not parts of the business), but
+              they lose access to the merchant wing. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -180,9 +183,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <Card>
       <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
         <Store className="size-8 text-muted-foreground" aria-hidden />
-        <p className="font-medium">No merchants yet</p>
+        <p className="font-medium">No merchant businesses yet</p>
         <p className="text-sm text-muted-foreground">
-          Create the first merchant account to get started.
+          Provision the first business and its owner to get started.
         </p>
         <Button size="sm" onClick={onCreate}>
           <Plus data-icon="inline-start" />

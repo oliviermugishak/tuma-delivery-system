@@ -1,20 +1,17 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { homeForRole, sessionQueryOptions } from '../lib/session'
+import { homeForUser, sessionQueryOptions } from '../lib/session'
 
 // The root is a pure dispatcher: send the visitor to their role's wing, or
 // to /login when there is no session. It renders nothing of its own.
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
-    let role: string | null | undefined
+    let user
     try {
-      const user = await context.queryClient.ensureQueryData(
-        sessionQueryOptions(),
-      )
-      role = user?.role
+      user = await context.queryClient.ensureQueryData(sessionQueryOptions())
     } catch {
-      role = undefined
+      user = undefined
     }
-    throw redirect({ to: homeForRole(role) })
+    throw redirect({ to: homeForUser(user) })
   },
   component: RootLoading,
 })

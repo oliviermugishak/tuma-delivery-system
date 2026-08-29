@@ -14,6 +14,7 @@ class Store {
     this.description,
     this.imageUrl,
     this.addressText,
+    this.category,
     this.lat,
     this.lng,
   });
@@ -24,6 +25,8 @@ class Store {
   final String? description;
   final String? imageUrl;
   final String? addressText;
+  /// What the store sells, in a word or two — server-owned taxonomy.
+  final String? category;
   final double? lat;
   final double? lng;
   final int deliveryFee;
@@ -40,6 +43,7 @@ class Store {
         description: json['description'] as String?,
         imageUrl: json['image_url'] as String?,
         addressText: json['address_text'] as String?,
+        category: json['category'] as String?,
         lat: (json['lat'] as num?)?.toDouble(),
         lng: (json['lng'] as num?)?.toDouble(),
         deliveryFee: json['delivery_fee'] as int,
@@ -54,13 +58,13 @@ class StoreDetail {
   StoreDetail({required this.store, required this.products});
 
   final Store store;
-  final List<Product> products;
+  final List<MenuItem> products;
 
   factory StoreDetail.fromJson(Map<String, dynamic> json) => StoreDetail(
         store: Store.fromJson(json['store'] as Map<String, dynamic>),
         products: (json['products'] as List)
             .whereType<Map<String, dynamic>>()
-            .map(Product.fromJson)
+            .map(MenuItem.fromJson)
             .toList(),
       );
 }

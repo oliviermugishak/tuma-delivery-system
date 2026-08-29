@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import type { MeResponse } from '@/api/generated'
+import type { CustomerAdminResponse } from '@/api/generated'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,7 +26,7 @@ export function EditCustomerDialog({
   open,
   onOpenChange,
 }: {
-  customer: MeResponse | null
+  customer: CustomerAdminResponse | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -55,7 +55,7 @@ export function EditCustomerDialog({
     if (nameChanged) body.name = name.trim()
     if (phoneChanged) body.phone = phone.trim()
     updateCustomer.mutate(
-      { path: { id: customer.id }, body },
+      { path: { id: customer.user_id }, body },
       { onSuccess: () => onOpenChange(false) },
     )
   }

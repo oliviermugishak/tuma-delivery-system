@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE marketplace.merchants\n        SET name = $2, business_email = $3, business_phone = $4, status = $5\n        WHERE id = $1\n        RETURNING id, name, business_email, business_phone,\n                  status AS \"status: MerchantStatus\", created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "business_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "business_email"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "business_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "business_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status: MerchantStatus",
+        "type_info": {
+          "Custom": {
+            "name": "marketplace.merchant_status",
+            "kind": {
+              "Enum": [
+                "active",
+                "suspended"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchants",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "marketplace.merchant_status",
+            "kind": {
+              "Enum": [
+                "active",
+                "suspended"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6f4d092e93f7ba119be0eab848fb5616d3d7b880a96c499ad5501a4ca23af0fd"
+}

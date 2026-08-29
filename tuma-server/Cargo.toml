@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-config", "accounts"]
+members = ["app-config", "accounts", "commerce"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,6 +14,7 @@ default-run = "tuma-server"
 [dependencies]
 accounts = { path = "accounts" }
 app-config = { path = "app-config" }
+commerce = { path = "commerce" }
 axum = { version = "0.8.9", features = ["macros"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 config = "0.15.25"

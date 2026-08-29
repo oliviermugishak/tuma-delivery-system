@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CreateStoreDialog } from '@/features/merchant/components/create-store-dialog'
 import { StoreCard } from '@/features/merchant/components/store-card'
-import { useOwnProducts } from '@/features/merchant/hooks/use-products'
+import { useStoreProducts } from '@/features/merchant/hooks/use-store-products'
 import { useOwnStores } from '@/features/merchant/hooks/use-stores'
 
 /**
@@ -18,17 +18,17 @@ import { useOwnStores } from '@/features/merchant/hooks/use-stores'
  */
 export function StoresPanel() {
   const stores = useOwnStores()
-  const products = useOwnProducts()
+  const assortment = useStoreProducts()
   const [createOpen, setCreateOpen] = useState(false)
 
-  // Product counts per store, derived from the merchant's own menu data.
+  // Item counts per store, derived from the assortment data.
   const productCounts = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const product of products.data ?? []) {
-      counts.set(product.store_id, (counts.get(product.store_id) ?? 0) + 1)
+    for (const item of assortment.data ?? []) {
+      counts.set(item.store_id, (counts.get(item.store_id) ?? 0) + 1)
     }
     return counts
-  }, [products.data])
+  }, [assortment.data])
 
   return (
     <div>

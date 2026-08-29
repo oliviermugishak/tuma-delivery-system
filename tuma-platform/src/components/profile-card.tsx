@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { useUpdateMe } from '@/hooks/use-update-me'
 import { useSession } from '@/hooks/use-session'
 import { formatDate, initials } from '@/lib/format'
+import { displayName, isMerchantOperator, merchantMemberships } from '@/types/session'
 import { Avatar, AvatarFallback } from './ui/avatar'
 
 /**
@@ -29,19 +30,20 @@ import { Avatar, AvatarFallback } from './ui/avatar'
 export function ProfileCard() {
   const { data: user } = useSession()
   const updateMe = useUpdateMe()
-  const [name, setName] = useState(user?.name ?? '')
+  const name = displayName(user)
+  const [editedName, setEditedName] = useState(name)
 
   // The session is in the cache before this renders, but stay in sync if
   // /me data changes elsewhere.
   useEffect(() => {
-    setName(user?.name ?? '')
-  }, [user?.name])
+    setEditedName(name)
+  }, [name])
 
-  const dirty = name.trim() !== (user?.name ?? '')
+  const dirty = editedName.trim() !== name
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    updateMe.mutate({ body: { name: name.trim() } })
+    updateMe.mutate({ body: { name: editedName.trim() } })
   }
 
   return (
@@ -54,16 +56,22 @@ export function ProfileCard() {
         <div className="flex items-center gap-4">
           <Avatar size="lg">
             <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-              {initials(user?.name, user?.email)}
+              {initials(name, user?.email)}
             </AvatarFallback>
           </Avatar>
           <div className="grid gap-0.5">
             <p className="text-sm font-medium">
-              {user?.name || user?.email || 'Signed in'}
+              {name}
             </p>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
             <p className="text-xs text-muted-foreground capitalize">
-              {user?.role}
+              {isMerchantOperator(user)
+                ? merchantMemberships(user)
+                    .map((membership) => membership.merchant_name)
+                    .join(', ')
+                : user?.admin
+                  ? 'Platform admin'
+                  : 'Customer'}
             </p>
           </div>
         </div>
@@ -95,8 +103,8 @@ export function ProfileCard() {
                 required
                 minLength={1}
                 maxLength={100}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
                 placeholder="Your name"
               />
               <FieldDescription>

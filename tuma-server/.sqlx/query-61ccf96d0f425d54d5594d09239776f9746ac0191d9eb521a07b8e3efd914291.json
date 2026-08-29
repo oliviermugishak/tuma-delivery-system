@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE marketplace.store_products\n        SET price = $2, stock = $3, is_available = $4, sku = $5\n        WHERE id = $1\n        RETURNING id, store_id, product_id, price, stock, is_available, sku,\n                  created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "product_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "price",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "price"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "stock",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "stock"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "is_available",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "is_available"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "sku",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "sku"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "61ccf96d0f425d54d5594d09239776f9746ac0191d9eb521a07b8e3efd914291"
+}

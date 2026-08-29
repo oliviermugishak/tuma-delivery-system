@@ -1,12 +1,11 @@
 //! The cookie transport: email + password login, silent refresh, logout
-//! revocation, and password changes (S5).
+//! revocation, and password changes.
 
 mod common;
 
-use accounts::UserRole;
 use accounts::jwt;
 use common::{
-    MIGRATOR, TestClient, cookie_value, login, seed_customer, seed_staff, set_cookie_lines,
+    MIGRATOR, TestClient, cookie_value, login, seed_customer, seed_merchant, set_cookie_lines,
     spawn_app, token_for,
 };
 use secrecy::ExposeSecret;
@@ -17,7 +16,7 @@ use tuma_server::middleware::{AUTH_COOKIE, REFRESH_COOKIE};
 async fn login_sets_session_cookies_and_grants_access(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    let user = seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    let seeded = seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
 
     // Mixed-case email on purpose: login must be case-insensitive.
     let response = login(&client, "Merchant@Example.com", "Password123").await;
@@ -42,16 +41,17 @@ async fn login_sets_session_cookies_and_grants_access(pool: sqlx::PgPool) {
     let response = client.get("/v1/me").send().await.unwrap();
     assert_eq!(response.status(), 200);
     let body: Value = response.json().await.unwrap();
-    assert_eq!(body["id"], user.id.to_string());
-    assert_eq!(body["role"], "merchant");
+    assert_eq!(body["id"], seeded.account.id.to_string());
     assert_eq!(body["email"], "merchant@example.com");
+    let memberships = body["merchant_memberships"].as_array().unwrap();
+    assert_eq!(memberships[0]["merchant_name"], "Aline's Kitchen");
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn login_rejects_bad_credentials_with_one_generic_error(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
 
     // Wrong password and unknown email must be indistinguishable.
     for (email, password) in [
@@ -74,13 +74,34 @@ async fn login_rejects_bad_credentials_with_one_generic_error(pool: sqlx::PgPool
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
-async fn login_rejects_deactivated_merchants(pool: sqlx::PgPool) {
+async fn login_rejects_a_password_account_without_platform_authorization(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    let user = seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
 
-    sqlx::query("UPDATE tuma.users SET is_active = false WHERE id = $1")
-        .bind(user.id)
+    // A bare password account — no admin profile, no merchant membership —
+    // must not enter the platform even with the right password.
+    let mut conn = app.pool.acquire().await.unwrap();
+    let bare = accounts::AccountManager::new(1)
+        .create_password_account(&mut conn, "bare@example.com", "Password123")
+        .await
+        .unwrap();
+    drop(conn);
+
+    let response = login(&client, "bare@example.com", "Password123").await;
+    assert_eq!(response.status(), 401);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["message"], "Invalid email or password");
+    let _ = bare;
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn login_rejects_deactivated_accounts(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let seeded = seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
+
+    sqlx::query("UPDATE accounts.users SET is_active = false WHERE id = $1")
+        .bind(seeded.account.id)
         .execute(&app.pool)
         .await
         .unwrap();
@@ -97,7 +118,7 @@ async fn login_rejects_deactivated_merchants(pool: sqlx::PgPool) {
 async fn logout_revokes_the_refresh_session(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
 
     let response = login(&client, "merchant@example.com", "Password123").await;
     let refresh = cookie_value(&response, REFRESH_COOKIE).expect("refresh cookie set");
@@ -130,7 +151,7 @@ async fn logout_revokes_the_refresh_session(pool: sqlx::PgPool) {
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn silent_refresh_remints_an_expired_token_cookie(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
-    let user = seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    let seeded = seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
 
     let response = login(
         &TestClient::new(&app.address),
@@ -141,7 +162,7 @@ async fn silent_refresh_remints_an_expired_token_cookie(pool: sqlx::PgPool) {
     let refresh = cookie_value(&response, REFRESH_COOKIE).expect("refresh cookie set");
 
     // Expired an hour ago — well beyond the 60s verification leeway.
-    let mut claims = jwt::Claims::new(user.id, user.role, 3600);
+    let mut claims = jwt::Claims::new(seeded.account.id, 3600);
     claims.exp = claims.iat - 3600;
     let expired = jwt::generate(
         &claims,
@@ -166,7 +187,7 @@ async fn silent_refresh_remints_an_expired_token_cookie(pool: sqlx::PgPool) {
     assert!(!reminted.is_empty());
     assert_ne!(reminted, expired);
     let body: Value = response.json().await.unwrap();
-    assert_eq!(body["id"], user.id.to_string());
+    assert_eq!(body["id"], seeded.account.id.to_string());
 
     // Same story when the access cookie is gone entirely.
     let response = client
@@ -183,7 +204,7 @@ async fn silent_refresh_remints_an_expired_token_cookie(pool: sqlx::PgPool) {
 async fn change_password_swaps_the_password(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
     assert_eq!(
         login(&client, "merchant@example.com", "Password123")
             .await
@@ -229,7 +250,7 @@ async fn change_password_swaps_the_password(pool: sqlx::PgPool) {
 async fn change_password_rejects_a_wrong_current_password(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    seed_staff(&app.pool, UserRole::Merchant, "merchant@example.com").await;
+    seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
     assert_eq!(
         login(&client, "merchant@example.com", "Password123")
             .await
@@ -264,8 +285,8 @@ async fn change_password_rejects_a_wrong_current_password(pool: sqlx::PgPool) {
 async fn change_password_rejects_accounts_without_a_password(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
-    let customer = seed_customer(&app.pool, "+250780001001").await;
-    let token = token_for(&app, &customer, 3600);
+    let seeded = seed_customer(&app.pool, "+250780001001").await;
+    let token = token_for(&app, seeded.account.id, 3600);
 
     // Customers sign in with OTP — there is no password to change.
     let response = client

@@ -79,7 +79,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
       final result =
           await ref.read(authApiProvider).verifyOtp(phone: widget.phone, code: code);
       if (!mounted) return;
-      final name = result.user.name;
+      final name = result.user.displayName;
       if (name == null || name.trim().isEmpty) {
         // First-time user: capture the name before settling into home.
         unawaited(

@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ApiError } from '@/api/client'
 import { me } from '@/api/generated'
 import { loginMutation } from '@/api/queries'
-import { homeForRole, sessionQueryKey } from '@/lib/session'
+import { homeForUser, sessionQueryKey } from '@/lib/session'
 
 /**
  * Email + password sign-in. On success the session cookies are already set by
@@ -21,7 +21,7 @@ export function useLogin() {
     onSuccess: async () => {
       const { data } = await me()
       if (data) queryClient.setQueryData(sessionQueryKey(), data)
-      void navigate({ to: homeForRole(data?.role) })
+      void navigate({ to: homeForUser(data) })
     },
   })
 }

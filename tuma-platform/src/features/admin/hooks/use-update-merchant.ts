@@ -5,23 +5,23 @@ import { ApiError } from '@/api/client'
 import { listMerchantsQueryKey, updateMerchantMutation } from '@/api/queries'
 
 /**
- * Edit a merchant (admin-only): name, email, and the active flag all ride
- * the same PATCH — toggling is an edit like any other. Provided fields
- * overwrite, an empty name clears it, absent fields keep their value. A
- * taken email surfaces the server's 409 message. Toast on both outcomes
- * and refetch the list + whichever detail page is open.
+ * Edit a merchant business (admin-only): name, business contact, and the
+ * status all ride the same PATCH — suspending is an edit like any other.
+ * Provided fields overwrite, an empty string clears an optional contact,
+ * absent fields keep their value. Toast on both outcomes and refetch the
+ * list + whichever detail page is open.
  */
 export function useUpdateMerchant() {
   const queryClient = useQueryClient()
   return useMutation({
     ...updateMerchantMutation(),
     onSuccess: (merchant, variables) => {
-      const label = merchant.name || merchant.email || 'Merchant'
-      if (variables.body?.is_active !== undefined) {
+      const label = merchant.name
+      if (variables.body?.status !== undefined) {
         toast.success(
-          merchant.is_active
-            ? `"${label}" is now active`
-            : `"${label}" is now deactivated`,
+          merchant.status === 'active'
+            ? `"${label}" is active again`
+            : `"${label}" is suspended`,
         )
       } else {
         toast.success(`"${label}" updated`)

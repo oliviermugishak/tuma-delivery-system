@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use accounts::UserRole;
 use accounts::jwt;
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
@@ -11,6 +10,7 @@ use tuma_server::config::get_configuration;
 
 pub static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
+#[derive(Clone)]
 pub struct TestClient {
     base_url: String,
     client: reqwest::Client,
@@ -88,27 +88,131 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
     }
 }
 
-/// Seed a customer row directly — tests own the database, no OTP needed.
-pub async fn seed_customer(pool: &PgPool, phone: &str) -> accounts::User {
-    let mut conn = pool.acquire().await.expect("failed to acquire connection");
-    accounts::AccountManager::new(1)
-        .create_customer(&mut conn, phone, None)
-        .await
-        .expect("failed to seed customer")
+/// A customer account + its profile, seeded directly — tests own the
+/// database, no OTP needed.
+pub struct CustomerSeed {
+    pub account: accounts::Account,
+    pub customer: accounts::customers::Customer,
 }
 
-/// Seed a merchant/admin row with a known password ("Password123").
-pub async fn seed_staff(pool: &PgPool, role: UserRole, email: &str) -> accounts::User {
+pub async fn seed_customer(pool: &PgPool, phone: &str) -> CustomerSeed {
     let mut conn = pool.acquire().await.expect("failed to acquire connection");
-    accounts::AccountManager::new(1)
-        .create_staff(&mut conn, role, None, email, "Password123")
+    let account = accounts::AccountManager::new(1)
+        .create_phone_account(&mut conn, phone)
         .await
-        .expect("failed to seed staff user")
+        .expect("failed to seed customer account");
+    let customer = accounts::customers::ensure_for_user(&mut conn, account.id)
+        .await
+        .expect("failed to seed customer profile");
+    CustomerSeed { account, customer }
 }
 
-/// Mint a real signed token the way the server would.
-pub fn token_for(app: &TestApp, user: &accounts::User, ttl_secs: usize) -> String {
-    let claims = jwt::Claims::new(user.id, user.role, ttl_secs);
+/// A platform admin: account + admin profile, known password "Password123".
+pub struct AdminSeed {
+    pub account: accounts::Account,
+    pub admin: accounts::admins::AdminProfile,
+}
+
+pub async fn seed_admin(pool: &PgPool, email: &str) -> AdminSeed {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    let account = accounts::AccountManager::new(1)
+        .create_password_account(&mut conn, email, "Password123")
+        .await
+        .expect("failed to seed admin account");
+    let admin = accounts::admins::ensure_for_user(&mut conn, account.id, None)
+        .await
+        .expect("failed to seed admin profile");
+    AdminSeed { account, admin }
+}
+
+/// A merchant business + its owner's account + the owner membership.
+pub struct MerchantSeed {
+    pub account: accounts::Account,
+    pub merchant: accounts::merchants::Merchant,
+    pub membership: accounts::memberships::Membership,
+}
+
+pub async fn seed_merchant(pool: &PgPool, owner_email: &str, business_name: &str) -> MerchantSeed {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    let merchant = accounts::merchants::create(&mut conn, business_name, None, None)
+        .await
+        .expect("failed to seed merchant business");
+    let account = accounts::AccountManager::new(1)
+        .create_password_account(&mut conn, owner_email, "Password123")
+        .await
+        .expect("failed to seed owner account");
+    let membership = accounts::memberships::create(
+        &mut conn,
+        account.id,
+        merchant.id,
+        accounts::MembershipRole::Owner,
+        None,
+    )
+    .await
+    .expect("failed to seed owner membership");
+    MerchantSeed {
+        account,
+        merchant,
+        membership,
+    }
+}
+
+/// A store-scoped manager: an account whose membership covers exactly one
+/// store of one business.
+pub async fn seed_store_manager(
+    pool: &PgPool,
+    email: &str,
+    merchant_id: uuid::Uuid,
+    store_id: uuid::Uuid,
+) -> accounts::Account {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    let account = accounts::AccountManager::new(1)
+        .create_password_account(&mut conn, email, "Password123")
+        .await
+        .expect("failed to seed manager account");
+    accounts::memberships::create(
+        &mut conn,
+        account.id,
+        merchant_id,
+        accounts::MembershipRole::Manager,
+        Some(store_id),
+    )
+    .await
+    .expect("failed to seed manager membership");
+    account
+}
+
+/// Seed a store (closed by default) for a business.
+pub async fn seed_store(
+    pool: &PgPool,
+    merchant_id: uuid::Uuid,
+    name: &str,
+    is_open: bool,
+) -> tuma_server::domain::stores::Store {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    tuma_server::domain::stores::create_store(
+        &mut conn,
+        merchant_id,
+        tuma_server::domain::stores::StoreChanges {
+            name: name.to_string(),
+            description: None,
+            image_url: None,
+            address_text: None,
+            lat: None,
+            lng: None,
+            category: None,
+            delivery_fee: 0,
+            is_open,
+        },
+    )
+    .await
+    .expect("failed to seed store")
+}
+
+/// Mint a real signed token the way the server would — the account id is
+/// all the token carries.
+pub fn token_for(app: &TestApp, account_id: uuid::Uuid, ttl_secs: usize) -> String {
+    let claims = jwt::Claims::new(account_id, ttl_secs);
     jwt::generate(
         &claims,
         app.config.secret.jwt_signing_key.expose_secret().as_bytes(),

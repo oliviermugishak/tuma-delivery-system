@@ -10,6 +10,7 @@ import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
+import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
@@ -63,6 +64,22 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
   Widget build(BuildContext context) {
     final detail = _detail;
     return Scaffold(
+      // Back and cart sit together in one transparent top bar over the
+      // banner — the delivery-app pattern, with no floating orphans.
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        automaticallyImplyLeading: false,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: _BackButton(onTap: () => context.pop()),
+        ),
+        actions: const [
+          _CartButton(),
+          SizedBox(width: 12),
+        ],
+      ),
       body: Stack(
         children: [
           if (_notFound)
@@ -71,17 +88,6 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
             _content(context, detail)
           else
             _loadingOrError(),
-          // The back button floats over the banner and stays reachable
-          // while scrolling — the pattern delivery apps established.
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: _BackButton(onTap: () => context.pop()),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -127,34 +133,17 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                 ),
               ],
               const SizedBox(height: 14),
-              // The star badge joins this row when ratings exist — no
-              // fake stars before then.
+              // Badges sit together on one row. The star badge joins when
+              // ratings exist — no fake stars before then.
               Row(
-                children: [FeeChip(fee: store.deliveryFee)],
-              ),
-              if (address != null && address.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.place_rounded,
-                      size: 16,
-                      color: AppColors.onSurfaceMuted,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        address,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
-                        ),
-                      ),
-                    ),
+                children: [
+                  FeeChip(fee: store.deliveryFee),
+                  if (address != null && address.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Flexible(child: _LocationBadge(address: address)),
                   ],
-                ),
-              ],
+                ],
+              ),
               const SizedBox(height: 28),
               Text(
                 'Menu',
@@ -178,10 +167,16 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                   _ProductRow(
                     product: products[i],
                     onTap: () => _showProduct(context, products[i]),
-                    onAdd: _announceCart,
+                    onAdd: () => unawaited(
+                      _addToCart(context, store, products[i]),
+                    ),
                   ),
                   if (i < products.length - 1)
-                    Container(height: 1, color: AppColors.surfaceBorder),
+                    Container(
+                      height: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      color: AppColors.surfaceBorder,
+                    ),
                 ],
             ],
           ),
@@ -202,34 +197,48 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     return const _StoreSkeleton();
   }
 
-  /// The cart doesn't exist yet — ordering is build order #3. The button
-  /// is present and honest instead of dead; the wiring lands with the cart.
-  void _announceCart() {
-    final textTheme = Theme.of(context).textTheme;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Cart is coming soon — ordering is next.',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurface,
-            ),
-          ),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.surfaceBorder),
-          ),
+  /// Add the menu item to its store's cart bucket. Carts span stores now —
+  /// nothing is ever cleared to make room; the snackbar confirms the fresh
+  /// item count.
+  Future<void> _addToCart(
+    BuildContext context,
+    Store store,
+    MenuItem item,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    await ref.read(cartProvider.notifier).add(
+          item,
+          storeId: store.id,
+          storeName: store.name,
+          deliveryFee: store.deliveryFee,
+        );
+    if (!mounted) return;
+    final count = ref.read(cartProvider).maybeWhen(
+          data: (v) => v.itemCount,
+          orElse: () => 0,
+        );
+    messenger.showSnackBar(
+      SnackBar(
+        // Explicit light text — the theme's snackbar default is dark text
+        // (onInverseSurface), invisible on our navy background.
+        content: Text(
+          'Added to cart ($count item${count > 1 ? 's' : ''})',
+          style: TextStyle(color: AppColors.onSurface),
         ),
-      );
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+        backgroundColor: AppColors.surfaceAlt,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.primary),
+        ),
+      ),
+    );
   }
 
   /// Product tap → bottom sheet: picture, name, price, full description.
-  /// Nothing else — quantity and checkout arrive with the orders iteration.
-  void _showProduct(BuildContext context, Product product) {
+  void _showProduct(BuildContext context, MenuItem product) {
     final textTheme = Theme.of(context).textTheme;
     final description = product.description;
     showModalBottomSheet<void>(
@@ -299,6 +308,46 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
   }
 }
 
+/// The store's address as a quiet pill beside the fee badge.
+class _LocationBadge extends StatelessWidget {
+  const _LocationBadge({required this.address});
+
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.place_rounded,
+            size: 14,
+            color: AppColors.onSurfaceMuted,
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              address,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProductRow extends StatelessWidget {
   const _ProductRow({
     required this.product,
@@ -306,7 +355,7 @@ class _ProductRow extends StatelessWidget {
     required this.onAdd,
   });
 
-  final Product product;
+  final MenuItem product;
   final VoidCallback onTap;
   final VoidCallback onAdd;
 
@@ -320,7 +369,9 @@ class _ProductRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          // Horizontal breathing room so the hover/splash highlight
+          // doesn't hug the content edge to edge.
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
               RemoteImage(
@@ -434,6 +485,70 @@ class _BackButton extends StatelessWidget {
   }
 }
 
+/// Cart button in the store's top bar. Shows a badge with the item count
+/// when the cart is non-empty; tapping navigates to /cart.
+class _CartButton extends ConsumerWidget {
+  const _CartButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartProvider);
+    final count = cart.maybeWhen(
+      data: (v) => v.itemCount,
+      orElse: () => 0,
+    );
+    return GestureDetector(
+      onTap: () => context.push('/cart'),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Icon(
+                Icons.shopping_cart_rounded,
+                size: 20,
+                color: AppColors.primary,
+              ),
+            ),
+            if (count > 0)
+              Positioned(
+                right: -4,
+                top: -4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(2),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: AppColors.onPrimary,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// A closed (or gone) store is a fact, not a failure: one clean state and
 /// a way back.
 class _ClosedState extends StatelessWidget {
@@ -531,13 +646,26 @@ class _StoreSkeleton extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
-                width: 110,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: block,
-                  borderRadius: BorderRadius.circular(999),
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 96,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: block,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 120,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: block,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 28),
               Container(
@@ -551,7 +679,8 @@ class _StoreSkeleton extends StatelessWidget {
               const SizedBox(height: 16),
               for (var i = 0; i < 4; i++)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   child: Row(
                     children: [
                       Container(

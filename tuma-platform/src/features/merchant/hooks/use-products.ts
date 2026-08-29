@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { listOwnProductsOptions } from '@/api/queries'
+import { listProductsOptions } from '@/api/queries'
 
-/** The merchant's full menu (available and unavailable), oldest first. */
-export function useOwnProducts() {
-  return useQuery(listOwnProductsOptions())
+/**
+ * The business's catalog — the product identities this merchant defines
+ * once and can attach to any store. Oldest first.
+ */
+export function useCatalogProducts() {
+  return useQuery(listProductsOptions())
 }

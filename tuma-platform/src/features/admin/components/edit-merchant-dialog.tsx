@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import type { MeResponse } from '@/api/generated'
+import type { MerchantResponse } from '@/api/generated'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,34 +26,53 @@ export function EditMerchantDialog({
   open,
   onOpenChange,
 }: {
-  merchant: MeResponse | null
+  merchant: MerchantResponse | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const updateMerchant = useUpdateMerchant()
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [businessEmail, setBusinessEmail] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
 
-  // Seed the form from the merchant each time the dialog opens.
+  // Seed the form from the business each time the dialog opens.
   useEffect(() => {
     if (open && merchant) {
-      setName(merchant.name ?? '')
-      setEmail(merchant.email ?? '')
+      setName(merchant.name)
+      setBusinessEmail(merchant.business_email ?? '')
+      setBusinessPhone(merchant.business_phone ?? '')
     }
   }, [open, merchant])
 
   if (!merchant) return null
 
-  const emailChanged = email.trim().toLowerCase() !== merchant.email
-  const nameChanged = name.trim() !== (merchant.name ?? '')
-  const dirty = emailChanged || nameChanged
+  const nameChanged = name.trim() !== merchant.name
+  const businessEmailChanged =
+    businessEmail.trim() !== (merchant.business_email ?? '')
+  const businessPhoneChanged =
+    businessPhone.trim() !== (merchant.business_phone ?? '')
+  const dirty = nameChanged || businessEmailChanged || businessPhoneChanged
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dirty || !email.trim()) return
-    const body: Record<string, string> = {}
+    if (!dirty || !name.trim()) return
+    const body: {
+      name?: string
+      business_email?: string | null
+      business_phone?: string | null
+      status: string
+    } = {
+      // The generated PATCH carries status as a required field — echo the
+      // current one so an identity edit never accidentally suspends.
+      status: merchant.status,
+    }
     if (nameChanged) body.name = name.trim()
-    if (emailChanged) body.email = email.trim()
+    if (businessEmailChanged) {
+      body.business_email = businessEmail.trim() || null
+    }
+    if (businessPhoneChanged) {
+      body.business_phone = businessPhone.trim() || null
+    }
     updateMerchant.mutate(
       { path: { id: merchant.id }, body },
       { onSuccess: () => onOpenChange(false) },
@@ -66,7 +85,8 @@ export function EditMerchantDialog({
         <DialogHeader>
           <DialogTitle>Edit merchant</DialogTitle>
           <DialogDescription>
-            Update the account&apos;s identity. Clearing the name removes it.
+            The business&apos;s identity and contact details. Owner sign-ins
+            are managed per account, not here.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
@@ -83,15 +103,28 @@ export function EditMerchantDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-merchant-email">Email</FieldLabel>
+              <FieldLabel htmlFor="edit-merchant-business-email">
+                Business email
+              </FieldLabel>
               <Input
-                id="edit-merchant-email"
+                id="edit-merchant-business-email"
                 type="email"
                 autoComplete="off"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owner@acme.rw"
+                value={businessEmail}
+                onChange={(e) => setBusinessEmail(e.target.value)}
+                placeholder="hello@acme.rw"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-merchant-business-phone">
+                Business phone
+              </FieldLabel>
+              <Input
+                id="edit-merchant-business-phone"
+                autoComplete="off"
+                value={businessPhone}
+                onChange={(e) => setBusinessPhone(e.target.value)}
+                placeholder="+250 788 000 000"
               />
             </Field>
             <DialogFooter>
@@ -105,7 +138,7 @@ export function EditMerchantDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={!dirty || !email.trim() || updateMerchant.isPending}
+                disabled={!dirty || !name.trim() || updateMerchant.isPending}
               >
                 {updateMerchant.isPending ? 'Saving…' : 'Save changes'}
               </Button>

@@ -14,14 +14,15 @@ import { Input } from '@/components/ui/input'
 import { useCreateMerchant } from '@/features/admin/hooks/use-create-merchant'
 
 /**
- * "Add merchant" dialog. Controlled form structured with shadcn Field
- * primitives (same pattern as the login form) — no form library until a
- * real need earns one. Merchants are email + password identity; phone
- * numbers are customer identity only, so there is no phone field. The
- * mutation (toast + list invalidation) lives in use-create-merchant; this
- * component owns the field state and closes itself on success. On failure
- * the dialog stays open with the values intact so the admin can fix the
- * input (e.g. a taken email — the server message names it) and resubmit.
+ * "Add merchant" dialog — provisions a BUSINESS, not a login: the business
+ * row, the owner's account (email + password), and the owner membership in
+ * one call. Controlled form structured with shadcn Field primitives (same
+ * pattern as the login form) — no form library until a real need earns
+ * one. The mutation (toast + list invalidation) lives in
+ * use-create-merchant; this component owns the field state and closes
+ * itself on success. On failure the dialog stays open with the values
+ * intact so the admin can fix the input (e.g. a taken owner email — the
+ * server message names it) and resubmit.
  */
 export function CreateMerchantDialog({
   open,
@@ -32,14 +33,16 @@ export function CreateMerchantDialog({
 }) {
   const createMerchant = useCreateMerchant()
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [businessEmail, setBusinessEmail] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
   const [password, setPassword] = useState('')
 
   // Fresh form every time the dialog opens.
   useEffect(() => {
     if (open) {
       setName('')
-      setEmail('')
+      setBusinessEmail('')
+      setOwnerEmail('')
       setPassword('')
     }
   }, [open])
@@ -49,8 +52,9 @@ export function CreateMerchantDialog({
     createMerchant.mutate(
       {
         body: {
-          name: name.trim() || null,
-          email: email.trim(),
+          name: name.trim(),
+          business_email: businessEmail.trim() || null,
+          email: ownerEmail.trim(),
           password,
         },
       },
@@ -64,38 +68,57 @@ export function CreateMerchantDialog({
         <DialogHeader>
           <DialogTitle>Add merchant</DialogTitle>
           <DialogDescription>
-            Create a merchant account. They sign in with this email and
-            password.
+            Creates the business and its owner account. The owner signs into
+            the merchant wing with the email and password.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="merchant-name">Name</FieldLabel>
+              <FieldLabel htmlFor="merchant-name">Business name</FieldLabel>
               <Input
                 id="merchant-name"
                 autoComplete="off"
+                required
+                maxLength={100}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Acme Café"
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="merchant-email">Email</FieldLabel>
+              <FieldLabel htmlFor="merchant-business-email">
+                Business email (optional)
+              </FieldLabel>
               <Input
-                id="merchant-email"
+                id="merchant-business-email"
+                type="email"
+                autoComplete="off"
+                value={businessEmail}
+                onChange={(e) => setBusinessEmail(e.target.value)}
+                placeholder="hello@acme.rw"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="merchant-owner-email">
+                Owner email
+              </FieldLabel>
+              <Input
+                id="merchant-owner-email"
                 type="email"
                 autoComplete="off"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
                 placeholder="owner@acme.rw"
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="merchant-password">Password</FieldLabel>
+              <FieldLabel htmlFor="merchant-owner-password">
+                Owner password
+              </FieldLabel>
               <Input
-                id="merchant-password"
+                id="merchant-owner-password"
                 type="password"
                 autoComplete="new-password"
                 required

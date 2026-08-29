@@ -18,13 +18,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateStore } from '@/features/merchant/hooks/use-create-store'
+import { StoreLocationFields } from '@/features/merchant/components/store-location-fields'
 
 /**
  * Create one of the merchant's stores — merchants can have several, so this
  * dialog stays reachable from the stores list at any time. New stores start
  * closed; opening is a deliberate act on the store's detail page. Delivery
  * fee is integer RWF — left empty it means free delivery (server default).
- * On failure the dialog stays open with the values intact.
+ * Coordinates + category are the tracking contract: real coordinates power
+ * real distances and ETAs. On failure the dialog stays open with the values
+ * intact.
  */
 export function CreateStoreDialog({
   open,
@@ -39,6 +42,9 @@ export function CreateStoreDialog({
   const [description, setDescription] = useState('')
   const [address, setAddress] = useState('')
   const [fee, setFee] = useState('')
+  const [category, setCategory] = useState('')
+  const [lat, setLat] = useState('')
+  const [lng, setLng] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -46,6 +52,9 @@ export function CreateStoreDialog({
       setDescription('')
       setAddress('')
       setFee('')
+      setCategory('')
+      setLat('')
+      setLng('')
     }
   }, [open])
 
@@ -63,6 +72,9 @@ export function CreateStoreDialog({
           description: description.trim(),
           address_text: address.trim(),
           ...(feeNumber !== null ? { delivery_fee: feeNumber } : {}),
+          ...(category.trim() ? { category: category.trim() } : {}),
+          ...(lat.trim() !== '' ? { lat: Number(lat) } : {}),
+          ...(lng.trim() !== '' ? { lng: Number(lng) } : {}),
         },
       },
       { onSuccess: () => onOpenChange(false) },
@@ -134,6 +146,14 @@ export function CreateStoreDialog({
                 Whole francs. Leave empty for free delivery.
               </FieldDescription>
             </Field>
+            <StoreLocationFields
+              category={category}
+              onCategoryChange={setCategory}
+              lat={lat}
+              onLatChange={setLat}
+              lng={lng}
+              onLngChange={setLng}
+            />
             <DialogFooter>
               <Button
                 type="button"

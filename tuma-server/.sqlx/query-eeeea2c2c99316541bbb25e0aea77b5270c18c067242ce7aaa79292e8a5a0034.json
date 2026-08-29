@@ -1,0 +1,161 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, user_id, number, address_text, address_lat, address_lng,\n               subtotal, delivery_total, grand_total, idempotency_key,\n               created_at, updated_at\n        FROM commerce.order_groups\n        WHERE id = $1 AND user_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "address_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lat"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "address_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lng"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "subtotal",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "subtotal"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "delivery_total",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "delivery_total"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "grand_total",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "grand_total"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "idempotency_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "idempotency_key"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "eeeea2c2c99316541bbb25e0aea77b5270c18c067242ce7aaa79292e8a5a0034"
+}

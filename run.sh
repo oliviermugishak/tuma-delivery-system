@@ -16,6 +16,7 @@ Commands:
   api       Run the Rust API server (cargo run; needs dev Postgres up, see tuma-server/docker-compose.yml)
   platform  Run the web platform dev server (pnpm dev on :3000, proxies /api to :8080)
   openapi   Export the OpenAPI spec to tuma-platform/openapi.json (for platform client codegen)
+  seed      Seed the Kigali pilot data (3 businesses, 7 stores, catalogs) — idempotent
   help      Show this help
 EOF
 }
@@ -44,6 +45,11 @@ cmd_openapi() {
   exec cargo run --quiet --bin export_openapi -- "$ROOT_DIR/tuma-platform/openapi.json"
 }
 
+cmd_seed() {
+  cd "$ROOT_DIR/tuma-server"
+  exec cargo run --quiet --bin seed_kigali
+}
+
 command="${1:-help}"
 shift || true
 
@@ -52,6 +58,7 @@ case "$command" in
   api) cmd_api "$@" ;;
   platform) cmd_platform "$@" ;;
   openapi) cmd_openapi "$@" ;;
+  seed) cmd_seed "$@" ;;
   help | -h | --help) usage ;;
   *)
     echo "Unknown command: $command" >&2

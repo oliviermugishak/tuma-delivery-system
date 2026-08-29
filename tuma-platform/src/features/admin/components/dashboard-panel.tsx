@@ -83,18 +83,22 @@ export function DashboardPanel() {
             icon={DoorOpen}
           />
           <CountCard
-            label="Products"
-            value={summary.data.products}
+            label="Store products"
+            value={summary.data.store_products}
             icon={Package}
           />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                Orders
+                Orders in progress
               </CardTitle>
+              <p className="font-heading text-3xl font-semibold tracking-tight">
+                {summary.data.orders_in_progress}
+              </p>
               <CardDescription>
-                Order metrics appear here once customers can order — that
-                lands with the orders iteration.
+                Store orders not yet delivered or cancelled. Merchants
+                fulfill them on their own boards — the admin control-plane
+                page lands next.
               </CardDescription>
             </CardHeader>
           </Card>

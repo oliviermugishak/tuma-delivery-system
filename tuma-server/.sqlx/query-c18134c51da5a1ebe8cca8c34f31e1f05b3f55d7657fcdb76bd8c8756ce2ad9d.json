@@ -1,0 +1,145 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO marketplace.merchant_memberships (user_id, merchant_id, role, store_id)\n        VALUES ($1, $2, $3, $4)\n        RETURNING id, user_id, merchant_id, role AS \"role: MembershipRole\",\n                  store_id, status AS \"status: MerchantStatus\",\n                  created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "merchant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "merchant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "role: MembershipRole",
+        "type_info": {
+          "Custom": {
+            "name": "marketplace.membership_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "manager"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "status: MerchantStatus",
+        "type_info": {
+          "Custom": {
+            "name": "marketplace.merchant_status",
+            "kind": {
+              "Enum": [
+                "active",
+                "suspended"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "marketplace.membership_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "manager"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c18134c51da5a1ebe8cca8c34f31e1f05b3f55d7657fcdb76bd8c8756ce2ad9d"
+}

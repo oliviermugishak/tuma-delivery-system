@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Pencil, Trash2 } from 'lucide-react'
 
-import type { MeResponse } from '@/api/generated'
+import type { MerchantResponse } from '@/api/generated'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -15,24 +15,25 @@ import {
 import { formatDate } from '@/lib/format'
 
 /**
- * Presentational merchant table. The parent owns the data and the
+ * Presentational merchant-business table. The parent owns the data and the
  * mutations; this component only renders rows and reports actions. The
  * switch for the row currently being mutated is disabled so the UI can't
- * race the server. A row click opens the merchant's detail page; the
+ * race the server — it suspends/reactivates the business, it does not
+ * touch anyone's login. A row click opens the business detail page; the
  * action controls stop propagation so they never navigate.
  */
 export function MerchantTable({
   merchants,
   pendingId,
-  onToggleActive,
+  onToggleStatus,
   onEdit,
   onDelete,
 }: {
-  merchants: MeResponse[]
+  merchants: MerchantResponse[]
   pendingId: string | null
-  onToggleActive: (merchant: MeResponse, next: boolean) => void
-  onEdit: (merchant: MeResponse) => void
-  onDelete: (merchant: MeResponse) => void
+  onToggleStatus: (merchant: MerchantResponse, suspend: boolean) => void
+  onEdit: (merchant: MerchantResponse) => void
+  onDelete: (merchant: MerchantResponse) => void
 }) {
   const navigate = useNavigate()
 
@@ -40,10 +41,10 @@ export function MerchantTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
+          <TableHead>Business</TableHead>
+          <TableHead>Business email</TableHead>
           <TableHead>Created</TableHead>
-          <TableHead className="text-right">Active</TableHead>
+          <TableHead className="text-right">Status</TableHead>
           <TableHead className="w-24 text-right">Actions</TableHead>
           <TableHead className="w-8">
             <span className="sr-only">Details</span>
@@ -62,22 +63,20 @@ export function MerchantTable({
               })
             }
           >
-            <TableCell className="font-medium">
-              {merchant.name || '—'}
-            </TableCell>
-            <TableCell>{merchant.email}</TableCell>
+            <TableCell className="font-medium">{merchant.name}</TableCell>
+            <TableCell>{merchant.business_email || '—'}</TableCell>
             <TableCell className="text-muted-foreground">
               {formatDate(merchant.created_at)}
             </TableCell>
             <TableCell className="text-right">
               <div onClick={(event) => event.stopPropagation()}>
                 <Switch
-                  checked={merchant.is_active}
+                  checked={merchant.status === 'active'}
                   disabled={pendingId === merchant.id}
                   onCheckedChange={(checked) =>
-                    onToggleActive(merchant, checked)
+                    onToggleStatus(merchant, !checked)
                   }
-                  aria-label={`Toggle ${merchant.name || merchant.email}`}
+                  aria-label={`Toggle ${merchant.name}`}
                 />
               </div>
             </TableCell>
@@ -90,7 +89,7 @@ export function MerchantTable({
                   variant="ghost"
                   size="icon"
                   onClick={() => onEdit(merchant)}
-                  aria-label={`Edit ${merchant.name || merchant.email}`}
+                  aria-label={`Edit ${merchant.name}`}
                 >
                   <Pencil aria-hidden />
                 </Button>
@@ -99,7 +98,7 @@ export function MerchantTable({
                   size="icon"
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => onDelete(merchant)}
-                  aria-label={`Delete ${merchant.name || merchant.email}`}
+                  aria-label={`Delete ${merchant.name}`}
                 >
                   <Trash2 aria-hidden />
                 </Button>

@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT m.id, m.user_id, u.email,\n               m.role AS \"role: MembershipRole\", m.store_id, m.created_at\n        FROM marketplace.merchant_memberships m\n        JOIN accounts.users u ON u.id = m.user_id\n        WHERE m.merchant_id = $1\n        ORDER BY m.created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts.users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "role: MembershipRole",
+        "type_info": {
+          "Custom": {
+            "name": "marketplace.membership_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "manager"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.merchant_memberships",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9111c29c75b15b518cce0234101b57cd9350580e4db472047994b5d7e394d289"
+}

@@ -30,7 +30,7 @@ pub async fn issue(conn: &mut PgConnection, user_id: Uuid) -> Result<String, sql
     let expires_at = OffsetDateTime::now_utc() + Duration::seconds(WEB_REFRESH_TTL_SECS as i64);
     sqlx::query!(
         r#"
-        INSERT INTO tuma.refresh_tokens (token_hash, user_id, expires_at)
+        INSERT INTO accounts.refresh_tokens (token_hash, user_id, expires_at)
         VALUES ($1, $2, $3)
         "#,
         hash_token(&token),
@@ -48,7 +48,7 @@ pub async fn validate(conn: &mut PgConnection, token: &str) -> Result<Option<Uui
     let row = sqlx::query!(
         r#"
         SELECT user_id, expires_at, revoked_at
-        FROM tuma.refresh_tokens
+        FROM accounts.refresh_tokens
         WHERE token_hash = $1
         "#,
         hash_token(token),
@@ -67,7 +67,7 @@ pub async fn validate(conn: &mut PgConnection, token: &str) -> Result<Option<Uui
 pub async fn revoke(conn: &mut PgConnection, token: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query!(
         r#"
-        UPDATE tuma.refresh_tokens
+        UPDATE accounts.refresh_tokens
         SET revoked_at = now()
         WHERE token_hash = $1 AND revoked_at IS NULL
         "#,

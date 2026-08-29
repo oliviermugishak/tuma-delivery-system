@@ -1,6 +1,8 @@
 pub mod admin;
 pub mod auth;
+pub mod catalog;
 pub mod me;
+pub mod orders;
 pub mod stores;
 
 use crate::api_doc::ApiDoc;

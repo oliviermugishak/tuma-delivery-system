@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, MapPin, RefreshCw, Store } from 'lucide-react'
+import { ArrowLeft, MapPin, RefreshCw, Store, UserRound } from 'lucide-react'
 
-import type { AdminStoreResponse } from '@/api/generated'
+import type { AdminStoreResponse, MemberResponse } from '@/api/generated'
 import { ApiError } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,9 +14,10 @@ import { cn } from '@/lib/utils'
 import { formatDate, formatRwf, initials } from '@/lib/format'
 
 /**
- * Admin's view of one merchant: the account with its Active switch and
- * their stores with product counts. The menu stays out — admin sees facts,
- * the merchant manages the menu.
+ * Admin's view of one merchant BUSINESS: the business with its status
+ * switch (suspend = the platform's pause tool), its stores with assortment
+ * counts, and its members. The catalog stays out — admin sees facts, the
+ * merchant manages the menu.
  */
 export function MerchantDetailPanel({ merchantId }: { merchantId: string }) {
   const merchant = useAdminMerchant(merchantId)
@@ -42,9 +43,9 @@ export function MerchantDetailPanel({ merchantId }: { merchantId: string }) {
       {notFound ? (
         <Card className="max-w-3xl">
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <p className="font-medium">This merchant doesn&apos;t exist</p>
+            <p className="font-medium">This business doesn&apos;t exist</p>
             <p className="text-sm text-muted-foreground">
-              The account may have been removed, or the link is wrong.
+              It may have been deleted, or the link is wrong.
             </p>
             <Button
               variant="outline"
@@ -61,9 +62,9 @@ export function MerchantDetailPanel({ merchantId }: { merchantId: string }) {
       {merchant.isError && !notFound ? (
         <Card className="max-w-3xl">
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <p className="font-medium">Couldn&apos;t load this merchant</p>
+            <p className="font-medium">Couldn&apos;t load this business</p>
             <p className="text-sm text-muted-foreground">
-              Something went wrong while fetching the account.
+              Something went wrong while fetching it.
             </p>
             <Button
               variant="outline"
@@ -82,37 +83,58 @@ export function MerchantDetailPanel({ merchantId }: { merchantId: string }) {
           <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-5">
               <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 font-heading text-lg font-semibold text-primary">
-                {initials(merchant.data.name, merchant.data.email)}
+                {initials(merchant.data.name)}
               </div>
               <div className="grid gap-1.5">
                 <h2 className="font-heading text-2xl font-semibold tracking-tight">
-                  {merchant.data.name || '—'}
+                  {merchant.data.name}
                 </h2>
+                {merchant.data.business_email ? (
+                  <p className="text-sm text-muted-foreground">
+                    {merchant.data.business_email}
+                  </p>
+                ) : null}
                 <p className="text-sm text-muted-foreground">
-                  {merchant.data.email}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Merchant since {formatDate(merchant.data.created_at)}
+                  On Tuma since {formatDate(merchant.data.created_at)}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">Active</span>
+              <span className="text-sm font-medium">
+                {merchant.data.status === 'active' ? 'Active' : 'Suspended'}
+              </span>
               <Switch
-                checked={merchant.data.is_active}
+                checked={merchant.data.status === 'active'}
                 disabled={updateMerchant.isPending}
                 onCheckedChange={(checked) =>
                   updateMerchant.mutate({
                     path: { id: merchant.data.id },
-                    body: { is_active: checked },
+                    body: { status: checked ? 'active' : 'suspended' },
                   })
                 }
-                aria-label={`Toggle ${merchant.data.name || merchant.data.email}`}
+                aria-label={`Toggle ${merchant.data.name}`}
               />
             </div>
           </div>
 
-          <StoresSection stores={merchant.data.stores} />
+          {merchant.data.status === 'suspended' ? (
+            <Card className="mb-8 max-w-3xl border-destructive/30">
+              <CardContent className="p-5">
+                <p className="text-sm font-medium text-destructive">
+                  This business is suspended.
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Its operator is locked out of the merchant wing and its
+                  stores stop taking orders until it is reactivated.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <div className="space-y-10">
+            <StoresSection stores={merchant.data.stores} />
+            <MembersSection members={merchant.data.members} />
+          </div>
         </>
       ) : null}
     </div>
@@ -145,7 +167,7 @@ function StoresSection({ stores }: { stores: AdminStoreResponse[] }) {
             <Store className="size-8 text-muted-foreground" aria-hidden />
             <p className="font-medium">No stores yet</p>
             <p className="text-sm text-muted-foreground">
-              This merchant hasn&apos;t created a store.
+              This business hasn&apos;t created a store.
             </p>
           </CardContent>
         </Card>
@@ -185,10 +207,58 @@ function StoreCard({ store }: { store: AdminStoreResponse }) {
           <span>{formatRwf(store.delivery_fee)} delivery</span>
           <span className="text-muted-foreground">
             {store.product_count}{' '}
-            {store.product_count === 1 ? 'product' : 'products'}
+            {store.product_count === 1 ? 'item' : 'items'}
           </span>
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * The business's members — the people who act for it. Read-only facts:
+ * staff invitations are a later slice, so the owner the admin provisioned
+ * is (for now) the whole list.
+ */
+function MembersSection({ members }: { members: MemberResponse[] }) {
+  return (
+    <section>
+      <h3 className="mb-4 font-heading text-lg font-semibold">Members</h3>
+      {members.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <UserRound className="size-8 text-muted-foreground" aria-hidden />
+            <p className="font-medium">No members</p>
+            <p className="text-sm text-muted-foreground">
+              Nobody can operate this business right now.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {members.map((member) => (
+            <Card key={member.user_id}>
+              <CardContent className="flex items-start gap-4 p-6">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-heading text-primary">
+                  <UserRound className="size-5" aria-hidden />
+                </div>
+                <div className="grid min-w-0 gap-1">
+                  <p className="truncate text-sm font-medium">
+                    {member.email || 'Account'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {member.role === 'owner' ? 'Business owner' : 'Manager'}
+                    {member.store_id ? ' · one store' : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Member since {formatDate(member.created_at)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

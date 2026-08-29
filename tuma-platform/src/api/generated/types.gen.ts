@@ -5,11 +5,13 @@ export type ClientOptions = {
 };
 
 /**
- * A store inside the admin's merchant detail — standing facts plus how
- * many products it has. No location or image until something displays them.
+ * A store inside the admin's business detail — standing facts plus how
+ * many store products it sells. No location or image until something
+ * displays them.
  */
 export type AdminStoreResponse = {
     address_text?: string | null;
+    category?: string | null;
     created_at: string;
     delivery_fee: number;
     id: string;
@@ -20,10 +22,36 @@ export type AdminStoreResponse = {
 
 export type AdminSummaryResponse = {
     customers: number;
+    /**
+     * Merchant businesses.
+     */
     merchants: number;
     open_stores: number;
+    /**
+     * Store orders still moving (not delivered/cancelled).
+     */
+    orders_in_progress: number;
+    /**
+     * Merchant-level catalog products.
+     */
     products: number;
+    /**
+     * Store-level sellable items.
+     */
+    store_products: number;
     stores: number;
+};
+
+export type AdvanceStatusInput = {
+    status: string;
+};
+
+export type CancelInput = {
+    /**
+     * Optional client explanation — recorded in a later slice when the
+     * cancellation event log lands; accepted now so the UI can send it.
+     */
+    reason?: string | null;
 };
 
 export type ChangePasswordInput = {
@@ -31,32 +59,51 @@ export type ChangePasswordInput = {
     new_password: string;
 };
 
+export type CheckoutInput = {
+    address_lat?: number | null;
+    address_lng?: number | null;
+    address_text: string;
+    /**
+     * A client-generated key: retrying the same checkout with the same key
+     * returns the group it already created instead of placing twice.
+     */
+    idempotency_key?: string | null;
+    /**
+     * At least one line. Each carries the store_product id and quantity.
+     */
+    items: Array<CheckoutLineInput>;
+};
+
+export type CheckoutLineInput = {
+    quantity: number;
+    store_product_id: string;
+};
+
+/**
+ * Provision a merchant business: the business row, the owner's account
+ * (email + password, hashed by the AccountManager), and the owner
+ * membership — one transaction. The owner signs into the merchant wing
+ * with that account; the business itself never logs in.
+ */
 export type CreateMerchantInput = {
+    business_email?: string | null;
     email: string;
-    name?: string | null;
+    name: string;
     password: string;
 };
 
 export type CreateProductInput = {
     description?: string | null;
     image_url?: string | null;
-    /**
-     * Defaults to true.
-     */
-    is_available?: boolean | null;
     name: string;
-    /**
-     * Integer RWF, server-owned truth for the order snapshot later.
-     */
-    price: number;
-    /**
-     * Which of the merchant's stores this product joins.
-     */
-    store_id: string;
 };
 
 export type CreateStoreInput = {
     address_text?: string | null;
+    /**
+     * What the store sells, in one word or two (e.g. "Grill", "Bakery").
+     */
+    category?: string | null;
     /**
      * Integer RWF. Defaults to 0 (free delivery).
      */
@@ -68,34 +115,207 @@ export type CreateStoreInput = {
     name: string;
 };
 
+export type CreateStoreProductInput = {
+    /**
+     * Defaults to true.
+     */
+    is_available?: boolean | null;
+    /**
+     * Integer RWF, the store's own price for this product.
+     */
+    price: number;
+    /**
+     * Which catalog product this is.
+     */
+    product_id: string;
+    sku?: string | null;
+    /**
+     * `null` (or absent) = untracked. A number is the on-hand count the
+     * checkout reserves.
+     */
+    stock?: number | null;
+    /**
+     * Which of the operator's stores sells it.
+     */
+    store_id: string;
+};
+
+export type CreatedMerchantResponse = MerchantResponse & {
+    owner_email: string;
+};
+
+/**
+ * A customer account on the admin's list: the profile (name) joined with
+ * the account facts (phone, active flag).
+ */
+export type CustomerAdminResponse = {
+    created_at: string;
+    is_active: boolean;
+    name?: string | null;
+    phone?: string | null;
+    user_id: string;
+};
+
+export type GroupSummaryResponse = {
+    created_at: string;
+    grand_total: number;
+    id: string;
+    number: number;
+    status: string;
+    /**
+     * Which stores are fulfilling this purchase.
+     */
+    stores: Array<string>;
+};
+
 export type LoginInput = {
     email: string;
     password: string;
 };
 
 /**
- * The authenticated user. Deliberately not the raw `accounts::User` —
- * response types never carry `password_hash`.
+ * The authenticated account with its authorization context. Deliberately
+ * not the raw domain rows — responses never carry `password_hash`. The
+ * account itself is roleless; what it can do is visible in the profiles
+ * and memberships below, all resolved fresh per request.
  */
 export type MeResponse = {
+    admin?: null | ProfileResponse;
     created_at: string;
+    customer?: null | ProfileResponse;
     email?: string | null;
     id: string;
-    is_active: boolean;
-    name?: string | null;
+    merchant_memberships: Array<MembershipResponse>;
     phone?: string | null;
-    role: string;
 };
 
-export type MerchantDetailResponse = {
+export type MemberResponse = {
     created_at: string;
     email?: string | null;
-    id: string;
-    is_active: boolean;
-    name?: string | null;
-    phone?: string | null;
     role: string;
+    store_id?: string | null;
+    user_id: string;
+};
+
+export type MembershipResponse = {
+    merchant_id: string;
+    merchant_name: string;
+    merchant_status: string;
+    role: string;
+    /**
+     * `null` = the whole business; a value = this member is scoped to that
+     * one store.
+     */
+    store_id?: string | null;
+};
+
+/**
+ * A placeholder until the S3 catalog slice lands: the store detail's menu
+ * is empty because store_products have no endpoints yet. The mobile store
+ * screen renders the honest empty state.
+ */
+export type MenuItemResponse = {
+    description?: string | null;
+    id: string;
+    image_url?: string | null;
+    is_available: boolean;
+    name: string;
+    price: number;
+};
+
+export type MerchantDetailResponse = MerchantResponse & {
+    members: Array<MemberResponse>;
     stores: Array<AdminStoreResponse>;
+};
+
+/**
+ * One frozen line, with the line total the customer saw.
+ */
+export type MerchantOrderItemResponse = {
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+};
+
+/**
+ * A merchant business as the admin sees it.
+ */
+export type MerchantResponse = {
+    business_email?: string | null;
+    business_phone?: string | null;
+    created_at: string;
+    id: string;
+    name: string;
+    status: string;
+};
+
+/**
+ * The full store-order detail for the operator: what to prepare (items),
+ * where it goes (address + coordinates), who to contact (customer name +
+ * phone), and the money. This is the fulfillment sheet.
+ */
+export type MerchantStoreOrderDetailResponse = {
+    address_lat?: number | null;
+    address_lng?: number | null;
+    address_text: string;
+    created_at: string;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    delivery_fee: number;
+    id: string;
+    items: Array<MerchantOrderItemResponse>;
+    number: number;
+    payment_status: string;
+    status: string;
+    store_id: string;
+    store_name: string;
+    subtotal: number;
+    total: number;
+};
+
+/**
+ * A store order on the merchant's board: what to fulfill, for whom, and
+ * where.
+ */
+export type MerchantStoreOrderResponse = {
+    address_text: string;
+    created_at: string;
+    id: string;
+    number: number;
+    status: string;
+    store_id: string;
+    store_name: string;
+    total: number;
+};
+
+/**
+ * The customer-facing purchase: one checkout, N store orders, one
+ * payment. `status` is derived from the children server-side.
+ */
+export type OrderGroupResponse = {
+    address_lat?: number | null;
+    address_lng?: number | null;
+    address_text: string;
+    created_at: string;
+    delivery_total: number;
+    grand_total: number;
+    id: string;
+    number: number;
+    payment_status: string;
+    status: string;
+    store_orders: Array<StoreOrderResponse>;
+    subtotal: number;
+};
+
+/**
+ * One frozen line of a store order.
+ */
+export type OrderItemResponse = {
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    store_product_id: string;
+    unit_price: number;
 };
 
 export type OtpRequestInput = {
@@ -117,16 +337,69 @@ export type OtpVerifyResponse = {
     user: MeResponse;
 };
 
+export type PaymentResponse = {
+    amount: number;
+    currency: string;
+    id: string;
+    order_group_id: string;
+    status: string;
+};
+
+/**
+ * A catalog product as the API returns it.
+ */
 export type ProductResponse = {
     created_at: string;
     description?: string | null;
     id: string;
     image_url?: string | null;
-    is_available: boolean;
+    merchant_id: string;
     name: string;
-    price: number;
-    store_id: string;
     updated_at: string;
+};
+
+export type ProfileResponse = {
+    id: string;
+    name?: string | null;
+};
+
+/**
+ * A store order as the customer sees it: one store's slice of the
+ * checkout, with its own status and totals.
+ */
+export type StoreOrderResponse = {
+    delivery_fee: number;
+    id: string;
+    items: Array<OrderItemResponse>;
+    number: number;
+    status: string;
+    store_id: string;
+    store_name: string;
+    subtotal: number;
+    total: number;
+};
+
+/**
+ * A store_product as the merchant sees it: its catalog identity, its
+ * store, and its sell configuration.
+ */
+export type StoreProductResponse = {
+    created_at: string;
+    description?: string | null;
+    id: string;
+    image_url?: string | null;
+    is_available: boolean;
+    price: number;
+    product_id: string;
+    product_name: string;
+    sku?: string | null;
+    /**
+     * `null` = untracked (made to order). A number is reserved atomically
+     * at checkout.
+     */
+    stock?: number | null;
+    store_id: string;
+    store_name: string;
 };
 
 /**
@@ -134,6 +407,7 @@ export type ProductResponse = {
  */
 export type StoreResponse = {
     address_text?: string | null;
+    category?: string | null;
     created_at: string;
     delivery_fee: number;
     description?: string | null;
@@ -148,16 +422,15 @@ export type StoreResponse = {
 };
 
 export type StoreWithProductsResponse = {
-    products: Array<ProductResponse>;
+    products: Array<MenuItemResponse>;
     store: StoreResponse;
 };
 
 /**
- * Admin edits to a customer account. Same semantics as merchant edits:
- * provided fields overwrite, an empty name clears it, absent fields keep
- * their value. Phone stays editable because a typo'd number during OTP
- * signup is exactly the kind of thing an admin corrects. `is_active`
- * rides the same endpoint.
+ * Admin edits to a customer account. Provided fields overwrite, an empty
+ * name clears it, absent fields keep their value. Phone stays editable
+ * because a typo'd number during OTP signup is exactly the kind of thing
+ * an admin corrects; a taken phone is the typed 409.
  */
 export type UpdateCustomerInput = {
     is_active?: boolean | null;
@@ -170,27 +443,27 @@ export type UpdateMeInput = {
 };
 
 /**
- * Admin edits to a merchant account. Every field is optional: provided
- * fields overwrite, an empty name clears it, absent fields keep their
- * current value. `is_active` rides the same endpoint — toggling is an
- * edit like any other.
+ * Admin edits to a business. Every field is optional: provided fields
+ * overwrite, an empty string clears an optional contact field, absent
+ * fields keep their value. Suspension is the pause tool — a suspended
+ * business is refused by the merchant wing and stops taking orders.
  */
 export type UpdateMerchantInput = {
-    email?: string | null;
-    is_active?: boolean | null;
+    business_email?: string | null;
+    business_phone?: string | null;
     name?: string | null;
+    status: string;
 };
 
 export type UpdateProductInput = {
     description?: string | null;
     image_url?: string | null;
-    is_available?: boolean | null;
     name?: string | null;
-    price?: number | null;
 };
 
 export type UpdateStoreInput = {
     address_text?: string | null;
+    category?: string | null;
     delivery_fee?: number | null;
     description?: string | null;
     image_url?: string | null;
@@ -198,6 +471,21 @@ export type UpdateStoreInput = {
     lat?: number | null;
     lng?: number | null;
     name?: string | null;
+};
+
+/**
+ * PATCH on the sell configuration: price, stock (a number sets it, explicit
+ * `null` switches back to untracked), availability, SKU. Absent fields
+ * keep their value.
+ */
+export type UpdateStoreProductInput = {
+    is_available?: boolean | null;
+    price?: number | null;
+    sku?: string | null;
+    /**
+     * Absent = keep, `null` = untracked, a number = the on-hand count.
+     */
+    stock?: number | null;
 };
 
 export type HealthCheckData = {
@@ -238,7 +526,7 @@ export type ListCustomersResponses = {
     /**
      * All customer accounts, oldest first
      */
-    200: Array<MeResponse>;
+    200: Array<CustomerAdminResponse>;
 };
 
 export type ListCustomersResponse = ListCustomersResponses[keyof ListCustomersResponses];
@@ -247,7 +535,7 @@ export type DeleteCustomerData = {
     body?: never;
     path: {
         /**
-         * Customer user id
+         * Customer account id
          */
         id: string;
     };
@@ -283,7 +571,7 @@ export type UpdateCustomerData = {
     body: UpdateCustomerInput;
     path: {
         /**
-         * Customer user id
+         * Customer account id
          */
         id: string;
     };
@@ -318,7 +606,7 @@ export type UpdateCustomerResponses = {
     /**
      * The updated customer
      */
-    200: MeResponse;
+    200: CustomerAdminResponse;
 };
 
 export type UpdateCustomerResponse = UpdateCustomerResponses[keyof UpdateCustomerResponses];
@@ -343,9 +631,9 @@ export type ListMerchantsErrors = {
 
 export type ListMerchantsResponses = {
     /**
-     * All merchant accounts, oldest first
+     * All merchant businesses, oldest first
      */
-    200: Array<MeResponse>;
+    200: Array<MerchantResponse>;
 };
 
 export type ListMerchantsResponse = ListMerchantsResponses[keyof ListMerchantsResponses];
@@ -367,7 +655,7 @@ export type CreateMerchantErrors = {
      */
     403: unknown;
     /**
-     * Email already taken
+     * Owner email already taken
      */
     409: unknown;
     /**
@@ -378,9 +666,9 @@ export type CreateMerchantErrors = {
 
 export type CreateMerchantResponses = {
     /**
-     * Merchant created
+     * Merchant business created with its owner account
      */
-    201: MeResponse;
+    201: CreatedMerchantResponse;
 };
 
 export type CreateMerchantResponse = CreateMerchantResponses[keyof CreateMerchantResponses];
@@ -389,7 +677,7 @@ export type DeleteMerchantData = {
     body?: never;
     path: {
         /**
-         * Merchant user id
+         * Merchant business id
          */
         id: string;
     };
@@ -407,14 +695,14 @@ export type DeleteMerchantErrors = {
      */
     403: unknown;
     /**
-     * No merchant with that id
+     * No merchant business with that id
      */
     404: unknown;
 };
 
 export type DeleteMerchantResponses = {
     /**
-     * Merchant deleted
+     * Merchant business deleted
      */
     204: void;
 };
@@ -425,7 +713,7 @@ export type GetMerchantData = {
     body?: never;
     path: {
         /**
-         * Merchant user id
+         * Merchant business id
          */
         id: string;
     };
@@ -443,14 +731,14 @@ export type GetMerchantErrors = {
      */
     403: unknown;
     /**
-     * No merchant with that id
+     * No merchant business with that id
      */
     404: unknown;
 };
 
 export type GetMerchantResponses = {
     /**
-     * The merchant and their stores
+     * The business, its stores, and its members
      */
     200: MerchantDetailResponse;
 };
@@ -461,7 +749,7 @@ export type UpdateMerchantData = {
     body: UpdateMerchantInput;
     path: {
         /**
-         * Merchant user id
+         * Merchant business id
          */
         id: string;
     };
@@ -479,13 +767,9 @@ export type UpdateMerchantErrors = {
      */
     403: unknown;
     /**
-     * No merchant with that id
+     * No merchant business with that id
      */
     404: unknown;
-    /**
-     * Email already taken
-     */
-    409: unknown;
     /**
      * Invalid input
      */
@@ -494,12 +778,92 @@ export type UpdateMerchantErrors = {
 
 export type UpdateMerchantResponses = {
     /**
-     * The updated merchant
+     * The updated business
      */
-    200: MeResponse;
+    200: MerchantResponse;
 };
 
 export type UpdateMerchantResponse = UpdateMerchantResponses[keyof UpdateMerchantResponses];
+
+export type CollectPaymentData = {
+    body?: never;
+    path: {
+        /**
+         * Payment id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/admin/payments/{id}/collect';
+};
+
+export type CollectPaymentErrors = {
+    /**
+     * Only a pending payment can be collected
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+    /**
+     * No payment with that id
+     */
+    404: unknown;
+};
+
+export type CollectPaymentResponses = {
+    /**
+     * Payment collected
+     */
+    200: PaymentResponse;
+};
+
+export type CollectPaymentResponse = CollectPaymentResponses[keyof CollectPaymentResponses];
+
+export type AdvanceStoreOrderAdminData = {
+    body: AdvanceStatusInput;
+    path: {
+        /**
+         * Store order id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/admin/store-orders/{id}';
+};
+
+export type AdvanceStoreOrderAdminErrors = {
+    /**
+     * Invalid or illegal status transition
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+    /**
+     * No store order with that id
+     */
+    404: unknown;
+};
+
+export type AdvanceStoreOrderAdminResponses = {
+    /**
+     * Store order advanced
+     */
+    200: MerchantStoreOrderResponse;
+};
+
+export type AdvanceStoreOrderAdminResponse = AdvanceStoreOrderAdminResponses[keyof AdvanceStoreOrderAdminResponses];
 
 export type SummaryData = {
     body?: never;
@@ -621,7 +985,7 @@ export type OtpVerifyErrors = {
 
 export type OtpVerifyResponses = {
     /**
-     * Code valid — account fetched or created, token issued
+     * Code valid — account and customer profile fetched or created, token issued
      */
     200: OtpVerifyResponse;
 };
@@ -675,7 +1039,7 @@ export type MeErrors = {
 
 export type MeResponses = {
     /**
-     * The authenticated user
+     * The authenticated account with its profiles and memberships
      */
     200: MeResponse;
 };
@@ -691,7 +1055,7 @@ export type UpdateMeData = {
 
 export type UpdateMeErrors = {
     /**
-     * Empty name
+     * Empty name, or no editable profile
      */
     400: unknown;
     /**
@@ -706,39 +1070,75 @@ export type UpdateMeErrors = {
 
 export type UpdateMeResponses = {
     /**
-     * The updated user
+     * The updated profile
      */
     200: MeResponse;
 };
 
 export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
 
-export type ListOwnProductsData = {
+export type ListMerchantOrdersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
+    url: '/v1/merchant/orders';
+};
+
+export type ListMerchantOrdersErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+};
+
+export type ListMerchantOrdersResponses = {
+    /**
+     * Incoming store orders across authorized stores, newest first
+     */
+    200: Array<MerchantStoreOrderResponse>;
+};
+
+export type ListMerchantOrdersResponse = ListMerchantOrdersResponses[keyof ListMerchantOrdersResponses];
+
+export type ListProductsData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/v1/merchant/products';
 };
 
-export type ListOwnProductsErrors = {
+export type ListProductsErrors = {
     /**
      * Not authenticated
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership
      */
     403: unknown;
 };
 
-export type ListOwnProductsResponses = {
+export type ListProductsResponses = {
     /**
-     * The merchant's full menu, oldest first
+     * The business's catalog, oldest first
      */
     200: Array<ProductResponse>;
 };
 
-export type ListOwnProductsResponse = ListOwnProductsResponses[keyof ListOwnProductsResponses];
+export type ListProductsResponse = ListProductsResponses[keyof ListProductsResponses];
 
 export type CreateProductData = {
     body: CreateProductInput;
@@ -749,17 +1149,17 @@ export type CreateProductData = {
 
 export type CreateProductErrors = {
     /**
+     * Account belongs to several businesses
+     */
+    400: unknown;
+    /**
      * Not authenticated
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership, or not the business owner
      */
     403: unknown;
-    /**
-     * The store_id is not one of this merchant's stores
-     */
-    404: unknown;
     /**
      * Invalid input
      */
@@ -768,7 +1168,7 @@ export type CreateProductErrors = {
 
 export type CreateProductResponses = {
     /**
-     * Product added to the menu
+     * Catalog product created
      */
     201: ProductResponse;
 };
@@ -779,7 +1179,7 @@ export type DeleteProductData = {
     body?: never;
     path: {
         /**
-         * Product id
+         * Catalog product id
          */
         id: string;
     };
@@ -793,18 +1193,18 @@ export type DeleteProductErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership, or not the business owner
      */
     403: unknown;
     /**
-     * Not one of this merchant's products
+     * Not one of this business's products
      */
     404: unknown;
 };
 
 export type DeleteProductResponses = {
     /**
-     * Product deleted
+     * Catalog product deleted
      */
     204: void;
 };
@@ -815,7 +1215,7 @@ export type UpdateProductData = {
     body: UpdateProductInput;
     path: {
         /**
-         * Product id
+         * Catalog product id
          */
         id: string;
     };
@@ -829,11 +1229,11 @@ export type UpdateProductErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership, or not the business owner
      */
     403: unknown;
     /**
-     * Not one of this merchant's products
+     * Not one of this business's products
      */
     404: unknown;
     /**
@@ -844,12 +1244,230 @@ export type UpdateProductErrors = {
 
 export type UpdateProductResponses = {
     /**
-     * The updated product
+     * The updated catalog product
      */
     200: ProductResponse;
 };
 
 export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
+
+export type GetMerchantStoreOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Store order id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/store-orders/{id}';
+};
+
+export type GetMerchantStoreOrderErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this operator's orders
+     */
+    404: unknown;
+};
+
+export type GetMerchantStoreOrderResponses = {
+    /**
+     * The store order's detail with items and the customer contact
+     */
+    200: MerchantStoreOrderDetailResponse;
+};
+
+export type GetMerchantStoreOrderResponse = GetMerchantStoreOrderResponses[keyof GetMerchantStoreOrderResponses];
+
+export type AdvanceStoreOrderData = {
+    body: AdvanceStatusInput;
+    path: {
+        /**
+         * Store order id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/store-orders/{id}';
+};
+
+export type AdvanceStoreOrderErrors = {
+    /**
+     * Invalid or illegal status transition
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this operator's orders
+     */
+    404: unknown;
+};
+
+export type AdvanceStoreOrderResponses = {
+    /**
+     * Store order advanced
+     */
+    200: MerchantStoreOrderResponse;
+};
+
+export type AdvanceStoreOrderResponse = AdvanceStoreOrderResponses[keyof AdvanceStoreOrderResponses];
+
+export type ListStoreProductsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/merchant/store-products';
+};
+
+export type ListStoreProductsErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+};
+
+export type ListStoreProductsResponses = {
+    /**
+     * The assortment across reachable stores, oldest first
+     */
+    200: Array<StoreProductResponse>;
+};
+
+export type ListStoreProductsResponse = ListStoreProductsResponses[keyof ListStoreProductsResponses];
+
+export type CreateStoreProductData = {
+    body: CreateStoreProductInput;
+    path?: never;
+    query?: never;
+    url: '/v1/merchant/store-products';
+};
+
+export type CreateStoreProductErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership, or store out of scope
+     */
+    403: unknown;
+    /**
+     * Unknown store or product (or another business's)
+     */
+    404: unknown;
+    /**
+     * This store already sells this product
+     */
+    409: unknown;
+    /**
+     * Invalid input
+     */
+    422: unknown;
+};
+
+export type CreateStoreProductResponses = {
+    /**
+     * Product attached to the store's assortment
+     */
+    201: StoreProductResponse;
+};
+
+export type CreateStoreProductResponse = CreateStoreProductResponses[keyof CreateStoreProductResponses];
+
+export type DeleteStoreProductData = {
+    body?: never;
+    path: {
+        /**
+         * Store product id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/store-products/{id}';
+};
+
+export type DeleteStoreProductErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership, or store out of scope
+     */
+    403: unknown;
+    /**
+     * Not one of this business's store products
+     */
+    404: unknown;
+};
+
+export type DeleteStoreProductResponses = {
+    /**
+     * Product detached from the store
+     */
+    204: void;
+};
+
+export type DeleteStoreProductResponse = DeleteStoreProductResponses[keyof DeleteStoreProductResponses];
+
+export type UpdateStoreProductData = {
+    body: UpdateStoreProductInput;
+    path: {
+        /**
+         * Store product id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/store-products/{id}';
+};
+
+export type UpdateStoreProductErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership, or store out of scope
+     */
+    403: unknown;
+    /**
+     * Not one of this business's store products
+     */
+    404: unknown;
+    /**
+     * Invalid input
+     */
+    422: unknown;
+};
+
+export type UpdateStoreProductResponses = {
+    /**
+     * The updated store product
+     */
+    200: StoreProductResponse;
+};
+
+export type UpdateStoreProductResponse = UpdateStoreProductResponses[keyof UpdateStoreProductResponses];
 
 export type ListOwnStoresData = {
     body?: never;
@@ -864,14 +1482,14 @@ export type ListOwnStoresErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership
      */
     403: unknown;
 };
 
 export type ListOwnStoresResponses = {
     /**
-     * The merchant's stores, oldest first
+     * The stores this operator can reach, oldest first
      */
     200: Array<StoreResponse>;
 };
@@ -887,11 +1505,15 @@ export type CreateOwnStoreData = {
 
 export type CreateOwnStoreErrors = {
     /**
+     * Account belongs to several businesses
+     */
+    400: unknown;
+    /**
      * Not authenticated
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership, or not the business owner
      */
     403: unknown;
     /**
@@ -927,11 +1549,11 @@ export type DeleteOwnStoreErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership, or not the business owner
      */
     403: unknown;
     /**
-     * Not one of this merchant's stores
+     * Not one of this operator's stores
      */
     404: unknown;
 };
@@ -963,18 +1585,18 @@ export type GetOwnStoreErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership
      */
     403: unknown;
     /**
-     * Not one of this merchant's stores
+     * Not one of this operator's stores
      */
     404: unknown;
 };
 
 export type GetOwnStoreResponses = {
     /**
-     * One of the merchant's stores
+     * One of this operator's stores
      */
     200: StoreResponse;
 };
@@ -999,11 +1621,11 @@ export type UpdateOwnStoreErrors = {
      */
     401: unknown;
     /**
-     * Not a merchant
+     * No merchant membership
      */
     403: unknown;
     /**
-     * Not one of this merchant's stores
+     * Not one of this operator's stores
      */
     404: unknown;
     /**
@@ -1036,6 +1658,165 @@ export type OpenapiJsonResponses = {
 };
 
 export type OpenapiJsonResponse = OpenapiJsonResponses[keyof OpenapiJsonResponses];
+
+export type ListOrdersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
+    url: '/v1/orders';
+};
+
+export type ListOrdersErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+};
+
+export type ListOrdersResponses = {
+    /**
+     * Order groups, newest first
+     */
+    200: Array<GroupSummaryResponse>;
+};
+
+export type ListOrdersResponse = ListOrdersResponses[keyof ListOrdersResponses];
+
+export type CheckoutData = {
+    body: CheckoutInput;
+    path?: never;
+    query?: never;
+    url: '/v1/orders';
+};
+
+export type CheckoutErrors = {
+    /**
+     * Empty cart or invalid input
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+    /**
+     * Store closed, item unavailable, or not enough stock — details name the offenders
+     */
+    409: unknown;
+    /**
+     * Invalid input
+     */
+    422: unknown;
+};
+
+export type CheckoutResponses = {
+    /**
+     * Already placed — the retry's idempotency key matched an existing group
+     */
+    200: OrderGroupResponse;
+    /**
+     * Checkout placed — one group with its store orders
+     */
+    201: OrderGroupResponse;
+};
+
+export type CheckoutResponse = CheckoutResponses[keyof CheckoutResponses];
+
+export type GetOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Order group id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/orders/{id}';
+};
+
+export type GetOrderErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+    /**
+     * Group not found (or not yours)
+     */
+    404: unknown;
+};
+
+export type GetOrderResponses = {
+    /**
+     * One order group with its store orders and payment
+     */
+    200: OrderGroupResponse;
+};
+
+export type GetOrderResponse = GetOrderResponses[keyof GetOrderResponses];
+
+export type CancelStoreOrderData = {
+    body: CancelInput;
+    path: {
+        /**
+         * Order group id
+         */
+        id: string;
+        /**
+         * Store order id
+         */
+        store_order_id: string;
+    };
+    query?: never;
+    url: '/v1/orders/{id}/store-orders/{store_order_id}/cancel';
+};
+
+export type CancelStoreOrderErrors = {
+    /**
+     * The order can no longer be cancelled (already out)
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+    /**
+     * Not one of your orders
+     */
+    404: unknown;
+};
+
+export type CancelStoreOrderResponses = {
+    /**
+     * The cancelled store order
+     */
+    200: StoreOrderResponse;
+};
+
+export type CancelStoreOrderResponse = CancelStoreOrderResponses[keyof CancelStoreOrderResponses];
 
 export type ListStoresData = {
     body?: never;
@@ -1093,7 +1874,7 @@ export type GetStoreErrors = {
 
 export type GetStoreResponses = {
     /**
-     * The store and its available products
+     * The store and its menu
      */
     200: StoreWithProductsResponse;
 };

@@ -6,7 +6,7 @@
 //! by a semaphore so a flood of login attempts cannot pin every worker
 //! thread. Callers (handlers, tests, bins) never touch argon2 directly.
 
-use crate::users::{self, User, UserRole};
+use crate::users::{self, Account};
 use argon2::Argon2;
 use password_hash::phc::PasswordHash;
 use password_hash::{PasswordHasher, PasswordVerifier};
@@ -103,43 +103,38 @@ impl AccountManager {
             .expect("BUG: hashing semaphore should not be closed")
     }
 
-    /// Create a customer account. Customers are identified by phone; the row
-    /// appears the first time an OTP is verified (register and login are one
-    /// flow).
-    pub async fn create_customer(
+    /// Create a phone-anchored account (the customer OTP path). The customer
+    /// profile is ensured by the caller's flow — see [`crate::customers`].
+    pub async fn create_phone_account(
         &self,
         conn: &mut PgConnection,
         phone: &str,
-        name: Option<&str>,
-    ) -> Result<User, CreateAccountError> {
-        users::create_customer(conn, phone, name)
+    ) -> Result<Account, CreateAccountError> {
+        users::create_with_phone(conn, phone)
             .await
             .map_err(unique_violation)
     }
 
-    /// Create a merchant or admin account (email + password identity),
-    /// hashing the password here — callers pass plaintext, never hashes.
-    /// Phone numbers are customer identity only, so staff never carry one.
-    pub async fn create_staff(
+    /// Create an email + password account (merchant staff, admins), hashing
+    /// the password here — callers pass plaintext, never hashes.
+    pub async fn create_password_account(
         &self,
         conn: &mut PgConnection,
-        role: UserRole,
-        name: Option<&str>,
         email: &str,
         password: &str,
-    ) -> Result<User, CreateAccountError> {
+    ) -> Result<Account, CreateAccountError> {
         let password_hash = self.hash_password(password.to_string()).await?;
-        users::create_staff(conn, role, name, email, &password_hash)
+        users::create_with_password(conn, email, &password_hash)
             .await
             .map_err(unique_violation)
     }
 
     /// Timing-equalized password check for sign-in: accounts that cannot
-    /// match (missing user, customer without a password) still burn an argon2
+    /// match (unknown email, account without a password) still burn an argon2
     /// verify against a dummy hash so timing reveals nothing. Returns whether
-    /// the password matched the user's stored hash.
-    pub async fn verify_staff_password(&self, user: Option<&User>, password: &str) -> bool {
-        match user.and_then(|user| user.password_hash.clone()) {
+    /// the password matched the account's stored hash.
+    pub async fn verify_login_password(&self, account: Option<&Account>, password: &str) -> bool {
+        match account.and_then(|account| account.password_hash.clone()) {
             Some(hash) => self.verify_password(password.to_string(), hash).await,
             None => {
                 self.verify_password(password.to_string(), DUMMY_HASH.to_string())
@@ -154,11 +149,11 @@ impl AccountManager {
     pub async fn change_password(
         &self,
         conn: &mut PgConnection,
-        user: &User,
+        account: &Account,
         current_password: &str,
         new_password: &str,
     ) -> Result<(), ChangePasswordError> {
-        let Some(hash) = user.password_hash.clone() else {
+        let Some(hash) = account.password_hash.clone() else {
             return Err(ChangePasswordError::NoPassword);
         };
         if !self
@@ -168,7 +163,7 @@ impl AccountManager {
             return Err(ChangePasswordError::WrongCurrentPassword);
         }
         let new_hash = self.hash_password(new_password.to_string()).await?;
-        users::set_password(conn, user.id, &new_hash).await?;
+        users::set_password(conn, account.id, &new_hash).await?;
         Ok(())
     }
 }

@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { LayoutDashboard, Store, Users } from 'lucide-react'
-import { requireRole } from '../../lib/session'
+import { requireWing } from '../../lib/session'
 import { WingShell } from '../../components/wing-shell'
 
 export const Route = createFileRoute('/admin')({
-  beforeLoad: requireRole('admin'),
+  beforeLoad: requireWing('admin'),
   component: AdminWing,
 })
 

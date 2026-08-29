@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useLogout } from '../hooks/use-logout'
 import { useSession } from '../hooks/use-session'
 import { initials } from '../lib/format'
+import { displayName } from '../types/session'
 import { Avatar, AvatarFallback } from './ui/avatar'
 import { Button } from './ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -69,7 +70,7 @@ export function WingShell({
   const [accountOpen, setAccountOpen] = useState(false)
   const isActive = (to: string) =>
     pathname === to || pathname.startsWith(`${to}/`)
-  const displayName = user?.name || user?.email || 'Signed in'
+  const name = displayName(user)
 
   return (
     <SidebarProvider>
@@ -140,15 +141,15 @@ export function WingShell({
                 >
                   <Avatar className="rounded-lg">
                     <AvatarFallback className="rounded-lg bg-primary/10 font-semibold text-primary">
-                      {initials(user?.name, user?.email)}
+                      {initials(name, user?.email)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid min-w-0 flex-1 gap-0.5 text-left">
                     <span className="truncate text-sm font-medium">
-                      {displayName}
+                      {name}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {user?.email || user?.role}
+                      {user?.email}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto text-muted-foreground" />

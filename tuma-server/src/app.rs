@@ -1,17 +1,28 @@
 use crate::error::ApiErrorResponse;
 use crate::error::validation_errors_to_field_errors;
-use crate::middleware::{auth_context, csrf_origin_check, require_role, required_auth};
+use crate::middleware::{
+    auth_context, csrf_origin_check, require_admin, require_customer, require_merchant,
+    required_auth,
+};
 use crate::routes::admin::{
     create_merchant, delete_customer, delete_merchant, get_merchant, list_customers,
     list_merchants, summary, update_customer, update_merchant,
 };
 use crate::routes::auth::{change_password, login, logout, otp_request, otp_verify};
+use crate::routes::catalog::{
+    create_product, create_store_product, delete_product, delete_store_product, list_products,
+    list_store_products, update_product, update_store_product,
+};
 use crate::routes::health_check;
 use crate::routes::me::{me, update_me};
 use crate::routes::openapi_json;
+use crate::routes::orders::{
+    advance_store_order, advance_store_order_admin, checkout, collect_payment,
+    get_merchant_store_order, get_order, list_merchant_orders, list_orders,
+};
 use crate::routes::stores::{
-    create_own_store, create_product, delete_own_store, delete_product, get_own_store, get_store,
-    list_own_products, list_own_stores, list_stores, update_own_store, update_product,
+    create_own_store, delete_own_store, get_own_store, get_store, list_own_stores, list_stores,
+    update_own_store,
 };
 use axum::extract::FromRequest;
 use axum::http::StatusCode;
@@ -60,12 +71,122 @@ impl AppState {
     }
 }
 
+/// What one membership grants on one merchant business. An owner covers
+/// every store; a manager is merchant-wide (`store_ids: None`) or scoped
+/// to a set of stores.
+#[derive(Debug, Clone)]
+pub struct MerchantGrant {
+    pub merchant_id: Uuid,
+    pub owner: bool,
+    /// `None` = every store of the merchant; `Some` = only these.
+    pub store_ids: Option<Vec<Uuid>>,
+}
+
+impl MerchantGrant {
+    pub fn can_access_store(&self, store_id: Uuid) -> bool {
+        self.owner
+            || self
+                .store_ids
+                .as_ref()
+                .is_none_or(|ids| ids.contains(&store_id))
+    }
+}
+
+/// The merchant-side authorization surface of the signed-in account,
+/// computed from its memberships. Customers and plain admins have none.
+#[derive(Debug, Clone, Default)]
+pub struct MerchantAccess {
+    pub grants: Vec<MerchantGrant>,
+}
+
+impl MerchantAccess {
+    /// Build from fresh membership rows. A merchant is owner-granted when
+    /// any owner membership exists; otherwise the manager memberships
+    /// define the reachable stores (merchant-wide managers widen to all).
+    /// Memberships of SUSPENDED businesses grant nothing — suspension is
+    /// how the platform pauses a business.
+    pub fn from_memberships(memberships: &[accounts::MembershipView]) -> Self {
+        use std::collections::HashMap;
+        let mut order: Vec<Uuid> = Vec::new();
+        let mut by_merchant: HashMap<Uuid, (bool, Option<Vec<Uuid>>, bool)> = HashMap::new();
+        for membership in memberships {
+            if membership.merchant_status == accounts::MerchantStatus::Suspended {
+                continue;
+            }
+            let entry = by_merchant
+                .entry(membership.merchant_id)
+                .or_insert_with(|| {
+                    order.push(membership.merchant_id);
+                    (false, Some(Vec::new()), false)
+                });
+            match membership.role {
+                accounts::MembershipRole::Owner => entry.0 = true,
+                accounts::MembershipRole::Manager => match membership.store_id {
+                    None => entry.2 = true, // merchant-wide manager
+                    Some(store_id) => {
+                        if let Some(ids) = entry.1.as_mut() {
+                            ids.push(store_id);
+                        }
+                    }
+                },
+            }
+        }
+        let grants = order
+            .into_iter()
+            .map(|merchant_id| {
+                let (owner, scoped, merchant_wide) = &by_merchant[&merchant_id];
+                let store_ids = if *owner || *merchant_wide {
+                    None
+                } else {
+                    scoped.clone()
+                };
+                MerchantGrant {
+                    merchant_id,
+                    owner: *owner,
+                    store_ids,
+                }
+            })
+            .collect();
+        Self { grants }
+    }
+
+    /// The single business this account works for. Creation endpoints need
+    /// one unambiguous merchant; accounts with memberships in several
+    /// businesses cannot create (V1 keeps one business per operator).
+    pub fn single_grant(&self) -> AppResult<&MerchantGrant> {
+        match self.grants.len() {
+            1 => Ok(&self.grants[0]),
+            0 => Err(AppError::Forbidden(
+                "this account has no merchant membership".into(),
+            )),
+            _ => Err(AppError::BadRequest(
+                "this account belongs to several merchant businesses — select one".into(),
+            )),
+        }
+    }
+
+    pub fn can_access_store(&self, merchant_id: Uuid, store_id: Uuid) -> bool {
+        self.grants
+            .iter()
+            .any(|grant| grant.merchant_id == merchant_id && grant.can_access_store(store_id))
+    }
+
+    pub fn can_access_any_store_of(&self, merchant_id: Uuid) -> bool {
+        self.grants
+            .iter()
+            .any(|grant| grant.merchant_id == merchant_id)
+    }
+}
+
 /// Who is making this request. Built once per request by the `auth_context`
-/// middleware (Bearer header or session cookie) and read by guards/handlers
-/// via `Extension<UserContext>`. `None` user means anonymous.
+/// middleware (Bearer header or session cookie): the account plus its
+/// authorization context, all looked up fresh — a deactivated account, a
+/// revoked membership, or a suspended business loses access on the very
+/// next request.
 #[derive(Clone, Debug, Default)]
 pub struct UserContext {
-    pub user: Option<accounts::User>,
+    pub user: Option<accounts::Account>,
+    pub authorization: Option<accounts::AuthorizationContext>,
 }
 
 impl UserContext {
@@ -73,8 +194,23 @@ impl UserContext {
         self.user.as_ref().map(|user| user.id)
     }
 
-    pub fn role(&self) -> Option<accounts::UserRole> {
-        self.user.as_ref().map(|user| user.role)
+    pub fn customer_id(&self) -> Option<Uuid> {
+        self.authorization
+            .as_ref()
+            .and_then(|auth| auth.customer.as_ref().map(|customer| customer.id))
+    }
+
+    pub fn is_admin(&self) -> bool {
+        self.authorization
+            .as_ref()
+            .is_some_and(|auth| auth.admin.is_some())
+    }
+
+    /// The merchant-side surface; `None` for accounts with no memberships.
+    pub fn merchant_access(&self) -> Option<MerchantAccess> {
+        let memberships = &self.authorization.as_ref()?.memberships;
+        let access = MerchantAccess::from_memberships(memberships);
+        (!access.grants.is_empty()).then_some(access)
     }
 }
 
@@ -101,9 +237,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/auth/password", post(change_password))
         .layer(middleware::from_fn(required_auth));
 
-    // Admin audience namespace. require_role runs inside auth_context, so
-    // the UserContext it checks was built (and the user freshly looked up)
-    // before the guard sees it.
+    // Admin audience namespace: the platform control plane. Authorization
+    // is the admins profile row, resolved fresh per request.
     let admin = Router::new()
         .route("/merchants", post(create_merchant).get(list_merchants))
         .route(
@@ -118,13 +253,13 @@ pub fn build_app_with_state(state: AppState) -> Router {
             patch(update_customer).delete(delete_customer),
         )
         .route("/summary", get(summary))
-        .layer(middleware::from_fn_with_state(
-            &[accounts::UserRole::Admin][..],
-            require_role,
-        ));
+        .route("/store-orders/{id}", patch(advance_store_order_admin))
+        .route("/payments/{id}/collect", post(collect_payment))
+        .layer(middleware::from_fn(require_admin));
 
-    // Merchant audience namespace: stores + menu management. Ownership is
-    // the signed-in user id resolved server-side, never a client claim.
+    // Merchant audience namespace: stores + catalog + incoming orders.
+    // Authorization is the account's merchant memberships, scoped per
+    // store server-side.
     let merchant = Router::new()
         .route("/stores", post(create_own_store).get(list_own_stores))
         .route(
@@ -133,24 +268,31 @@ pub fn build_app_with_state(state: AppState) -> Router {
                 .patch(update_own_store)
                 .delete(delete_own_store),
         )
-        .route("/products", post(create_product).get(list_own_products))
+        .route("/products", post(create_product).get(list_products))
         .route(
             "/products/{id}",
             patch(update_product).delete(delete_product),
         )
-        .layer(middleware::from_fn_with_state(
-            &[accounts::UserRole::Merchant][..],
-            require_role,
-        ));
+        .route(
+            "/store-products",
+            post(create_store_product).get(list_store_products),
+        )
+        .route(
+            "/store-products/{id}",
+            patch(update_store_product).delete(delete_store_product),
+        )
+        .route("/orders", get(list_merchant_orders))
+        .route(
+            "/store-orders/{id}",
+            get(get_merchant_store_order).patch(advance_store_order),
+        )
+        .layer(middleware::from_fn(require_merchant));
 
     // Customer audience namespace: browse open stores and their menus.
     let stores = Router::new()
         .route("/", get(list_stores))
         .route("/{id}", get(get_store))
-        .layer(middleware::from_fn_with_state(
-            &[accounts::UserRole::Customer][..],
-            require_role,
-        ));
+        .layer(middleware::from_fn(require_customer));
 
     // Business routes live under /api/v1, namespaced by audience
     // (/auth, /me, /admin, /merchant, /stores). The OpenAPI contract is
@@ -163,6 +305,17 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .nest("/admin", admin)
         .nest("/merchant", merchant)
         .nest("/stores", stores)
+        .nest(
+            "/orders",
+            Router::new()
+                .route("/", post(checkout).get(list_orders))
+                .route("/{id}", get(get_order))
+                .route(
+                    "/{id}/store-orders/{store_order_id}/cancel",
+                    post(crate::routes::orders::cancel_store_order),
+                )
+                .layer(middleware::from_fn(require_customer)),
+        )
         .merge(authenticated);
 
     // Layer order (outermost runs first): trace → auth context → CSRF → CORS.

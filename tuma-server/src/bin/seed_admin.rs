@@ -1,5 +1,5 @@
-//! Seeds the first admin account — admins never come into existence via the
-//! API (see Tuma_Auth_and_RBAC_Architecture.md §2).
+//! Seeds the first platform admin — admins never come into existence via
+//! the API (the profile row is what makes an account an admin).
 //!
 //! Usage:
 //!   TUMA_ADMIN_PASSWORD=... cargo run --bin seed_admin
@@ -8,7 +8,6 @@
 //! Runs pending migrations first, so seeding a fresh database is one
 //! command. An existing admin is left untouched.
 
-use accounts::UserRole;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 use tuma_server::config::get_configuration;
@@ -28,25 +27,26 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("TUMA_ADMIN_PASSWORD is required"))?;
 
     let mut conn = pool.acquire().await?;
-    if accounts::users::by_email(&mut conn, &email)
-        .await?
-        .is_some()
+    if let Some(existing) = accounts::users::by_email(&mut conn, &email).await?
+        && accounts::admins::by_user_id(&mut conn, existing.id)
+            .await?
+            .is_some()
     {
         println!("admin {email} already exists — leaving it alone");
         return Ok(());
     }
 
-    let accounts = accounts::AccountManager::new(1);
-    let user = accounts
-        .create_staff(
-            &mut conn,
-            UserRole::Admin,
-            Some("Tuma Admin"),
-            &email,
-            &password,
-        )
-        .await?;
+    let accounts_manager = accounts::AccountManager::new(1);
+    let account = match accounts::users::by_email(&mut conn, &email).await? {
+        Some(existing) => existing,
+        None => {
+            accounts_manager
+                .create_password_account(&mut conn, &email, &password)
+                .await?
+        }
+    };
+    accounts::admins::ensure_for_user(&mut conn, account.id, Some("Tuma Admin")).await?;
 
-    println!("seeded admin {email} ({})", user.id);
+    println!("seeded admin {email} ({})", account.id);
     Ok(())
 }

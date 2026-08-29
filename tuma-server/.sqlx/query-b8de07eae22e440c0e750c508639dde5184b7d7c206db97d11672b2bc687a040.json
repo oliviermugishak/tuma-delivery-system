@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, order_group_id,\n               provider AS \"provider: PaymentProvider\", amount, currency,\n               status AS \"status: PaymentStatus\", provider_reference,\n               created_at, updated_at\n        FROM commerce.payments\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "order_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "order_group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "provider: PaymentProvider",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.payment_provider",
+            "kind": {
+              "Enum": [
+                "cash_on_delivery"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "amount",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "amount"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "currency",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "status: PaymentStatus",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.payment_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "collected",
+                "refunded"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "provider_reference",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "provider_reference"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "b8de07eae22e440c0e750c508639dde5184b7d7c206db97d11672b2bc687a040"
+}

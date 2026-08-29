@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CreateMerchantData, CreateMerchantErrors, CreateMerchantResponses, CreateOwnStoreData, CreateOwnStoreErrors, CreateOwnStoreResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteCustomerData, DeleteCustomerErrors, DeleteCustomerResponses, DeleteMerchantData, DeleteMerchantErrors, DeleteMerchantResponses, DeleteOwnStoreData, DeleteOwnStoreErrors, DeleteOwnStoreResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetMerchantData, GetMerchantErrors, GetMerchantResponses, GetOwnStoreData, GetOwnStoreErrors, GetOwnStoreResponses, GetStoreData, GetStoreErrors, GetStoreResponses, HealthCheckData, HealthCheckResponses, ListCustomersData, ListCustomersErrors, ListCustomersResponses, ListMerchantsData, ListMerchantsErrors, ListMerchantsResponses, ListOwnProductsData, ListOwnProductsErrors, ListOwnProductsResponses, ListOwnStoresData, ListOwnStoresErrors, ListOwnStoresResponses, ListStoresData, ListStoresErrors, ListStoresResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MeData, MeErrors, MeResponses, OpenapiJsonData, OpenapiJsonResponses, OtpRequestData, OtpRequestErrors, OtpRequestResponses, OtpVerifyData, OtpVerifyErrors, OtpVerifyResponses, SummaryData, SummaryErrors, SummaryResponses, UpdateCustomerData, UpdateCustomerErrors, UpdateCustomerResponses, UpdateMeData, UpdateMeErrors, UpdateMerchantData, UpdateMerchantErrors, UpdateMerchantResponses, UpdateMeResponses, UpdateOwnStoreData, UpdateOwnStoreErrors, UpdateOwnStoreResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { AdvanceStoreOrderAdminData, AdvanceStoreOrderAdminErrors, AdvanceStoreOrderAdminResponses, AdvanceStoreOrderData, AdvanceStoreOrderErrors, AdvanceStoreOrderResponses, CancelStoreOrderData, CancelStoreOrderErrors, CancelStoreOrderResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckoutData, CheckoutErrors, CheckoutResponses, CollectPaymentData, CollectPaymentErrors, CollectPaymentResponses, CreateMerchantData, CreateMerchantErrors, CreateMerchantResponses, CreateOwnStoreData, CreateOwnStoreErrors, CreateOwnStoreResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateStoreProductData, CreateStoreProductErrors, CreateStoreProductResponses, DeleteCustomerData, DeleteCustomerErrors, DeleteCustomerResponses, DeleteMerchantData, DeleteMerchantErrors, DeleteMerchantResponses, DeleteOwnStoreData, DeleteOwnStoreErrors, DeleteOwnStoreResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, DeleteStoreProductData, DeleteStoreProductErrors, DeleteStoreProductResponses, GetMerchantData, GetMerchantErrors, GetMerchantResponses, GetMerchantStoreOrderData, GetMerchantStoreOrderErrors, GetMerchantStoreOrderResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetOwnStoreData, GetOwnStoreErrors, GetOwnStoreResponses, GetStoreData, GetStoreErrors, GetStoreResponses, HealthCheckData, HealthCheckResponses, ListCustomersData, ListCustomersErrors, ListCustomersResponses, ListMerchantOrdersData, ListMerchantOrdersErrors, ListMerchantOrdersResponses, ListMerchantsData, ListMerchantsErrors, ListMerchantsResponses, ListOrdersData, ListOrdersErrors, ListOrdersResponses, ListOwnStoresData, ListOwnStoresErrors, ListOwnStoresResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStoreProductsData, ListStoreProductsErrors, ListStoreProductsResponses, ListStoresData, ListStoresErrors, ListStoresResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MeData, MeErrors, MeResponses, OpenapiJsonData, OpenapiJsonResponses, OtpRequestData, OtpRequestErrors, OtpRequestResponses, OtpVerifyData, OtpVerifyErrors, OtpVerifyResponses, SummaryData, SummaryErrors, SummaryResponses, UpdateCustomerData, UpdateCustomerErrors, UpdateCustomerResponses, UpdateMeData, UpdateMeErrors, UpdateMerchantData, UpdateMerchantErrors, UpdateMerchantResponses, UpdateMeResponses, UpdateOwnStoreData, UpdateOwnStoreErrors, UpdateOwnStoreResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses, UpdateStoreProductData, UpdateStoreProductErrors, UpdateStoreProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -23,14 +23,13 @@ export const healthCheck = <ThrowOnError extends boolean = false>(options?: Opti
 export const listCustomers = <ThrowOnError extends boolean = false>(options?: Options<ListCustomersData, ThrowOnError>): RequestResult<ListCustomersResponses, ListCustomersErrors, ThrowOnError> => (options?.client ?? client).get<ListCustomersResponses, ListCustomersErrors, ThrowOnError>({ url: '/v1/admin/customers', ...options });
 
 /**
- * Hard-delete a customer. Permanent — the platform confirms before
- * calling. Scoped to customers: a merchant or admin id is a 404.
+ * Hard-delete a customer account. The profile, refresh tokens, and order
+ * history follow via ON DELETE CASCADE — permanent, and the platform
+ * confirms before calling. Scoped to customer accounts: any other identity
+ * is a 404.
  */
 export const deleteCustomer = <ThrowOnError extends boolean = false>(options: Options<DeleteCustomerData, ThrowOnError>): RequestResult<DeleteCustomerResponses, DeleteCustomerErrors, ThrowOnError> => (options.client ?? client).delete<DeleteCustomerResponses, DeleteCustomerErrors, ThrowOnError>({ url: '/v1/admin/customers/{id}', ...options });
 
-/**
- * Edit a customer (name, phone, active flag). A taken phone is a 409.
- */
 export const updateCustomer = <ThrowOnError extends boolean = false>(options: Options<UpdateCustomerData, ThrowOnError>): RequestResult<UpdateCustomerResponses, UpdateCustomerErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCustomerResponses, UpdateCustomerErrors, ThrowOnError>({
     url: '/v1/admin/customers/{id}',
     ...options,
@@ -52,24 +51,40 @@ export const createMerchant = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * Hard-delete a merchant. Their stores and products follow via ON DELETE
- * CASCADE — this is permanent, and the platform confirms before calling.
+ * Hard-delete a business. Its memberships, stores (and their assortments),
+ * and catalog products follow via ON DELETE CASCADE. Member ACCOUNTS are
+ * identities, not parts of the business — they survive the delete.
  */
 export const deleteMerchant = <ThrowOnError extends boolean = false>(options: Options<DeleteMerchantData, ThrowOnError>): RequestResult<DeleteMerchantResponses, DeleteMerchantErrors, ThrowOnError> => (options.client ?? client).delete<DeleteMerchantResponses, DeleteMerchantErrors, ThrowOnError>({ url: '/v1/admin/merchants/{id}', ...options });
 
 /**
- * One merchant account with everything the admin detail page shows: the
- * account itself and their stores with product counts. Admin sees facts;
+ * One business with everything the admin detail page shows: the business,
+ * its stores with assortment counts, and its members. Admin sees facts;
  * the merchant manages the menu — it stays out of the admin's response.
- * Unknown ids and non-merchant ids are the same 404.
  */
 export const getMerchant = <ThrowOnError extends boolean = false>(options: Options<GetMerchantData, ThrowOnError>): RequestResult<GetMerchantResponses, GetMerchantErrors, ThrowOnError> => (options.client ?? client).get<GetMerchantResponses, GetMerchantErrors, ThrowOnError>({ url: '/v1/admin/merchants/{id}', ...options });
 
-/**
- * Edit a merchant (name, email, active flag). A taken email is a 409.
- */
 export const updateMerchant = <ThrowOnError extends boolean = false>(options: Options<UpdateMerchantData, ThrowOnError>): RequestResult<UpdateMerchantResponses, UpdateMerchantErrors, ThrowOnError> => (options.client ?? client).patch<UpdateMerchantResponses, UpdateMerchantErrors, ThrowOnError>({
     url: '/v1/admin/merchants/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Mark a pending cash payment collected. Its allocations settle with it —
+ * the ledger records who received what without any inference.
+ */
+export const collectPayment = <ThrowOnError extends boolean = false>(options: Options<CollectPaymentData, ThrowOnError>): RequestResult<CollectPaymentResponses, CollectPaymentErrors, ThrowOnError> => (options.client ?? client).post<CollectPaymentResponses, CollectPaymentErrors, ThrowOnError>({ url: '/v1/admin/payments/{id}/collect', ...options });
+
+/**
+ * Advance any store order. The platform's control plane answer when a
+ * merchant cannot.
+ */
+export const advanceStoreOrderAdmin = <ThrowOnError extends boolean = false>(options: Options<AdvanceStoreOrderAdminData, ThrowOnError>): RequestResult<AdvanceStoreOrderAdminResponses, AdvanceStoreOrderAdminErrors, ThrowOnError> => (options.client ?? client).patch<AdvanceStoreOrderAdminResponses, AdvanceStoreOrderAdminErrors, ThrowOnError>({
+    url: '/v1/admin/store-orders/{id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -83,8 +98,11 @@ export const updateMerchant = <ThrowOnError extends boolean = false>(options: Op
 export const summary = <ThrowOnError extends boolean = false>(options?: Options<SummaryData, ThrowOnError>): RequestResult<SummaryResponses, SummaryErrors, ThrowOnError> => (options?.client ?? client).get<SummaryResponses, SummaryErrors, ThrowOnError>({ url: '/v1/admin/summary', ...options });
 
 /**
- * Merchant/admin sign-in for the platform. Sets the two session cookies
- * (15-min access JWT + 30-day opaque refresh); the body is empty.
+ * Platform sign-in (merchant operators and admins) with email + password.
+ * Sets the two session cookies (15-min access JWT + 30-day opaque refresh);
+ * the body is empty. Authorization is resolved from profiles — an account
+ * with neither an admin profile nor a merchant membership cannot enter the
+ * platform, and the answer never reveals which part failed.
  */
 export const login = <ThrowOnError extends boolean = false>(options: Options<LoginData, ThrowOnError>): RequestResult<LoginResponses, LoginErrors, ThrowOnError> => (options.client ?? client).post<LoginResponses, LoginErrors, ThrowOnError>({
     url: '/v1/auth/login',
@@ -116,8 +134,8 @@ export const otpVerify = <ThrowOnError extends boolean = false>(options: Options
 });
 
 /**
- * Change the caller's own password. Merchant/admin only in practice —
- * customers have no password (OTP accounts), which is a 400.
+ * Change the caller's own password. Merchant operators and admins only in
+ * practice — customers have no password (OTP accounts), which is a 400.
  */
 export const changePassword = <ThrowOnError extends boolean = false>(options: Options<ChangePasswordData, ThrowOnError>): RequestResult<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError> => (options.client ?? client).post<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError>({
     url: '/v1/auth/password',
@@ -131,10 +149,9 @@ export const changePassword = <ThrowOnError extends boolean = false>(options: Op
 export const me = <ThrowOnError extends boolean = false>(options?: Options<MeData, ThrowOnError>): RequestResult<MeResponses, MeErrors, ThrowOnError> => (options?.client ?? client).get<MeResponses, MeErrors, ThrowOnError>({ url: '/v1/me', ...options });
 
 /**
- * Updates the caller's own profile. Name is the only mutable field in V1
- * (see tuma-docs/Tuma_API_Architecture.md §3). Used by the mobile name
- * capture step: OTP verify consumes the code, so a fresh user's name lands
- * here, not in a second verify call.
+ * Updates the caller's own profile name — the customer profile when there
+ * is one, else the admin profile. Merchant-operator accounts have no
+ * editable name in V1 (their identity on the wing is the business).
  */
 export const updateMe = <ThrowOnError extends boolean = false>(options: Options<UpdateMeData, ThrowOnError>): RequestResult<UpdateMeResponses, UpdateMeErrors, ThrowOnError> => (options.client ?? client).patch<UpdateMeResponses, UpdateMeErrors, ThrowOnError>({
     url: '/v1/me',
@@ -145,7 +162,9 @@ export const updateMe = <ThrowOnError extends boolean = false>(options: Options<
     }
 });
 
-export const listOwnProducts = <ThrowOnError extends boolean = false>(options?: Options<ListOwnProductsData, ThrowOnError>): RequestResult<ListOwnProductsResponses, ListOwnProductsErrors, ThrowOnError> => (options?.client ?? client).get<ListOwnProductsResponses, ListOwnProductsErrors, ThrowOnError>({ url: '/v1/merchant/products', ...options });
+export const listMerchantOrders = <ThrowOnError extends boolean = false>(options?: Options<ListMerchantOrdersData, ThrowOnError>): RequestResult<ListMerchantOrdersResponses, ListMerchantOrdersErrors, ThrowOnError> => (options?.client ?? client).get<ListMerchantOrdersResponses, ListMerchantOrdersErrors, ThrowOnError>({ url: '/v1/merchant/orders', ...options });
+
+export const listProducts = <ThrowOnError extends boolean = false>(options?: Options<ListProductsData, ThrowOnError>): RequestResult<ListProductsResponses, ListProductsErrors, ThrowOnError> => (options?.client ?? client).get<ListProductsResponses, ListProductsErrors, ThrowOnError>({ url: '/v1/merchant/products', ...options });
 
 export const createProduct = <ThrowOnError extends boolean = false>(options: Options<CreateProductData, ThrowOnError>): RequestResult<CreateProductResponses, CreateProductErrors, ThrowOnError> => (options.client ?? client).post<CreateProductResponses, CreateProductErrors, ThrowOnError>({
     url: '/v1/merchant/products',
@@ -157,13 +176,60 @@ export const createProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Hard-delete one of the merchant's products. Permanent — the platform
- * confirms before calling.
+ * Delete a catalog product. Every store selling it loses it at once
+ * (ON DELETE CASCADE) — permanent, and the platform confirms first.
  */
 export const deleteProduct = <ThrowOnError extends boolean = false>(options: Options<DeleteProductData, ThrowOnError>): RequestResult<DeleteProductResponses, DeleteProductErrors, ThrowOnError> => (options.client ?? client).delete<DeleteProductResponses, DeleteProductErrors, ThrowOnError>({ url: '/v1/merchant/products/{id}', ...options });
 
 export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).patch<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
     url: '/v1/merchant/products/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * One store order's detail — the fulfillment sheet: what to prepare, where
+ * it goes, and who to call. Store-scoped managers may read only their own
+ * store's orders; a foreign one is a plain 404.
+ */
+export const getMerchantStoreOrder = <ThrowOnError extends boolean = false>(options: Options<GetMerchantStoreOrderData, ThrowOnError>): RequestResult<GetMerchantStoreOrderResponses, GetMerchantStoreOrderErrors, ThrowOnError> => (options.client ?? client).get<GetMerchantStoreOrderResponses, GetMerchantStoreOrderErrors, ThrowOnError>({ url: '/v1/merchant/store-orders/{id}', ...options });
+
+/**
+ * Advance one of the operator's store orders (accept, prepare, hand off…;
+ * or cancel to reject). Store-scoped managers can act only on their own
+ * store's orders — a foreign one is a plain 404.
+ */
+export const advanceStoreOrder = <ThrowOnError extends boolean = false>(options: Options<AdvanceStoreOrderData, ThrowOnError>): RequestResult<AdvanceStoreOrderResponses, AdvanceStoreOrderErrors, ThrowOnError> => (options.client ?? client).patch<AdvanceStoreOrderResponses, AdvanceStoreOrderErrors, ThrowOnError>({
+    url: '/v1/merchant/store-orders/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const listStoreProducts = <ThrowOnError extends boolean = false>(options?: Options<ListStoreProductsData, ThrowOnError>): RequestResult<ListStoreProductsResponses, ListStoreProductsErrors, ThrowOnError> => (options?.client ?? client).get<ListStoreProductsResponses, ListStoreProductsErrors, ThrowOnError>({ url: '/v1/merchant/store-products', ...options });
+
+export const createStoreProduct = <ThrowOnError extends boolean = false>(options: Options<CreateStoreProductData, ThrowOnError>): RequestResult<CreateStoreProductResponses, CreateStoreProductErrors, ThrowOnError> => (options.client ?? client).post<CreateStoreProductResponses, CreateStoreProductErrors, ThrowOnError>({
+    url: '/v1/merchant/store-products',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Detach one product from one store. The catalog identity stays — the
+ * product can be attached (differently priced) somewhere else.
+ */
+export const deleteStoreProduct = <ThrowOnError extends boolean = false>(options: Options<DeleteStoreProductData, ThrowOnError>): RequestResult<DeleteStoreProductResponses, DeleteStoreProductErrors, ThrowOnError> => (options.client ?? client).delete<DeleteStoreProductResponses, DeleteStoreProductErrors, ThrowOnError>({ url: '/v1/merchant/store-products/{id}', ...options });
+
+export const updateStoreProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateStoreProductData, ThrowOnError>): RequestResult<UpdateStoreProductResponses, UpdateStoreProductErrors, ThrowOnError> => (options.client ?? client).patch<UpdateStoreProductResponses, UpdateStoreProductErrors, ThrowOnError>({
+    url: '/v1/merchant/store-products/{id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -183,8 +249,9 @@ export const createOwnStore = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * Hard-delete one of the merchant's stores. Its products follow via
+ * Hard-delete one of the operator's stores. Its store_products follow via
  * ON DELETE CASCADE — permanent, and the platform confirms before calling.
+ * Owners only: a store-scoped manager cannot delete their store.
  */
 export const deleteOwnStore = <ThrowOnError extends boolean = false>(options: Options<DeleteOwnStoreData, ThrowOnError>): RequestResult<DeleteOwnStoreResponses, DeleteOwnStoreErrors, ThrowOnError> => (options.client ?? client).delete<DeleteOwnStoreResponses, DeleteOwnStoreErrors, ThrowOnError>({ url: '/v1/merchant/stores/{id}', ...options });
 
@@ -206,6 +273,28 @@ export const updateOwnStore = <ThrowOnError extends boolean = false>(options: Op
  * against it by hand.
  */
 export const openapiJson = <ThrowOnError extends boolean = false>(options?: Options<OpenapiJsonData, ThrowOnError>): RequestResult<OpenapiJsonResponses, unknown, ThrowOnError> => (options?.client ?? client).get<OpenapiJsonResponses, unknown, ThrowOnError>({ url: '/v1/openapi.json', ...options });
+
+export const listOrders = <ThrowOnError extends boolean = false>(options?: Options<ListOrdersData, ThrowOnError>): RequestResult<ListOrdersResponses, ListOrdersErrors, ThrowOnError> => (options?.client ?? client).get<ListOrdersResponses, ListOrdersErrors, ThrowOnError>({ url: '/v1/orders', ...options });
+
+export const checkout = <ThrowOnError extends boolean = false>(options: Options<CheckoutData, ThrowOnError>): RequestResult<CheckoutResponses, CheckoutErrors, ThrowOnError> => (options.client ?? client).post<CheckoutResponses, CheckoutErrors, ThrowOnError>({
+    url: '/v1/orders',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getOrder = <ThrowOnError extends boolean = false>(options: Options<GetOrderData, ThrowOnError>): RequestResult<GetOrderResponses, GetOrderErrors, ThrowOnError> => (options.client ?? client).get<GetOrderResponses, GetOrderErrors, ThrowOnError>({ url: '/v1/orders/{id}', ...options });
+
+export const cancelStoreOrder = <ThrowOnError extends boolean = false>(options: Options<CancelStoreOrderData, ThrowOnError>): RequestResult<CancelStoreOrderResponses, CancelStoreOrderErrors, ThrowOnError> => (options.client ?? client).post<CancelStoreOrderResponses, CancelStoreOrderErrors, ThrowOnError>({
+    url: '/v1/orders/{id}/store-orders/{store_order_id}/cancel',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 export const listStores = <ThrowOnError extends boolean = false>(options?: Options<ListStoresData, ThrowOnError>): RequestResult<ListStoresResponses, ListStoresErrors, ThrowOnError> => (options?.client ?? client).get<ListStoresResponses, ListStoresErrors, ThrowOnError>({ url: '/v1/stores', ...options });
 

@@ -4,11 +4,13 @@
 
 This is the working source of truth for V1. The big blueprint (`Tuma_Master_Product_Design_Engineering_Blueprint.md`) is long-term reference only — if the two disagree, **this brief wins** until the founder changes it.
 
+> **2026-08-29 — Marketplace re-architecture (founder directive).** The domain was re-engineered around a real multi-merchant, multi-store marketplace: identity split from business entities, merchants are businesses (not logins), stores are the fulfillment boundary, products sell through per-store `store_products`, and one checkout becomes one `order_group` containing one `store_order` per participating store, funded by one payment with explicit allocations. This supersedes the earlier 6-table budget and the one-order-per-checkout model. The re-architecture plan in the session record is the design authority for the migration.
+
 ## Rules of engagement
 
 1. Simple beats complete. Every table and endpoint must earn its place.
 2. Nothing gets built until the founder has approved the design in a few lines.
-3. The server owns truth: prices, order status, delivery location. The app never invents them.
+3. The server owns truth: prices, stock, order status, delivery location. The apps never invent them.
 4. Delivery tracking is the killer feature — it must be **real** (real GPS, real map), never simulated.
 
 ## Stack
@@ -16,83 +18,118 @@ This is the working source of truth for V1. The big blueprint (`Tuma_Master_Prod
 - **Backend: Rust** — Axum (HTTP), SQLx (PostgreSQL), serde. Chosen because the founder thinks in Rust.
 - **Database:** PostgreSQL.
 - **Mobile:** the Flutter app in `tuma-app/` — the contract between app and backend is the HTTP API.
-- **Web platform:** `tuma-platform/` — React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client generated from the server's OpenAPI (Orval). Admin + merchant wings.
+- **Web platform:** `tuma-platform/` — React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client generated from the server's OpenAPI (hey-api). Admin + merchant wings.
 - **Map:** flutter_map + real GPS from the rider's phone.
-- **Architecture docs:** `Tuma_Auth_and_RBAC_Architecture.md` and `Tuma_API_Architecture.md` — the foundations, approved 2026-08-27.
+- **Architecture docs:** `Tuma_Auth_and_RBAC_Architecture.md` and `Tuma_API_Architecture.md` — the foundations (auth sections predate the 2026-08-29 identity split; the split below wins where they disagree).
 
-## The database (6 domain tables + auth plumbing)
+## The database (marketplace domain + auth plumbing)
 
 ```text
-users        (id, role, name, phone, email, password_hash, is_active)
-             role: customer | merchant | admin        ← see auth architecture doc
-stores       (id, merchant_id, name, description, image_url, address_text,
-              lat, lng, delivery_fee, is_open)
-               merchant_id: a merchant can have several stores, ownership resolved server-side
-products     (id, store_id, name, description, price, image_url, is_available)
-orders       (id, user_id, store_id, status, subtotal, delivery_fee, total,
-              address_text, address_lat, address_lng, created_at)
-order_items  (id, order_id, product_name, unit_price, quantity)   ← name+price snapshotted at order time
-deliveries   (id, order_id, rider_name, rider_phone, lat, lng, updated_at)   ← the killer feature
-
-auth plumbing:
+IDENTITY — authentication only; a business role is never stored here
+users          (id, phone?, email?, password_hash?, is_active)     ← the central ACCOUNT
 auth_otps      (phone, code_hash, expires_at, attempts, created_at)
 refresh_tokens (token_hash, user_id, expires_at, revoked_at, created_at)
+
+BUSINESS ENTITIES — authorization and domain, separate from identity
+customers      (id, user_id UNIQUE, name)                          ← customer profile
+admins         (id, user_id UNIQUE, name)                          ← platform-admin profile
+merchants      (id, name, business_email?, business_phone?, status) ← the BUSINESS; no login
+merchant_memberships (id, user_id, merchant_id, role owner|manager, store_id?, status)
+                   ← store_id NULL = all stores of the merchant (owner);
+                     set = scoped to that one store
+
+CATALOG — the store is the fulfillment boundary
+stores         (id, merchant_id → merchants, name, description, image_url, address_text,
+                lat, lng, category, delivery_fee, is_open)
+products       (id, merchant_id → merchants, name, description, image_url)  ← merchant catalog
+store_products (id, store_id, product_id, price, stock? (NULL = untracked, ≥ 0),
+                is_available, sku?)    UNIQUE(store_id, product_id)
+                   ← the customer buys a store_product: per-store price, stock, availability
+
+COMMERCE — one checkout, one store order per store
+order_groups   (id, user_id, number, address_text, address_lat?, address_lng?,
+                subtotal, delivery_total, grand_total, idempotency_key?)
+                   UNIQUE(user_id, idempotency_key)   ← NO status column; derived from children
+store_orders   (id, order_group_id, merchant_id, store_id, number,
+                status, subtotal, delivery_fee, total)
+order_items    (id, store_order_id, store_product_id, product_id,
+                product_name_snapshot, unit_price, quantity)   ← snapshots at order time
+deliveries     (id, store_order_id UNIQUE, rider_name?, rider_phone?, lat, lng, updated_at)
+
+PAYMENTS — one customer payment, explicit allocations
+payments            (id, order_group_id UNIQUE, provider cash_on_delivery, amount, currency,
+                     status pending|collected|refunded, provider_reference?)
+payment_allocations (id, payment_id, store_order_id, merchant_id, store_id, amount,
+                     status pending|settled|refunded)
 ```
 
-Money is integer RWF, never floats.
-Order status is one enum, six values: `placed, accepted, preparing, picked_up, delivered, cancelled`.
+Money is integer RWF, never floats. Order status is one enum, six values, living at **store-order** level: `placed, accepted, preparing, picked_up, delivered, cancelled`. The order group's overall state is **derived** from its store orders (`in_progress | partially_fulfilled | completed | cancelled`) — never a second state machine.
 
 ## The API (all business routes under `/api/v1`)
 
 ```text
-auth:      POST /auth/otp/request    (phone → 6-digit code)
+auth:      POST /auth/otp/request    (phone → 6-digit code; creates account + customer)
            POST /auth/otp/verify     (code → account + token; register & login are one flow)
            POST /auth/login          (email + password → web session cookies)
            POST /auth/logout
            POST /auth/password       (change password)
-           GET  /me                  (current user + role)
-           PATCH /me                  (update own profile: name)
-admin:     POST  /admin/merchants    (admin creates merchant accounts)
-           GET   /admin/merchants
-           PATCH /admin/merchants/:id  (enable/disable)
-merchant:  POST  /merchant/stores    (create a store — merchants can have several)
-           GET   /merchant/stores
-           GET   /merchant/stores/:id
-           PATCH /merchant/stores/:id  (name, description, address, fee, is_open)
-           GET   /merchant/products    (across all own stores)
-           POST  /merchant/products    (store_id picks which own store)
-           PATCH /merchant/products/:id
+           GET  /me                  (account + customer/admin profiles + merchant memberships)
+           PATCH /me                 (update own profile name)
+
+admin:     POST  /admin/merchants    (create business + owner account + owner membership)
+           GET   /admin/merchants    / GET /admin/merchants/:id
+           PATCH /admin/merchants/:id  / DELETE /admin/merchants/:id
+           GET   /admin/customers    / PATCH /admin/customers/:id  / DELETE /admin/customers/:id
+           GET   /admin/summary
+           PATCH /admin/store-orders/:id   (advance any store order)
+           POST  /admin/payments/:id/collect   (mark a cash payment collected)
+
+merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE /merchant/stores/:id
+           POST /merchant/products   / GET /merchant/products  (merchant CATALOG)
+           PATCH|DELETE /merchant/products/:id
+           POST /merchant/store-products   (attach catalog product to a store: price, stock, availability)
+           GET  /merchant/store-products       (across own stores)
+           PATCH|DELETE /merchant/store-products/:id
+           GET  /merchant/orders         (store orders across authorized stores)
+           PATCH /merchant/store-orders/:id (advance status)
+
 customer:  GET  /stores              (open stores only)
-           GET  /stores/:id            (with its available products)
-           POST /orders
-           GET  /orders
-           GET  /orders/:id
-           GET  /orders/:id/tracking   (real lat/lng + status)
-rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s)
-ops:       POST /orders/:id/status     (advance the six statuses)
+           GET  /stores/:id          (store + its available store_products)
+           POST /orders               (CHECKOUT: items from many stores → one order group)
+           GET  /orders               (order groups, newest first)
+           GET  /orders/:id           (group detail: store orders, items, payment)
+           POST /orders/:id/store-orders/:sid/cancel   (customer cancels one store order)
+           GET  /orders/:id/tracking   (real lat/lng + status — build order #4)
+
+rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s — #4)
 ```
 
-## How real tracking works (simple and real)
+## How checkout works (the core redesign)
 
-1. Order placed → a `deliveries` row is created for it.
-2. Whoever delivers (at pilot scale: one rider with the app in "rider mode") pushes real GPS to `POST /deliveries/:id/location` every ~5 seconds.
-3. The customer app polls `GET /orders/:id/tracking` every ~3 seconds → real lat/lng + status.
-4. The map draws the rider marker at the real coordinates and moves it. ETA = remaining distance ÷ average speed, shown as `~X min`.
+1. The cart is a client-side session grouped by store; the customer adds `store_products` from many stores.
+2. One checkout → `POST /orders` with `store_product_id + quantity` lines, one address, an idempotency key. The client never sends totals.
+3. The server validates everything (stores open, store_products available, stock reserved atomically), groups lines by store, computes every number, and creates **in one transaction**: the order group, one store order per store, item snapshots, one delivery row per store order, the cash payment, and its per-store allocations.
+4. All-or-nothing: any closed store, unavailable product, or insufficient stock → 409 naming the offender; nothing is created. A retry with the same idempotency key returns the existing group.
+5. Each store fulfills only its own store order. The customer sees one purchase with per-store sections.
 
-No simulation, no dispatch engine, no WebSocket yet — polling is enough for V1. Upgrade to a stream later only if polling hurts.
+## How real tracking works (simple and real — unchanged)
+
+1. Store order placed → a `deliveries` row exists for it.
+2. Whoever delivers (pilot scale: one rider with the app in "rider mode") pushes real GPS every ~5 seconds.
+3. The customer app polls the group/order tracking every ~3 seconds → real lat/lng + status.
+4. The map draws the rider marker at the real coordinates. ETA = remaining distance ÷ average speed.
+
+No simulation, no dispatch engine, no WebSocket yet — polling is enough for V1.
 
 ## Payments
 
-Cash on delivery first (zero integration). MTN MoMo once the loop works.
+Cash on delivery first (zero integration). One payment per checkout, allocated explicitly per store order; collection is marked manually by admin until MoMo lands. MTN MoMo after the loop works — the provider reference and idempotency keys are already reserved in the schema.
 
 ## Not building in V1 (on purpose)
 
-Dispatch engine, promotions, refunds, rider earnings, rider accounts (riders are name+phone on the delivery for now), SMS gateway (dev OTP is a fixed code until then), MTN MoMo, Redis, Kafka, microservices — until the loop is real and something actually hurts.
+Dispatch engine, promotions/discounts, refunds workflow, settlements/payouts, rider accounts (riders are name+phone on the delivery for now), saved-address book, staff-management UI (memberships are enforced server-side; inviting staff comes later), SMS gateway (dev OTP is a fixed code until then), MTN MoMo, Redis, Kafka, microservices — until the loop is real and something actually hurts.
 
-## Build order
+## Build order (re-architecture program)
 
-1. **Foundations (current iteration):** auth + RBAC on the API · mobile app splash + register/login + home on the real API · web platform (shadcn) login + admin merchant management. See the two architecture docs.
-2. Stores + products: schema, `/stores`, merchant menu management on the platform, home feed in the app.
-3. Orders: cart, cash checkout, order flow, status updates.
-4. Rider mode in the app + real GPS tracking on the real map.
-5. Polish: order history, reorder.
+1. **S1 Docs** (this rewrite) → **S2** fresh migration chain + identity/authorization split → **S3** catalog + store_products + inventory → **S4** checkout, order groups, payments, allocations → **S5** mobile cart/checkout/orders on the new model → **S6** mobile store screen on store_products → **S7** platform (merchant catalog/assortment/orders, admin rework) → **S8** closeout + end-to-end verification.
+2. Then build order #4: rider mode + real GPS tracking on the real map (per store order).

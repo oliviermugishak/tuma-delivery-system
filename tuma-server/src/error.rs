@@ -1,7 +1,11 @@
 use crate::app::AppError;
-use crate::domain::stores::{ProductError, StoreError};
+use crate::domain::catalog::{ProductError, StoreProductError};
+use crate::domain::stores::StoreError;
 use accounts::otp::VerifyError;
 use accounts::{ChangePasswordError, CreateAccountError};
+use commerce::CheckoutError;
+use commerce::PaymentError;
+use commerce::TransitionError;
 use serde::Serialize;
 use validator::ValidationErrors;
 
@@ -82,24 +86,82 @@ impl From<VerifyError> for AppError {
 // response must look identical whether a code was issued or cooldown blocked
 // it), so that one stays a deliberate match, never `?`.
 
+impl From<ProductError> for AppError {
+    fn from(error: ProductError) -> Self {
+        match error {
+            ProductError::NotFound => AppError::NotFound(error.to_string()),
+            ProductError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<StoreProductError> for AppError {
+    fn from(error: StoreProductError) -> Self {
+        match error {
+            // Missing resources and cross-merchant probes look identical;
+            // a duplicate attachment is a genuine conflict.
+            StoreProductError::NotFound | StoreProductError::ProductNotFound => {
+                AppError::NotFound(error.to_string())
+            }
+            StoreProductError::AlreadyAttached => AppError::Conflict(error.to_string()),
+            StoreProductError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<CheckoutError> for AppError {
+    fn from(error: CheckoutError) -> Self {
+        match error {
+            // The world changed since the cart was built: a store closed,
+            // an item vanished, or the shelf ran dry. A conflict with
+            // current state — the details name the offenders.
+            CheckoutError::Unavailable { .. }
+            | CheckoutError::StoreClosed { .. }
+            | CheckoutError::InsufficientStock { .. } => AppError::Conflict(error.to_string()),
+            CheckoutError::EmptyCart | CheckoutError::DuplicateItems => {
+                AppError::BadRequest(error.to_string())
+            }
+            // The idempotent-retry arm is resolved by the handler before
+            // this conversion ever runs.
+            CheckoutError::AlreadyPlaced(_) => {
+                AppError::Internal("unresolved idempotent retry".into())
+            }
+            CheckoutError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<TransitionError> for AppError {
+    fn from(error: TransitionError) -> Self {
+        match error {
+            // Another merchant's order (or an unknown one) is
+            // indistinguishable from missing — ownership is the only
+            // thing that matters.
+            TransitionError::OrderNotFound => AppError::NotFound(error.to_string()),
+            // The status string is nonsense or the transition is illegal
+            // (e.g. placed → delivered). A bad request — the client asked
+            // for something the state machine won't allow.
+            TransitionError::Illegal { .. } => AppError::BadRequest(error.to_string()),
+            TransitionError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<PaymentError> for AppError {
+    fn from(error: PaymentError) -> Self {
+        match error {
+            PaymentError::NotFound => AppError::NotFound(error.to_string()),
+            PaymentError::NotPending => AppError::BadRequest(error.to_string()),
+            PaymentError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
 impl From<StoreError> for AppError {
     fn from(error: StoreError) -> Self {
         match error {
             StoreError::NotFound => AppError::NotFound(error.to_string()),
             StoreError::Database(error) => AppError::Database(error),
-        }
-    }
-}
-
-impl From<ProductError> for AppError {
-    fn from(error: ProductError) -> Self {
-        match error {
-            // StoreNotFound is a missing resource (the target store), not
-            // bad input.
-            ProductError::StoreNotFound | ProductError::NotFound => {
-                AppError::NotFound(error.to_string())
-            }
-            ProductError::Database(error) => AppError::Database(error),
         }
     }
 }

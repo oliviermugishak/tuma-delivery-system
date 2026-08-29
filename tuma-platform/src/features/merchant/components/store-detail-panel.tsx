@@ -34,6 +34,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useDeleteStore } from '@/features/merchant/hooks/use-delete-store'
+import { useStoreProducts } from '@/features/merchant/hooks/use-store-products'
+import { StoreLocationFields } from '@/features/merchant/components/store-location-fields'
 import { useOwnStore } from '@/features/merchant/hooks/use-store'
 import { useUpdateStore } from '@/features/merchant/hooks/use-update-store'
 import { cn } from '@/lib/utils'
@@ -135,6 +137,27 @@ export function StoreDetailPanel({ storeId }: { storeId: string }) {
                 <MapPin className="size-3.5 shrink-0" aria-hidden />
                 {store.data.address_text || 'No address yet'}
               </p>
+              {store.data.category ? (
+                <p className="text-sm text-muted-foreground">
+                  Category: {store.data.category}
+                </p>
+              ) : null}
+              {store.data.lat != null && store.data.lng != null ? (
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${store.data.lat}&mlon=${store.data.lng}#map=17/${store.data.lat}/${store.data.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  {store.data.lat.toFixed(4)}, {store.data.lng.toFixed(4)} —
+                  verify on the map
+                </a>
+              ) : (
+                <p className="text-xs text-amber-600">
+                  No coordinates yet — add them below so distances and ETAs
+                  are real.
+                </p>
+              )}
             </div>
           </div>
 
@@ -154,7 +177,11 @@ export function StoreDetailPanel({ storeId }: { storeId: string }) {
               description={store.data.description ?? ''}
               address={store.data.address_text ?? ''}
               fee={store.data.delivery_fee}
+              category={store.data.category ?? null}
+              lat={store.data.lat ?? null}
+              lng={store.data.lng ?? null}
             />
+            <AssortmentCard storeId={store.data.id} />
             <DangerZoneCard storeId={store.data.id} name={store.data.name} />
           </div>
         </>
@@ -268,12 +295,18 @@ function EditDetailsCard({
   description,
   address,
   fee,
+  category,
+  lat,
+  lng,
 }: {
   storeId: string
   name: string
   description: string
   address: string
   fee: number
+  category: string | null
+  lat: number | null
+  lng: number | null
 }) {
   const updateStore = useUpdateStore()
 
@@ -281,6 +314,9 @@ function EditDetailsCard({
   const [descriptionDraft, setDescriptionDraft] = useState(description)
   const [addressDraft, setAddressDraft] = useState(address)
   const [feeDraft, setFeeDraft] = useState(String(fee))
+  const [categoryDraft, setCategoryDraft] = useState(category ?? '')
+  const [latDraft, setLatDraft] = useState(lat?.toString() ?? '')
+  const [lngDraft, setLngDraft] = useState(lng?.toString() ?? '')
 
   // Re-sync the drafts whenever the server's copy changes (e.g. after a
   // save refetches the store).
@@ -289,27 +325,52 @@ function EditDetailsCard({
     setDescriptionDraft(description)
     setAddressDraft(address)
     setFeeDraft(String(fee))
-  }, [name, description, address, fee])
+    setCategoryDraft(category ?? '')
+    setLatDraft(lat?.toString() ?? '')
+    setLngDraft(lng?.toString() ?? '')
+  }, [name, description, address, fee, category, lat, lng])
 
   const feeNumber = Number.parseInt(feeDraft, 10)
   const feeValid =
     feeDraft.trim() !== '' && Number.isFinite(feeNumber) && feeNumber >= 0
 
+  const latTrimmed = latDraft.trim()
+  const lngTrimmed = lngDraft.trim()
+  const latNumber = latTrimmed === '' ? null : Number(latTrimmed)
+  const lngNumber = lngTrimmed === '' ? null : Number(lngTrimmed)
+  const coordsValid =
+    (latNumber === null ||
+      (Number.isFinite(latNumber) && Math.abs(latNumber) <= 90)) &&
+    (lngNumber === null ||
+      (Number.isFinite(lngNumber) && Math.abs(lngNumber) <= 180))
+
   const dirty =
     nameDraft.trim() !== name ||
     descriptionDraft.trim() !== description ||
     addressDraft.trim() !== address ||
-    feeNumber !== fee
+    feeNumber !== fee ||
+    categoryDraft.trim() !== (category ?? '') ||
+    latTrimmed !== (lat?.toString() ?? '') ||
+    lngTrimmed !== (lng?.toString() ?? '')
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dirty || !feeValid || !nameDraft.trim()) return
+    if (!dirty || !feeValid || !nameDraft.trim() || !coordsValid) return
     const body: UpdateStoreInput = {}
     if (nameDraft.trim() !== name) body.name = nameDraft.trim()
     if (descriptionDraft.trim() !== description)
       body.description = descriptionDraft.trim()
     if (addressDraft.trim() !== address) body.address_text = addressDraft.trim()
     if (feeNumber !== fee) body.delivery_fee = feeNumber
+    if (categoryDraft.trim() !== (category ?? '')) {
+      body.category = categoryDraft.trim() || null
+    }
+    if (latTrimmed !== (lat?.toString() ?? '')) {
+      body.lat = latTrimmed === '' ? null : Number(latTrimmed)
+    }
+    if (lngTrimmed !== (lng?.toString() ?? '')) {
+      body.lng = lngTrimmed === '' ? null : Number(lngTrimmed)
+    }
     updateStore.mutate({ path: { id: storeId }, body })
   }
 
@@ -373,10 +434,22 @@ function EditDetailsCard({
               />
               <FieldDescription>Whole francs, 0 or more.</FieldDescription>
             </Field>
+            <StoreLocationFields
+              category={categoryDraft}
+              onCategoryChange={setCategoryDraft}
+              lat={latDraft}
+              onLatChange={setLatDraft}
+              lng={lngDraft}
+              onLngChange={setLngDraft}
+            />
             <Button
               type="submit"
               disabled={
-                !dirty || !feeValid || !nameDraft.trim() || updateStore.isPending
+                !dirty ||
+                !feeValid ||
+                !nameDraft.trim() ||
+                !coordsValid ||
+                updateStore.isPending
               }
             >
               {updateStore.isPending ? 'Saving…' : 'Save changes'}
@@ -460,6 +533,58 @@ function DangerZoneCard({ storeId, name }: { storeId: string; name: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  )
+}
+
+/**
+ * One store's assortment, compact: price + stock + availability per item,
+ * read-only here — the Assortment page is where configuration happens.
+ */
+function AssortmentCard({ storeId }: { storeId: string }) {
+  const items = useStoreProducts()
+  const storeItems = (items.data ?? []).filter(
+    (item) => item.store_id === storeId,
+  )
+
+  return (
+    <Card>
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle>Assortment</CardTitle>
+        <CardDescription>
+          What this store sells, at this store&apos;s own prices.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 p-5">
+        {items.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : storeItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing attached yet — attach catalog products from the
+            Assortment page.
+          </p>
+        ) : (
+          storeItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {item.product_name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {item.is_available ? 'Available' : 'Paused'}
+                  {item.stock != null ? ` · ${item.stock} in stock` : ''}
+                </p>
+              </div>
+              <span className="text-sm font-semibold">
+                {formatRwf(item.price)}
+              </span>
+            </div>
+          ))
+        )}
+      </CardContent>
     </Card>
   )
 }

@@ -1,0 +1,14 @@
+[package]
+name = "commerce"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.19"
+time = "0.3.55"
+uuid = { version = "1.24.0", features = ["v4", "serde"] }
+
+[dependencies.sqlx]
+version = "0.9.0"
+features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "time", "uuid"]

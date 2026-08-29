@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM accounts.auth_otps WHERE phone = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "22759f72ee2f40e77d74406ac3bb5af085d32c8163add5039b35c6a56fb5f71a"
+}

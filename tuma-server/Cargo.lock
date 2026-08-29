@@ -379,6 +379,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "commerce"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sqlx",
+ "thiserror",
+ "time",
+ "uuid",
+]
+
+[[package]]
 name = "config"
 version = "0.15.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3404,6 +3415,7 @@ dependencies = [
  "app-config",
  "axum",
  "axum-extra",
+ "commerce",
  "config",
  "reqwest",
  "secrecy",

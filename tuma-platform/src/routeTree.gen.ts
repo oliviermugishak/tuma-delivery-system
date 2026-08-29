@@ -18,8 +18,10 @@ import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
+import { Route as MerchantCatalogRouteImport } from './routes/merchant/catalog'
 import { Route as MerchantDashboardRouteImport } from './routes/merchant/dashboard'
 import { Route as MerchantMenuRouteImport } from './routes/merchant/menu'
+import { Route as MerchantOrdersRouteImport } from './routes/merchant/orders'
 import { Route as MerchantSettingsRouteImport } from './routes/merchant/settings'
 import { Route as AdminMerchantsIndexRouteImport } from './routes/admin/merchants/index'
 import { Route as AdminMerchantsMerchantIdRouteImport } from './routes/admin/merchants/$merchantId'
@@ -71,6 +73,11 @@ const MerchantIndexRoute = MerchantIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
+const MerchantCatalogRoute = MerchantCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => MerchantRouteRoute,
+} as any)
 const MerchantDashboardRoute = MerchantDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -79,6 +86,11 @@ const MerchantDashboardRoute = MerchantDashboardRouteImport.update({
 const MerchantMenuRoute = MerchantMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
+  getParentRoute: () => MerchantRouteRoute,
+} as any)
+const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
 const MerchantSettingsRoute = MerchantSettingsRouteImport.update({
@@ -116,8 +128,10 @@ export interface FileRoutesByFullPath {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
   '/merchant/menu': typeof MerchantMenuRoute
+  '/merchant/orders': typeof MerchantOrdersRoute
   '/merchant/settings': typeof MerchantSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
@@ -132,8 +146,10 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
   '/merchant/menu': typeof MerchantMenuRoute
+  '/merchant/orders': typeof MerchantOrdersRoute
   '/merchant/settings': typeof MerchantSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
@@ -151,8 +167,10 @@ export interface FileRoutesById {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
   '/merchant/menu': typeof MerchantMenuRoute
+  '/merchant/orders': typeof MerchantOrdersRoute
   '/merchant/settings': typeof MerchantSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
@@ -171,8 +189,10 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/dashboard'
     | '/admin/settings'
+    | '/merchant/catalog'
     | '/merchant/dashboard'
     | '/merchant/menu'
+    | '/merchant/orders'
     | '/merchant/settings'
     | '/admin/'
     | '/merchant/'
@@ -187,8 +207,10 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/dashboard'
     | '/admin/settings'
+    | '/merchant/catalog'
     | '/merchant/dashboard'
     | '/merchant/menu'
+    | '/merchant/orders'
     | '/merchant/settings'
     | '/admin'
     | '/merchant'
@@ -205,8 +227,10 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/dashboard'
     | '/admin/settings'
+    | '/merchant/catalog'
     | '/merchant/dashboard'
     | '/merchant/menu'
+    | '/merchant/orders'
     | '/merchant/settings'
     | '/admin/'
     | '/merchant/'
@@ -288,6 +312,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantIndexRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
+    '/merchant/catalog': {
+      id: '/merchant/catalog'
+      path: '/catalog'
+      fullPath: '/merchant/catalog'
+      preLoaderRoute: typeof MerchantCatalogRouteImport
+      parentRoute: typeof MerchantRouteRoute
+    }
     '/merchant/dashboard': {
       id: '/merchant/dashboard'
       path: '/dashboard'
@@ -300,6 +331,13 @@ declare module '@tanstack/react-router' {
       path: '/menu'
       fullPath: '/merchant/menu'
       preLoaderRoute: typeof MerchantMenuRouteImport
+      parentRoute: typeof MerchantRouteRoute
+    }
+    '/merchant/orders': {
+      id: '/merchant/orders'
+      path: '/orders'
+      fullPath: '/merchant/orders'
+      preLoaderRoute: typeof MerchantOrdersRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
     '/merchant/settings': {
@@ -363,8 +401,10 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 )
 
 interface MerchantRouteRouteChildren {
+  MerchantCatalogRoute: typeof MerchantCatalogRoute
   MerchantDashboardRoute: typeof MerchantDashboardRoute
   MerchantMenuRoute: typeof MerchantMenuRoute
+  MerchantOrdersRoute: typeof MerchantOrdersRoute
   MerchantSettingsRoute: typeof MerchantSettingsRoute
   MerchantIndexRoute: typeof MerchantIndexRoute
   MerchantStoreStoreIdRoute: typeof MerchantStoreStoreIdRoute
@@ -372,8 +412,10 @@ interface MerchantRouteRouteChildren {
 }
 
 const MerchantRouteRouteChildren: MerchantRouteRouteChildren = {
+  MerchantCatalogRoute: MerchantCatalogRoute,
   MerchantDashboardRoute: MerchantDashboardRoute,
   MerchantMenuRoute: MerchantMenuRoute,
+  MerchantOrdersRoute: MerchantOrdersRoute,
   MerchantSettingsRoute: MerchantSettingsRoute,
   MerchantIndexRoute: MerchantIndexRoute,
   MerchantStoreStoreIdRoute: MerchantStoreStoreIdRoute,

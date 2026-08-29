@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.payment_allocations SET status = 'settled'\n        WHERE payment_id = $1 AND status = 'pending'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "59dc48fcc11d17436d8780e956a0b1605be510ea7cef2a77ab832a88ece9667a"
+}

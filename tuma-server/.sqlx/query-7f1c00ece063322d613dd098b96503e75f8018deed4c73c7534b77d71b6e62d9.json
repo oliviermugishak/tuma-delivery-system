@@ -1,0 +1,107 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT s.id, s.name, s.address_text, s.category, s.delivery_fee, s.is_open,\n               s.created_at, COUNT(sp.id) as \"product_count!\"\n        FROM marketplace.stores s\n        LEFT JOIN marketplace.store_products sp ON sp.store_id = s.id\n        WHERE s.merchant_id = $1\n        GROUP BY s.id\n        ORDER BY s.created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "category",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "category"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "delivery_fee",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "delivery_fee"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "is_open",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "is_open"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "product_count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "7f1c00ece063322d613dd098b96503e75f8018deed4c73c7534b77d71b6e62d9"
+}

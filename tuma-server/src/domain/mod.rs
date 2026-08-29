@@ -2,4 +2,5 @@
 //! functions over `&mut PgConnection`. Handlers stay thin and use `?` — the
 //! `From<DomainError> for AppError` impls live in `crate::error`.
 
+pub mod catalog;
 pub mod stores;

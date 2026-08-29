@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT (SELECT COUNT(*) FROM marketplace.stores) as \"stores!\",\n               (SELECT COUNT(*) FROM marketplace.stores WHERE is_open) as \"open_stores!\",\n               (SELECT COUNT(*) FROM marketplace.products) as \"products!\",\n               (SELECT COUNT(*) FROM marketplace.store_products) as \"store_products!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stores!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "open_stores!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "products!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "store_products!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "d17072ed69391166bccb4794b429cbe327b4de57daa816ac3ec54ea5230e9807"
+}

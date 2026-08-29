@@ -1,0 +1,257 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT so.id, so.order_group_id, so.merchant_id, so.store_id,\n               s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.subtotal, so.delivery_fee,\n               so.total, og.address_text, og.address_lat, og.address_lng,\n               c.name AS customer_name, u.phone AS customer_phone,\n               p.status AS \"payment_status: PaymentStatus\",\n               so.created_at, so.updated_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        LEFT JOIN accounts.customers c ON c.user_id = og.user_id\n        LEFT JOIN accounts.users u ON u.id = og.user_id\n        JOIN commerce.payments p ON p.order_group_id = og.id\n        WHERE so.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "order_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "order_group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "merchant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "merchant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "store_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "number",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "status: OrderStatus",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "subtotal",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "subtotal"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "delivery_fee",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "delivery_fee"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "total",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "total"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "address_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lat"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "address_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lng"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "customer_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts.customers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "customer_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts.users",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "payment_status: PaymentStatus",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.payment_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "collected",
+                "refunded"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d139b3d4203fea4adbbbcbf902f9ea5cf4b0b489a71d53f3807cb52328480c77"
+}

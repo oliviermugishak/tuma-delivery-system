@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT so.id\n        FROM commerce.store_orders so\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE so.id = $1 AND og.id = $2 AND og.user_id = $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "902205a2c8519851567e6ddbd0c14733bd507182b85d18a1befc4045000c4257"
+}

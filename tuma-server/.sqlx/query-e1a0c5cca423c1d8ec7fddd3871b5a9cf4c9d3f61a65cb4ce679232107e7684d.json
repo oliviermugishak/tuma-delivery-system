@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT so.id, so.merchant_id, so.store_id, so.order_group_id\n        FROM commerce.store_orders so\n        WHERE so.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "merchant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "merchant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "order_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "order_group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e1a0c5cca423c1d8ec7fddd3871b5a9cf4c9d3f61a65cb4ce679232107e7684d"
+}

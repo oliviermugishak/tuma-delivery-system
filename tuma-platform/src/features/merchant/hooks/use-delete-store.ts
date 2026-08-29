@@ -4,15 +4,15 @@ import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import {
   deleteOwnStoreMutation,
-  listOwnProductsQueryKey,
   listOwnStoresQueryKey,
+  listStoreProductsQueryKey,
 } from '@/api/queries'
 
 /**
- * Hard-delete one of the merchant's own stores. Permanent: the store's
- * products follow via ON DELETE CASCADE, so both the store list and the
- * menu are refetched. The UI confirms in an alert dialog before this ever
- * runs.
+ * Hard-delete one of the business's stores. Permanent: its assortment
+ * follows via ON DELETE CASCADE, so both the store list and the
+ * assortment are refetched. The UI confirms in an alert dialog before
+ * this ever runs.
  */
 export function useDeleteStore() {
   const queryClient = useQueryClient()
@@ -22,7 +22,7 @@ export function useDeleteStore() {
       toast.success('Store deleted')
       void queryClient.invalidateQueries({ queryKey: listOwnStoresQueryKey() })
       void queryClient.invalidateQueries({
-        queryKey: listOwnProductsQueryKey(),
+        queryKey: listStoreProductsQueryKey(),
       })
     },
     onError: (error) => {

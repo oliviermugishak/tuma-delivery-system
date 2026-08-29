@@ -34,8 +34,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _ => null,
     };
     final textTheme = Theme.of(context).textTheme;
-    final name =
-        user?.name != null && user!.name!.isNotEmpty ? user.name : null;
+    final name = user?.displayName;
     final phone = user?.phone;
     final identity = name ?? phone ?? 'Customer';
 

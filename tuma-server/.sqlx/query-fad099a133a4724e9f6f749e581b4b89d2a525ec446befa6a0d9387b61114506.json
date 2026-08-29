@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE accounts.auth_otps SET attempts = attempts + 1\n                WHERE phone = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fad099a133a4724e9f6f749e581b4b89d2a525ec446befa6a0d9387b61114506"
+}

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
+import 'package:tuma_app/core/constants/placeholder_store_facts.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
@@ -66,8 +67,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
             children: [
               Text(
-                user?.name != null && user!.name!.isNotEmpty
-                    ? 'Hi, ${user.name} 👋'
+                user?.displayName != null
+                    ? 'Hi, ${user!.displayName} 👋'
                     : 'Welcome to Tuma 👋',
                 style: textTheme.headlineSmall?.copyWith(
                   color: AppColors.onSurface,
@@ -122,17 +123,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 const double _cardSpacing = 16;
 
 /// The store grid is flex-like: as many ~300px columns as the width
-/// allows — one on a phone, up to four on a wide desktop window.
+/// allows — normally at least two so customers see more, up to four on
+/// a wide desktop window. Narrow screens are the backup: under ~400px
+/// of width two cards would be narrower than the ETA + fee-chip line
+/// needs, so the grid falls back to one full-width column there.
 ({int columns, double cardWidth}) _cardMetrics(double width) {
+  if (width < 400) {
+    return (columns: 1, cardWidth: width);
+  }
   var columns = (width / 300).floor();
-  if (columns < 1) columns = 1;
+  if (columns < 2) columns = 2;
   if (columns > 4) columns = 4;
   final cardWidth = (width - _cardSpacing * (columns - 1)) / columns;
   return (columns: columns, cardWidth: cardWidth);
 }
 
-/// One open store: a picture across the top, then name, fee and address
-/// below — the card shape commerce apps settled on.
+/// One open store: a picture across the top — its top-right corner
+/// stays clear for the merchant star rating later — then the name, the
+/// gray food category with the distance on its line, and the ETA with
+/// the delivery-fee badge on the far right. Category/km/minutes are
+/// placeholders until the server owns them (see
+/// placeholder_store_facts.dart).
 class _StoreCard extends StatelessWidget {
   const _StoreCard({required this.store, required this.onTap});
 
@@ -142,7 +153,13 @@ class _StoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final address = store.addressText;
+    // The server-owned category wins when the merchant set one; the
+    // deterministic placeholder covers the rest (see the API doc's
+    // temporary-deviation note).
+    final facts = placeholderStoreFacts(store.name);
+    final category = (store.category != null && store.category!.isNotEmpty)
+        ? store.category!
+        : facts.category;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
@@ -168,53 +185,69 @@ class _StoreCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                // Fixed height so cards line up in the grid whether or
-                // not the store has an address.
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                // Fixed height so cards line up in the grid.
                 child: SizedBox(
-                  height: 50,
+                  height: 84,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        store.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              store.name,
+                              category,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.route_rounded,
+                            size: 13,
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${facts.km.toStringAsFixed(1)} km',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 13,
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${facts.minutes} min',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                          const Spacer(),
                           FeeChip(fee: store.deliveryFee),
                         ],
                       ),
-                      if (address != null && address.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.place_rounded,
-                              size: 14,
-                              color: AppColors.onSurfaceMuted,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                address,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -272,9 +305,9 @@ class _FeedSkeleton extends StatelessWidget {
                             child: ColoredBox(color: block),
                           ),
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                             child: SizedBox(
-                              height: 50,
+                              height: 84,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -287,13 +320,56 @@ class _FeedSkeleton extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 10),
-                                  Container(
-                                    width: 85,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: block,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 56,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: block,
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        width: 44,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: block,
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: block,
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        width: 64,
+                                        height: 26,
+                                        decoration: BoxDecoration(
+                                          color: block,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

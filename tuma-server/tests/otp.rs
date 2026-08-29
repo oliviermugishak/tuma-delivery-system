@@ -36,8 +36,11 @@ async fn request_then_verify_creates_a_customer(pool: sqlx::PgPool) {
     let response = verify_code(&client, PHONE, DEV_CODE).await;
     assert_eq!(response.status(), 200);
     let body: Value = response.json().await.unwrap();
-    assert_eq!(body["user"]["role"], "customer");
     assert_eq!(body["user"]["phone"], PHONE);
+    assert!(
+        body["user"]["customer"]["id"].is_string(),
+        "a customer profile exists"
+    );
     let token = body["token"].as_str().unwrap().to_string();
 
     // The issued token must work against /me.
@@ -68,7 +71,7 @@ async fn verify_with_name_sets_the_name(pool: sqlx::PgPool) {
         .unwrap();
     assert_eq!(response.status(), 200);
     let body: Value = response.json().await.unwrap();
-    assert_eq!(body["user"]["name"], "Aline");
+    assert_eq!(body["user"]["customer"]["name"], "Aline");
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
@@ -133,7 +136,7 @@ async fn resend_cooldown_keeps_the_first_code(pool: sqlx::PgPool) {
 
     request_code(&client, PHONE).await;
     let (created_at,): (time::OffsetDateTime,) =
-        sqlx::query_as("SELECT created_at FROM tuma.auth_otps WHERE phone = $1")
+        sqlx::query_as("SELECT created_at FROM accounts.auth_otps WHERE phone = $1")
             .bind(PHONE)
             .fetch_one(&app.pool)
             .await
@@ -144,7 +147,7 @@ async fn resend_cooldown_keeps_the_first_code(pool: sqlx::PgPool) {
     assert_eq!(response.status(), 200);
 
     let (created_at_after,): (time::OffsetDateTime,) =
-        sqlx::query_as("SELECT created_at FROM tuma.auth_otps WHERE phone = $1")
+        sqlx::query_as("SELECT created_at FROM accounts.auth_otps WHERE phone = $1")
             .bind(PHONE)
             .fetch_one(&app.pool)
             .await

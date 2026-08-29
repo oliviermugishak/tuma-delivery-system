@@ -2,20 +2,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
-import { listOwnProductsQueryKey, updateProductMutation } from '@/api/queries'
+import { listProductsQueryKey, updateProductMutation } from '@/api/queries'
 
 /**
- * Update one of the merchant's products — the edit dialog and the per-row
- * availability switch both come through here. Absent fields keep their
- * current values server-side, so callers send only what changed.
+ * Edit a catalog product — name, description, image. Prices do NOT live
+ * here: they are per store (store_products). Absent fields keep their
+ * values server-side, so callers send only what changed.
  */
-export function useUpdateProduct() {
+export function useUpdateCatalogProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     ...updateProductMutation(),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: listProductsQueryKey() })
+      // Assortment views render the catalog name — refresh them too.
       void queryClient.invalidateQueries({
-        queryKey: listOwnProductsQueryKey(),
+        queryKey: listStoreProductsQueryKey(),
       })
     },
     onError: (error) => {
@@ -27,3 +29,5 @@ export function useUpdateProduct() {
     },
   })
 }
+
+import { listStoreProductsQueryKey } from '@/api/queries'

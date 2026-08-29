@@ -1,30 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/cart/cart_view.dart';
 import 'package:tuma_app/features/home/home_screen.dart';
+import 'package:tuma_app/features/orders/orders_screen.dart';
 import 'package:tuma_app/features/profile/profile_screen.dart';
 
-/// The authenticated shell: bottom bar with Home • Profile (blueprint 7.1,
-/// minus Search/Orders until those features exist — destinations slot in
-/// without restructuring). The body is an IndexedStack so the home feed
-/// stays alive while the profile tab is open.
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
+      // Each tab owns its body; no shell appBar — the cart lives in the
+      // bottom bar where the user actually looks for it.
       body: IndexedStack(
         index: _tab,
-        children: const [HomeScreen(), ProfileScreen()],
+        children: const [
+          HomeScreen(),
+          OrdersScreen(),
+          CartView(),
+          ProfileScreen(),
+        ],
       ),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
@@ -61,6 +68,12 @@ class _AppShellState extends State<AppShell> {
                 label: 'Home',
               ),
               NavigationDestination(
+                icon: Icon(Icons.receipt_long_rounded),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: 'Orders',
+              ),
+              _CartDestination(),
+              NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person),
                 label: 'Profile',
@@ -69,6 +82,58 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The Cart tab icon with a live item-count badge — visible feedback that
+/// something is in the cart, right where the user expects it.
+class _CartDestination extends ConsumerWidget {
+  const _CartDestination();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartProvider);
+    final count = cart.maybeWhen(
+      data: (v) => v.itemCount,
+      orElse: () => 0,
+    );
+    return NavigationDestination(
+      icon: _icon(Icons.shopping_cart_outlined, count),
+      selectedIcon: _icon(Icons.shopping_cart, count),
+      label: 'Cart',
+    );
+  }
+
+  Widget _icon(IconData icon, int count) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        if (count > 0)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: const TextStyle(
+                  color: AppColors.onPrimary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

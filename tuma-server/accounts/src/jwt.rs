@@ -1,10 +1,10 @@
 //! JWT sessions: one token format for every client.
 //!
-//! Claims carry identity + role and nothing else. Business facts (a
-//! merchant's store, a user's active state) are looked up from the database
-//! at request time, so tokens never go stale with data.
+//! Claims carry identity and nothing else — an account is not a role, and
+//! authorization (customer profile, admin profile, merchant memberships)
+//! is looked up from the database at request time, so tokens never go
+//! stale with data and can never out-live a revoked membership.
 
-use crate::UserRole;
 use jsonwebtoken::{DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,20 +23,18 @@ pub const WEB_REFRESH_TTL_SECS: usize = 30 * 24 * 3600;
 pub struct Claims {
     /// Issuer, always [`ISSUER`].
     pub iss: String,
-    /// Subject: the user id.
+    /// Subject: the account id.
     pub sub: Uuid,
-    pub role: UserRole,
     pub iat: usize,
     pub exp: usize,
 }
 
 impl Claims {
-    pub fn new(user_id: Uuid, role: UserRole, ttl_secs: usize) -> Self {
+    pub fn new(account_id: Uuid, ttl_secs: usize) -> Self {
         let now = time::OffsetDateTime::now_utc().unix_timestamp() as usize;
         Self {
             iss: ISSUER.to_string(),
-            sub: user_id,
-            role,
+            sub: account_id,
             iat: now,
             exp: now + ttl_secs,
         }
@@ -63,7 +61,7 @@ mod tests {
     use super::*;
 
     fn claims(ttl_secs: usize) -> Claims {
-        Claims::new(Uuid::new_v4(), UserRole::Customer, ttl_secs)
+        Claims::new(Uuid::new_v4(), ttl_secs)
     }
 
     #[test]
@@ -71,7 +69,6 @@ mod tests {
         let token = generate(&claims(3600), b"secret").unwrap();
         let decoded = verify(&token, b"secret").unwrap();
         assert_eq!(decoded.iss, ISSUER);
-        assert_eq!(decoded.role, UserRole::Customer);
     }
 
     #[test]

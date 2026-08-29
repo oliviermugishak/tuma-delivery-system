@@ -5,17 +5,20 @@ import { ApiError } from '@/api/client'
 import { createMerchantMutation, listMerchantsQueryKey } from '@/api/queries'
 
 /**
- * Create a merchant account (admin-only). Merchants never self-signup — this
- * endpoint is the only way one comes into existence. On success: toast and
- * refetch the list. On failure: surface the server's own message (e.g. the
- * 409 "email already taken") so the admin can fix the input and retry.
+ * Provision a merchant business (admin-only): the business row, the owner's
+ * account, and the owner membership — one call. Merchants never self-signup.
+ * On success: toast and refetch the list. On failure: surface the server's
+ * own message (e.g. the 409 "email already taken") so the admin can fix the
+ * input and retry.
  */
 export function useCreateMerchant() {
   const queryClient = useQueryClient()
   return useMutation({
     ...createMerchantMutation(),
-    onSuccess: (merchant) => {
-      toast.success(`Merchant "${merchant.name || merchant.email}" created`)
+    onSuccess: (created) => {
+      toast.success(
+        `Business "${created.name}" created — owner ${created.owner_email}`,
+      )
       void queryClient.invalidateQueries({ queryKey: listMerchantsQueryKey() })
     },
     onError: (error) => {

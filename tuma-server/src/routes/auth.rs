@@ -3,7 +3,7 @@ use crate::middleware::{AUTH_COOKIE, REFRESH_COOKIE, auth_cookie, expire_cookie,
 use crate::routes::me::MeResponse;
 use accounts::jwt;
 use accounts::otp::{self, RequestError};
-use accounts::{UserRole, refresh_tokens, users};
+use accounts::{authorization_for, refresh_tokens, users};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -85,7 +85,7 @@ pub async fn otp_request(
     path = "/v1/auth/otp/verify",
     request_body = OtpVerifyInput,
     responses(
-        (status = 200, description = "Code valid — account fetched or created, token issued", body = OtpVerifyResponse),
+        (status = 200, description = "Code valid — account and customer profile fetched or created, token issued", body = OtpVerifyResponse),
         (status = 400, description = "Invalid or expired code"),
         (status = 422, description = "Invalid input"),
     ),
@@ -97,7 +97,7 @@ pub async fn otp_verify(
     ValidatedJson(input): ValidatedJson<OtpVerifyInput>,
 ) -> AppResult<Json<OtpVerifyResponse>> {
     let mut conn = app.db_pool.acquire().await?;
-    let user = otp::verify(
+    let sign_in = otp::verify(
         &app.accounts,
         &mut conn,
         &input.phone,
@@ -106,13 +106,14 @@ pub async fn otp_verify(
     )
     .await?;
 
-    let claims = jwt::Claims::new(user.id, user.role, jwt::MOBILE_TOKEN_TTL_SECS);
+    let claims = jwt::Claims::new(sign_in.account.id, jwt::MOBILE_TOKEN_TTL_SECS);
     let token = jwt::generate(&claims, app.jwt_signing_key.expose_secret().as_bytes())
         .map_err(|e| AppError::Internal(format!("token generation failed: {e}")))?;
 
+    let authorization = authorization_for(&mut conn, sign_in.account.id).await?;
     Ok(Json(OtpVerifyResponse {
         token,
-        user: MeResponse::from(user),
+        user: MeResponse::build(&sign_in.account, &authorization),
     }))
 }
 
@@ -159,8 +160,11 @@ pub struct LoginInput {
 
 const INVALID_CREDENTIALS: &str = "Invalid email or password";
 
-/// Merchant/admin sign-in for the platform. Sets the two session cookies
-/// (15-min access JWT + 30-day opaque refresh); the body is empty.
+/// Platform sign-in (merchant operators and admins) with email + password.
+/// Sets the two session cookies (15-min access JWT + 30-day opaque refresh);
+/// the body is empty. Authorization is resolved from profiles — an account
+/// with neither an admin profile nor a merchant membership cannot enter the
+/// platform, and the answer never reveals which part failed.
 #[utoipa::path(
     post,
     path = "/v1/auth/login",
@@ -181,24 +185,30 @@ pub async fn login(
     // Emails are stored lowercase; normalize so login is case-insensitive.
     let email = input.email.trim().to_lowercase();
     let mut conn = app.db_pool.acquire().await?;
-    let user = users::by_email(&mut conn, &email).await?;
+    let account = users::by_email(&mut conn, &email).await?;
 
     // One generic 401 for every failure. The manager equalizes timing for
-    // accounts that cannot match (unknown email, customer without a
+    // accounts that cannot match (unknown email, account without a
     // password) by burning a verify against a dummy hash.
     let verified = app
         .accounts
-        .verify_staff_password(user.as_ref(), &input.password)
+        .verify_login_password(account.as_ref(), &input.password)
         .await;
 
-    let Some(user) =
-        user.filter(|user| verified && user.is_active && user.role != UserRole::Customer)
-    else {
+    let Some(account) = account.filter(|account| verified && account.is_active) else {
         return Err(AppError::Authentication(INVALID_CREDENTIALS.into()));
     };
 
-    let refresh = refresh_tokens::issue(&mut conn, user.id).await?;
-    let claims = jwt::Claims::new(user.id, user.role, jwt::WEB_ACCESS_TTL_SECS);
+    // A password match alone is not platform entry: the account must be an
+    // admin or hold a merchant membership. Customers (OTP accounts) have no
+    // password and already failed above.
+    let authorization = authorization_for(&mut conn, account.id).await?;
+    if authorization.admin.is_none() && authorization.memberships.is_empty() {
+        return Err(AppError::Authentication(INVALID_CREDENTIALS.into()));
+    }
+
+    let refresh = refresh_tokens::issue(&mut conn, account.id).await?;
+    let claims = jwt::Claims::new(account.id, jwt::WEB_ACCESS_TTL_SECS);
     let access = jwt::generate(&claims, app.jwt_signing_key.expose_secret().as_bytes())
         .map_err(|e| AppError::Internal(format!("token generation failed: {e}")))?;
 
@@ -218,8 +228,8 @@ pub struct ChangePasswordInput {
     pub new_password: String,
 }
 
-/// Change the caller's own password. Merchant/admin only in practice —
-/// customers have no password (OTP accounts), which is a 400.
+/// Change the caller's own password. Merchant operators and admins only in
+/// practice — customers have no password (OTP accounts), which is a 400.
 #[utoipa::path(
     post,
     path = "/v1/auth/password",

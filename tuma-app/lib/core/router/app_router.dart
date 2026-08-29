@@ -6,39 +6,45 @@ import 'package:tuma_app/features/auth/name_screen.dart';
 import 'package:tuma_app/features/auth/otp_screen.dart';
 import 'package:tuma_app/features/auth/phone_screen.dart';
 import 'package:tuma_app/features/auth/splash_screen.dart';
+import 'package:tuma_app/features/cart/cart_view.dart';
+import 'package:tuma_app/features/cart/checkout_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
+import 'package:tuma_app/features/orders/order_detail_screen.dart';
 import 'package:tuma_app/features/store/store_screen.dart';
 
-final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
-  redirect: (context, state) {
-    final container = ProviderScope.containerOf(context, listen: false);
-    final session = container.read(sessionProvider);
-    final sub = state.matchedLocation;
+/// Build a fresh router. A factory so tests and hot-restarts never reuse a
+/// router whose internal location has moved on (a singleton keeps its last
+/// route forever, which breaks any fresh mount).
+GoRouter buildRouter() => GoRouter(
+      initialLocation: '/',
+      redirect: (context, state) {
+        final container = ProviderScope.containerOf(context, listen: false);
+        final session = container.read(sessionProvider);
+        final sub = state.matchedLocation;
 
-    // The OTP and name screens carry their arguments in `extra`; a cold
-    // start on them has none — bounce back to the start of the flow.
-    if ((sub == '/auth/otp' || sub == '/auth/name') && state.extra == null) {
-      return '/auth/phone';
-    }
-
-    return session.when(
-      data: (snapshot) {
-        // Loading: stay put — the splash is still working.
-        if (snapshot is SessionLoading) return null;
-        final onAuthFlow = sub.startsWith('/auth');
-        if (snapshot is SessionUser) {
-          return onAuthFlow || sub == '/' ? '/home' : null;
+        // The OTP and name screens carry their arguments in `extra`; a cold
+        // start on them has none — bounce back to the start of the flow.
+        if ((sub == '/auth/otp' || sub == '/auth/name') && state.extra == null) {
+          return '/auth/phone';
         }
-        // Anonymous: the auth flow is the only place to be.
-        return onAuthFlow ? null : '/auth/phone';
+
+        return session.when(
+          data: (snapshot) {
+            // Loading: stay put — the splash is still working.
+            if (snapshot is SessionLoading) return null;
+            final onAuthFlow = sub.startsWith('/auth');
+            if (snapshot is SessionUser) {
+              return onAuthFlow || sub == '/' ? '/home' : null;
+            }
+            // Anonymous: the auth flow is the only place to be.
+            return onAuthFlow ? null : '/auth/phone';
+          },
+          loading: () => null,
+          error: (_, _) => '/auth/phone',
+        );
       },
-      loading: () => null,
-      error: (_, _) => '/auth/phone',
-    );
-  },
-  refreshListenable: sessionRouterRefresher,
-  routes: [
+      refreshListenable: sessionRouterRefresher,
+      routes: [
     GoRoute(path: '/', builder: (_, _) => const SplashScreen()),
     GoRoute(path: '/auth/phone', builder: (_, _) => const PhoneScreen()),
     GoRoute(
@@ -55,5 +61,16 @@ final GoRouter appRouter = GoRouter(
       builder: (_, state) =>
           StoreScreen(storeId: state.pathParameters['id']!),
     ),
-  ],
-);
+    GoRoute(path: '/cart', builder: (_, _) => const CartScreen()),
+    GoRoute(path: '/checkout', builder: (_, _) => const CheckoutScreen()),
+    GoRoute(
+      path: '/orders/:id',
+      builder: (_, state) => OrderDetailScreen(
+        orderId: state.pathParameters['id']!,
+      ),
+    ),
+      ],
+    );
+
+/// The app's router instance (see [buildRouter] for why it is a factory).
+final GoRouter appRouter = buildRouter();

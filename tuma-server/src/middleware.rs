@@ -48,9 +48,11 @@ pub(crate) fn expire_cookie(name: &'static str) -> Cookie<'static> {
 /// Builds the per-request [`UserContext`] from either an `Authorization:
 /// Bearer` header (mobile) or the session cookie (web).
 ///
-/// Every valid token triggers a fresh lookup of the user row: a deactivated
-/// or deleted user loses access on their very next request, even while
-/// holding a long-lived mobile token. One primary-key lookup per
+/// Every valid token triggers a fresh lookup of the account row plus its
+/// authorization context (customer profile, admin profile, merchant
+/// memberships): a deactivated account, a revoked membership, or a
+/// suspended business loses access on their very next request, even while
+/// holding a long-lived mobile token. A few indexed lookups per
 /// authenticated request is a fair price for that.
 ///
 /// Cookie sessions get silent refresh: an expired or missing access cookie
@@ -79,12 +81,16 @@ pub async fn auth_context(
             Ok(claims) => {
                 let mut conn = app.db_pool.acquire().await?;
                 match accounts::users::by_id(&mut conn, claims.sub).await {
-                    Ok(Some(user)) if user.is_active => context.user = Some(user),
+                    Ok(Some(user)) if user.is_active => {
+                        context.user = Some(user);
+                        context.authorization =
+                            Some(accounts::authorization_for(&mut conn, claims.sub).await?);
+                    }
                     Ok(Some(_)) => {
-                        tracing::debug!(user_id = %claims.sub, "token valid but user is inactive")
+                        tracing::debug!(account_id = %claims.sub, "token valid but account is inactive")
                     }
                     Ok(None) => {
-                        tracing::debug!(user_id = %claims.sub, "token for a deleted user")
+                        tracing::debug!(account_id = %claims.sub, "token for a deleted account")
                     }
                     Err(error) => return Err(AppError::Database(error)),
                 }
@@ -93,6 +99,9 @@ pub async fn auth_context(
             // An invalid *bearer* token is simply rejected (guards 401).
             Err(_) if bearer.is_none() => match silent_refresh(&app, &jar).await? {
                 Refresh::Renewed { user, access } => {
+                    let mut conn = app.db_pool.acquire().await?;
+                    context.authorization =
+                        Some(accounts::authorization_for(&mut conn, user.id).await?);
                     context.user = Some(user);
                     remint = Some(access);
                 }
@@ -105,6 +114,9 @@ pub async fn auth_context(
         // cookie (no cookie present makes this a cheap no-op).
         None => match silent_refresh(&app, &jar).await? {
             Refresh::Renewed { user, access } => {
+                let mut conn = app.db_pool.acquire().await?;
+                context.authorization =
+                    Some(accounts::authorization_for(&mut conn, user.id).await?);
                 context.user = Some(user);
                 remint = Some(access);
             }
@@ -136,13 +148,13 @@ fn apply_jar(jar: CookieJar, response: Response) -> Response {
 }
 
 enum Refresh {
-    /// Live refresh token and active user — here is a fresh access JWT.
+    /// Live refresh token and active account — here is a fresh access JWT.
     Renewed {
-        user: accounts::User,
+        user: accounts::Account,
         access: String,
     },
-    /// A refresh cookie was present but dead (expired, revoked, or its user
-    /// gone/inactive). The caller should clear the session cookies.
+    /// A refresh cookie was present but dead (expired, revoked, or its
+    /// account gone/inactive). The caller should clear the session cookies.
     Dead,
     /// No refresh cookie; nothing to do.
     NoCookie,
@@ -156,19 +168,22 @@ async fn silent_refresh(app: &AppState, jar: &CookieJar) -> Result<Refresh, AppE
         return Ok(Refresh::NoCookie);
     };
     let mut conn = app.db_pool.acquire().await?;
-    let Some(user_id) = accounts::refresh_tokens::validate(&mut conn, &refresh).await? else {
+    let Some(account_id) = accounts::refresh_tokens::validate(&mut conn, &refresh).await? else {
         return Ok(Refresh::Dead);
     };
-    let Some(user) = accounts::users::by_id(&mut conn, user_id).await? else {
+    let Some(account) = accounts::users::by_id(&mut conn, account_id).await? else {
         return Ok(Refresh::Dead);
     };
-    if !user.is_active {
+    if !account.is_active {
         return Ok(Refresh::Dead);
     }
-    let claims = jwt::Claims::new(user.id, user.role, jwt::WEB_ACCESS_TTL_SECS);
+    let claims = jwt::Claims::new(account.id, jwt::WEB_ACCESS_TTL_SECS);
     let access = jwt::generate(&claims, app.jwt_signing_key.expose_secret().as_bytes())
         .map_err(|e| AppError::Internal(format!("token generation failed: {e}")))?;
-    Ok(Refresh::Renewed { user, access })
+    Ok(Refresh::Renewed {
+        user: account,
+        access,
+    })
 }
 
 fn bearer_token(request: &Request) -> Option<&str> {
@@ -180,7 +195,7 @@ fn bearer_token(request: &Request) -> Option<&str> {
         .strip_prefix("Bearer ")
 }
 
-/// Gate for routes any authenticated role may use (e.g. `/v1/me`).
+/// Gate for routes any authenticated account may use (e.g. `/v1/me`).
 pub async fn required_auth(
     Extension(context): Extension<UserContext>,
     request: Request,
@@ -192,20 +207,40 @@ pub async fn required_auth(
     Ok(next.run(request).await)
 }
 
-/// Role guard for audience namespaces: wire with
-/// `middleware::from_fn_with_state(&[UserRole::Admin][..], require_role)`.
-pub async fn require_role(
-    State(roles): State<&'static [accounts::UserRole]>,
-    Extension(context): Extension<UserContext>,
-    request: Request,
-    next: Next,
-) -> Result<impl IntoResponse, AppError> {
-    match context.user {
-        Some(user) if roles.contains(&user.role) => Ok(next.run(request).await),
-        Some(_) => Err(AppError::Forbidden("Insufficient role".into())),
-        None => Err(AppError::Authentication("Access denied".into())),
-    }
+/// Authorization is a capability resolved from fresh database state, never
+/// a claim in the token. Each audience namespace has one guard:
+/// `require_customer` / `require_admin` / `require_merchant`.
+macro_rules! capability_guard {
+    ($name:ident, $granted:expr, $label:literal) => {
+        pub async fn $name(
+            Extension(context): Extension<UserContext>,
+            request: Request,
+            next: Next,
+        ) -> Result<impl IntoResponse, AppError> {
+            match &context.user {
+                Some(_) if $granted(&context) => Ok(next.run(request).await),
+                Some(_) => Err(AppError::Forbidden(concat!("not a ", $label).into())),
+                None => Err(AppError::Authentication("Access denied".into())),
+            }
+        }
+    };
 }
+
+capability_guard!(
+    require_customer,
+    |context: &UserContext| context.customer_id().is_some(),
+    "customer"
+);
+capability_guard!(
+    require_admin,
+    |context: &UserContext| context.is_admin(),
+    "platform admin"
+);
+capability_guard!(
+    require_merchant,
+    |context: &UserContext| context.merchant_access().is_some(),
+    "merchant operator"
+);
 
 /// CSRF defense for cookie sessions: a state-changing request coming from a
 /// browser must carry an `Origin` header on the allow list

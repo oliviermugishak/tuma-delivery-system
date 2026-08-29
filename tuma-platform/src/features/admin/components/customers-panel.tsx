@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pencil, RefreshCw, Trash2, Users } from 'lucide-react'
 
-import type { MeResponse } from '@/api/generated'
+import type { CustomerAdminResponse } from '@/api/generated'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,13 +40,13 @@ export function CustomersPanel() {
   const customers = useCustomers()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
-  const [editing, setEditing] = useState<MeResponse | null>(null)
+  const [editing, setEditing] = useState<CustomerAdminResponse | null>(null)
   const [editOpen, setEditOpen] = useState(false)
-  const [deleting, setDeleting] = useState<MeResponse | null>(null)
+  const [deleting, setDeleting] = useState<CustomerAdminResponse | null>(null)
 
-  const toggleActive = (customer: MeResponse, next: boolean) => {
+  const toggleActive = (customer: CustomerAdminResponse, next: boolean) => {
     updateCustomer.mutate({
-      path: { id: customer.id },
+      path: { id: customer.user_id },
       body: { is_active: next },
     })
   }
@@ -60,7 +60,7 @@ export function CustomersPanel() {
   const confirmDelete = () => {
     if (!deleting) return
     deleteCustomer.mutate(
-      { path: { id: deleting.id } },
+      { path: { id: deleting.user_id } },
       { onSettled: () => setDeleting(null) },
     )
   }
@@ -97,7 +97,6 @@ export function CustomersPanel() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Active</TableHead>
                   <TableHead className="w-24 text-right">Actions</TableHead>
@@ -105,21 +104,18 @@ export function CustomersPanel() {
               </TableHeader>
               <TableBody>
                 {customers.data.map((customer) => (
-                  <TableRow key={customer.id}>
+                  <TableRow key={customer.user_id}>
                     <TableCell className="font-medium">
                       {customer.name || '—'}
                     </TableCell>
                     <TableCell>{customer.phone || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {customer.email || '—'}
-                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDate(customer.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Switch
                         checked={customer.is_active}
-                        disabled={pendingId === customer.id}
+                        disabled={pendingId === customer.user_id}
                         onCheckedChange={(checked) =>
                           toggleActive(customer, checked)
                         }

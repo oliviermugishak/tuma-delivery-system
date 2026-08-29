@@ -11,6 +11,42 @@ Companion doc: `Tuma_Auth_and_RBAC_Architecture.md` (identity, tokens, roles).
 2. **The server owns truth.** Prices, order state, delivery location, roles — clients display, they never decide.
 3. **Boring and predictable beats clever.** REST, JSON, stable envelopes, additive evolution. No GraphQL, no WebSocket, no event bus until something measurably hurts.
 
+### ⚠️ Temporary deviation — client-side placeholder store facts
+
+Principle 2 has one known, deliberate exception while delivery
+operations predate the real fields: the customer app's store cards
+display a **distance (km)** and an **arrival estimate (minutes)**
+generated client-side in
+`tuma-app/lib/core/constants/placeholder_store_facts.dart` —
+deterministic pseudo-values derived from the store name (distance a
+float in a range of 10; minutes in a range of 10). They exist for
+layout and feel only, and must be treated as follows:
+
+- **Distance and arrival time are NOT real.** They must be replaced
+  by server-owned values — real distance computed from the customer's
+  GPS and the store's lat/lng, and a real arrival estimate once
+  delivery operations exist. Until then the numbers must never be
+  read as fact, and no client logic may depend on them.
+- **Category IS real now** (2026-08-29 re-architecture):
+  `stores.category` is server-owned and the app renders it whenever
+  the merchant set one; the placeholder category only covers empty
+  values and retires when the data does.
+
+When the real distance/ETA land on the API (additive, per §3), they
+simply win and the placeholder file retires. This is a must-fix
+before the delivery iteration.
+
+> **2026-08-29 — Marketplace re-architecture note.** The URL tree and
+> role model below describe the pre-re-architecture foundations and are
+> kept for history; `Tuma_V1_Brief.md` (database + API sections) is the
+> current contract. Summary of what changed: `tuma` schema split into
+> `accounts` / `marketplace` / `commerce`; `users.role` replaced by
+> profile rows (`customers`, `admins`) and `merchant_memberships`; JWT
+> claims carry the account id only; `/v1/me` returns
+> `{account, customer, admin, merchant_memberships}`; one checkout = one
+> `order_group` with one `store_order` per store, one `payments` row and
+> explicit `payment_allocations`.
+
 ## 2. URL structure
 
 One API, three audiences, versioned root. Actor namespaces make RBAC visible in the URL tree:

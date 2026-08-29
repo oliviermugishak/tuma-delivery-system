@@ -43,7 +43,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/MeResponse"
+                    "$ref": "#/components/schemas/CustomerAdminResponse"
                   }
                 }
               }
@@ -63,13 +63,13 @@
         "tags": [
           "admin"
         ],
-        "summary": "Hard-delete a customer. Permanent — the platform confirms before\ncalling. Scoped to customers: a merchant or admin id is a 404.",
+        "summary": "Hard-delete a customer account. The profile, refresh tokens, and order\nhistory follow via ON DELETE CASCADE — permanent, and the platform\nconfirms before calling. Scoped to customer accounts: any other identity\nis a 404.",
         "operationId": "delete_customer",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Customer user id",
+            "description": "Customer account id",
             "required": true,
             "schema": {
               "type": "string",
@@ -96,13 +96,12 @@
         "tags": [
           "admin"
         ],
-        "summary": "Edit a customer (name, phone, active flag). A taken phone is a 409.",
         "operationId": "update_customer",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Customer user id",
+            "description": "Customer account id",
             "required": true,
             "schema": {
               "type": "string",
@@ -126,7 +125,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "$ref": "#/components/schemas/CustomerAdminResponse"
                 }
               }
             }
@@ -157,13 +156,13 @@
         "operationId": "list_merchants",
         "responses": {
           "200": {
-            "description": "All merchant accounts, oldest first",
+            "description": "All merchant businesses, oldest first",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/MeResponse"
+                    "$ref": "#/components/schemas/MerchantResponse"
                   }
                 }
               }
@@ -194,11 +193,11 @@
         },
         "responses": {
           "201": {
-            "description": "Merchant created",
+            "description": "Merchant business created with its owner account",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "$ref": "#/components/schemas/CreatedMerchantResponse"
                 }
               }
             }
@@ -210,7 +209,7 @@
             "description": "Not an admin"
           },
           "409": {
-            "description": "Email already taken"
+            "description": "Owner email already taken"
           },
           "422": {
             "description": "Invalid input"
@@ -223,13 +222,13 @@
         "tags": [
           "admin"
         ],
-        "summary": "One merchant account with everything the admin detail page shows: the\naccount itself and their stores with product counts. Admin sees facts;\nthe merchant manages the menu — it stays out of the admin's response.\nUnknown ids and non-merchant ids are the same 404.",
+        "summary": "One business with everything the admin detail page shows: the business,\nits stores with assortment counts, and its members. Admin sees facts;\nthe merchant manages the menu — it stays out of the admin's response.",
         "operationId": "get_merchant",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Merchant user id",
+            "description": "Merchant business id",
             "required": true,
             "schema": {
               "type": "string",
@@ -239,7 +238,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The merchant and their stores",
+            "description": "The business, its stores, and its members",
             "content": {
               "application/json": {
                 "schema": {
@@ -255,7 +254,7 @@
             "description": "Not an admin"
           },
           "404": {
-            "description": "No merchant with that id"
+            "description": "No merchant business with that id"
           }
         }
       },
@@ -263,13 +262,13 @@
         "tags": [
           "admin"
         ],
-        "summary": "Hard-delete a merchant. Their stores and products follow via ON DELETE\nCASCADE — this is permanent, and the platform confirms before calling.",
+        "summary": "Hard-delete a business. Its memberships, stores (and their assortments),\nand catalog products follow via ON DELETE CASCADE. Member ACCOUNTS are\nidentities, not parts of the business — they survive the delete.",
         "operationId": "delete_merchant",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Merchant user id",
+            "description": "Merchant business id",
             "required": true,
             "schema": {
               "type": "string",
@@ -279,7 +278,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Merchant deleted"
+            "description": "Merchant business deleted"
           },
           "401": {
             "description": "Not authenticated"
@@ -288,7 +287,7 @@
             "description": "Not an admin"
           },
           "404": {
-            "description": "No merchant with that id"
+            "description": "No merchant business with that id"
           }
         }
       },
@@ -296,13 +295,12 @@
         "tags": [
           "admin"
         ],
-        "summary": "Edit a merchant (name, email, active flag). A taken email is a 409.",
         "operationId": "update_merchant",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Merchant user id",
+            "description": "Merchant business id",
             "required": true,
             "schema": {
               "type": "string",
@@ -322,11 +320,11 @@
         },
         "responses": {
           "200": {
-            "description": "The updated merchant",
+            "description": "The updated business",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeResponse"
+                  "$ref": "#/components/schemas/MerchantResponse"
                 }
               }
             }
@@ -338,13 +336,110 @@
             "description": "Not an admin"
           },
           "404": {
-            "description": "No merchant with that id"
-          },
-          "409": {
-            "description": "Email already taken"
+            "description": "No merchant business with that id"
           },
           "422": {
             "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/admin/payments/{id}/collect": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mark a pending cash payment collected. Its allocations settle with it —\nthe ledger records who received what without any inference.",
+        "operationId": "collect_payment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Payment id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment collected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Only a pending payment can be collected"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No payment with that id"
+          }
+        }
+      }
+    },
+    "/v1/admin/store-orders/{id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Advance any store order. The platform's control plane answer when a\nmerchant cannot.",
+        "operationId": "advance_store_order_admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store order id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Store order advanced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MerchantStoreOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or illegal status transition"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No store order with that id"
           }
         }
       }
@@ -381,7 +476,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Merchant/admin sign-in for the platform. Sets the two session cookies\n(15-min access JWT + 30-day opaque refresh); the body is empty.",
+        "summary": "Platform sign-in (merchant operators and admins) with email + password.\nSets the two session cookies (15-min access JWT + 30-day opaque refresh);\nthe body is empty. Authorization is resolved from profiles — an account\nwith neither an admin profile nor a merchant membership cannot enter the\nplatform, and the answer never reveals which part failed.",
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -473,7 +568,7 @@
         },
         "responses": {
           "200": {
-            "description": "Code valid — account fetched or created, token issued",
+            "description": "Code valid — account and customer profile fetched or created, token issued",
             "content": {
               "application/json": {
                 "schema": {
@@ -496,7 +591,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Change the caller's own password. Merchant/admin only in practice —\ncustomers have no password (OTP accounts), which is a 400.",
+        "summary": "Change the caller's own password. Merchant operators and admins only in\npractice — customers have no password (OTP accounts), which is a 400.",
         "operationId": "change_password",
         "requestBody": {
           "content": {
@@ -532,7 +627,7 @@
         "operationId": "me",
         "responses": {
           "200": {
-            "description": "The authenticated user",
+            "description": "The authenticated account with its profiles and memberships",
             "content": {
               "application/json": {
                 "schema": {
@@ -550,7 +645,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Updates the caller's own profile. Name is the only mutable field in V1\n(see tuma-docs/Tuma_API_Architecture.md §3). Used by the mobile name\ncapture step: OTP verify consumes the code, so a fresh user's name lands\nhere, not in a second verify call.",
+        "summary": "Updates the caller's own profile name — the customer profile when there\nis one, else the admin profile. Merchant-operator accounts have no\neditable name in V1 (their identity on the wing is the business).",
         "operationId": "update_me",
         "requestBody": {
           "content": {
@@ -564,7 +659,7 @@
         },
         "responses": {
           "200": {
-            "description": "The updated user",
+            "description": "The updated profile",
             "content": {
               "application/json": {
                 "schema": {
@@ -574,7 +669,7 @@
             }
           },
           "400": {
-            "description": "Empty name"
+            "description": "Empty name, or no editable profile"
           },
           "401": {
             "description": "Missing or invalid credentials"
@@ -585,15 +680,66 @@
         }
       }
     },
+    "/v1/merchant/orders": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "list_merchant_orders",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Incoming store orders across authorized stores, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MerchantStoreOrderResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          }
+        }
+      }
+    },
     "/v1/merchant/products": {
       "get": {
         "tags": [
           "merchant"
         ],
-        "operationId": "list_own_products",
+        "operationId": "list_products",
         "responses": {
           "200": {
-            "description": "The merchant's full menu, oldest first",
+            "description": "The business's catalog, oldest first",
             "content": {
               "application/json": {
                 "schema": {
@@ -609,7 +755,7 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership"
           }
         }
       },
@@ -630,7 +776,7 @@
         },
         "responses": {
           "201": {
-            "description": "Product added to the menu",
+            "description": "Catalog product created",
             "content": {
               "application/json": {
                 "schema": {
@@ -639,14 +785,14 @@
               }
             }
           },
+          "400": {
+            "description": "Account belongs to several businesses"
+          },
           "401": {
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
-          },
-          "404": {
-            "description": "The store_id is not one of this merchant's stores"
+            "description": "No merchant membership, or not the business owner"
           },
           "422": {
             "description": "Invalid input"
@@ -659,13 +805,13 @@
         "tags": [
           "merchant"
         ],
-        "summary": "Hard-delete one of the merchant's products. Permanent — the platform\nconfirms before calling.",
+        "summary": "Delete a catalog product. Every store selling it loses it at once\n(ON DELETE CASCADE) — permanent, and the platform confirms first.",
         "operationId": "delete_product",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Product id",
+            "description": "Catalog product id",
             "required": true,
             "schema": {
               "type": "string",
@@ -675,16 +821,16 @@
         ],
         "responses": {
           "204": {
-            "description": "Product deleted"
+            "description": "Catalog product deleted"
           },
           "401": {
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership, or not the business owner"
           },
           "404": {
-            "description": "Not one of this merchant's products"
+            "description": "Not one of this business's products"
           }
         }
       },
@@ -697,7 +843,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Product id",
+            "description": "Catalog product id",
             "required": true,
             "schema": {
               "type": "string",
@@ -717,7 +863,7 @@
         },
         "responses": {
           "200": {
-            "description": "The updated product",
+            "description": "The updated catalog product",
             "content": {
               "application/json": {
                 "schema": {
@@ -730,10 +876,264 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership, or not the business owner"
           },
           "404": {
-            "description": "Not one of this merchant's products"
+            "description": "Not one of this business's products"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/store-orders/{id}": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "One store order's detail — the fulfillment sheet: what to prepare, where\nit goes, and who to call. Store-scoped managers may read only their own\nstore's orders; a foreign one is a plain 404.",
+        "operationId": "get_merchant_store_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store order id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The store order's detail with items and the customer contact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MerchantStoreOrderDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this operator's orders"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "Advance one of the operator's store orders (accept, prepare, hand off…;\nor cancel to reject). Store-scoped managers can act only on their own\nstore's orders — a foreign one is a plain 404.",
+        "operationId": "advance_store_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store order id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Store order advanced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MerchantStoreOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or illegal status transition"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this operator's orders"
+          }
+        }
+      }
+    },
+    "/v1/merchant/store-products": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "list_store_products",
+        "responses": {
+          "200": {
+            "description": "The assortment across reachable stores, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoreProductResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "create_store_product",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStoreProductInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Product attached to the store's assortment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreProductResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership, or store out of scope"
+          },
+          "404": {
+            "description": "Unknown store or product (or another business's)"
+          },
+          "409": {
+            "description": "This store already sells this product"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/store-products/{id}": {
+      "delete": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "Detach one product from one store. The catalog identity stays — the\nproduct can be attached (differently priced) somewhere else.",
+        "operationId": "delete_store_product",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Product detached from the store"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership, or store out of scope"
+          },
+          "404": {
+            "description": "Not one of this business's store products"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "update_store_product",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStoreProductInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated store product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreProductResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership, or store out of scope"
+          },
+          "404": {
+            "description": "Not one of this business's store products"
           },
           "422": {
             "description": "Invalid input"
@@ -749,7 +1149,7 @@
         "operationId": "list_own_stores",
         "responses": {
           "200": {
-            "description": "The merchant's stores, oldest first",
+            "description": "The stores this operator can reach, oldest first",
             "content": {
               "application/json": {
                 "schema": {
@@ -765,7 +1165,7 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership"
           }
         }
       },
@@ -795,11 +1195,14 @@
               }
             }
           },
+          "400": {
+            "description": "Account belongs to several businesses"
+          },
           "401": {
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership, or not the business owner"
           },
           "422": {
             "description": "Invalid input"
@@ -827,7 +1230,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One of the merchant's stores",
+            "description": "One of this operator's stores",
             "content": {
               "application/json": {
                 "schema": {
@@ -840,10 +1243,10 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership"
           },
           "404": {
-            "description": "Not one of this merchant's stores"
+            "description": "Not one of this operator's stores"
           }
         }
       },
@@ -851,7 +1254,7 @@
         "tags": [
           "merchant"
         ],
-        "summary": "Hard-delete one of the merchant's stores. Its products follow via\nON DELETE CASCADE — permanent, and the platform confirms before calling.",
+        "summary": "Hard-delete one of the operator's stores. Its store_products follow via\nON DELETE CASCADE — permanent, and the platform confirms before calling.\nOwners only: a store-scoped manager cannot delete their store.",
         "operationId": "delete_own_store",
         "parameters": [
           {
@@ -873,10 +1276,10 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership, or not the business owner"
           },
           "404": {
-            "description": "Not one of this merchant's stores"
+            "description": "Not one of this operator's stores"
           }
         }
       },
@@ -922,10 +1325,10 @@
             "description": "Not authenticated"
           },
           "403": {
-            "description": "Not a merchant"
+            "description": "No merchant membership"
           },
           "404": {
-            "description": "Not one of this merchant's stores"
+            "description": "Not one of this operator's stores"
           },
           "422": {
             "description": "Invalid input"
@@ -950,6 +1353,215 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/orders": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "list_orders",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order groups, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupSummaryResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "checkout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Already placed — the retry's idempotency key matched an existing group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderGroupResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Checkout placed — one group with its store orders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty cart or invalid input"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          },
+          "409": {
+            "description": "Store closed, item unavailable, or not enough stock — details name the offenders"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "get_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Order group id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One order group with its store orders and payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderGroupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          },
+          "404": {
+            "description": "Group not found (or not yours)"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}/store-orders/{store_order_id}/cancel": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "cancel_store_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Order group id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "store_order_id",
+            "in": "path",
+            "description": "Store order id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The cancelled store order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The order can no longer be cancelled (already out)"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          },
+          "404": {
+            "description": "Not one of your orders"
           }
         }
       }
@@ -1003,7 +1615,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The store and its available products",
+            "description": "The store and its menu",
             "content": {
               "application/json": {
                 "schema": {
@@ -1029,7 +1641,7 @@
     "schemas": {
       "AdminStoreResponse": {
         "type": "object",
-        "description": "A store inside the admin's merchant detail — standing facts plus how\nmany products it has. No location or image until something displays them.",
+        "description": "A store inside the admin's business detail — standing facts plus how\nmany store products it sells. No location or image until something\ndisplays them.",
         "required": [
           "id",
           "name",
@@ -1040,6 +1652,12 @@
         ],
         "properties": {
           "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
             "type": [
               "string",
               "null"
@@ -1076,7 +1694,9 @@
           "customers",
           "stores",
           "open_stores",
-          "products"
+          "products",
+          "store_products",
+          "orders_in_progress"
         ],
         "properties": {
           "customers": {
@@ -1085,19 +1705,54 @@
           },
           "merchants": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Merchant businesses."
           },
           "open_stores": {
             "type": "integer",
             "format": "int64"
           },
+          "orders_in_progress": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Store orders still moving (not delivered/cancelled)."
+          },
           "products": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Merchant-level catalog products."
+          },
+          "store_products": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Store-level sellable items."
           },
           "stores": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "AdvanceStatusInput": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CancelInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional client explanation — recorded in a later slice when the\ncancellation event log lands; accepted now so the UI can send it."
           }
         }
       },
@@ -1116,21 +1771,83 @@
           }
         }
       },
-      "CreateMerchantInput": {
+      "CheckoutInput": {
         "type": "object",
         "required": [
+          "address_text",
+          "items"
+        ],
+        "properties": {
+          "address_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "address_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "address_text": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A client-generated key: retrying the same checkout with the same key\nreturns the group it already created instead of placing twice."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckoutLineInput"
+            },
+            "description": "At least one line. Each carries the store_product id and quantity."
+          }
+        }
+      },
+      "CheckoutLineInput": {
+        "type": "object",
+        "required": [
+          "store_product_id",
+          "quantity"
+        ],
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "store_product_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateMerchantInput": {
+        "type": "object",
+        "description": "Provision a merchant business: the business row, the owner's account\n(email + password, hashed by the AccountManager), and the owner\nmembership — one transaction. The owner signs into the merchant wing\nwith that account; the business itself never logs in.",
+        "required": [
+          "name",
           "email",
           "password"
         ],
         "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
+          "business_email": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           },
           "password": {
             "type": "string"
@@ -1140,9 +1857,7 @@
       "CreateProductInput": {
         "type": "object",
         "required": [
-          "store_id",
-          "name",
-          "price"
+          "name"
         ],
         "properties": {
           "description": {
@@ -1157,25 +1872,8 @@
               "null"
             ]
           },
-          "is_available": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Defaults to true."
-          },
           "name": {
             "type": "string"
-          },
-          "price": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Integer RWF, server-owned truth for the order snapshot later."
-          },
-          "store_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Which of the merchant's stores this product joins."
           }
         }
       },
@@ -1190,6 +1888,13 @@
               "string",
               "null"
             ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the store sells, in one word or two (e.g. \"Grill\", \"Bakery\")."
           },
           "delivery_fee": {
             "type": [
@@ -1230,6 +1935,143 @@
           }
         }
       },
+      "CreateStoreProductInput": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "store_id",
+          "price"
+        ],
+        "properties": {
+          "is_available": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Defaults to true."
+          },
+          "price": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Integer RWF, the store's own price for this product."
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which catalog product this is."
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stock": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`null` (or absent) = untracked. A number is the on-hand count the\ncheckout reserves."
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which of the operator's stores sells it."
+          }
+        }
+      },
+      "CreatedMerchantResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MerchantResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "owner_email"
+            ],
+            "properties": {
+              "owner_email": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "CustomerAdminResponse": {
+        "type": "object",
+        "description": "A customer account on the admin's list: the profile (name) joined with\nthe account facts (phone, active flag).",
+        "required": [
+          "user_id",
+          "is_active",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "GroupSummaryResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "grand_total",
+          "status",
+          "stores",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "grand_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stores": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Which stores are fulfilling this purchase."
+          }
+        }
+      },
       "LoginInput": {
         "type": "object",
         "required": [
@@ -1247,11 +2089,66 @@
       },
       "MeResponse": {
         "type": "object",
-        "description": "The authenticated user. Deliberately not the raw `accounts::User` —\nresponse types never carry `password_hash`.",
+        "description": "The authenticated account with its authorization context. Deliberately\nnot the raw domain rows — responses never carry `password_hash`. The\naccount itself is roleless; what it can do is visible in the profiles\nand memberships below, all resolved fresh per request.",
         "required": [
           "id",
+          "created_at",
+          "merchant_memberships"
+        ],
+        "properties": {
+          "admin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileResponse"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "customer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileResponse"
+              }
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MembershipResponse"
+            }
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MemberResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
           "role",
-          "is_active",
           "created_at"
         ],
         "properties": {
@@ -1265,83 +2162,417 @@
               "null"
             ]
           },
+          "role": {
+            "type": "string"
+          },
+          "store_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "MembershipResponse": {
+        "type": "object",
+        "required": [
+          "merchant_id",
+          "merchant_name",
+          "role",
+          "merchant_status"
+        ],
+        "properties": {
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_name": {
+            "type": "string"
+          },
+          "merchant_status": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "store_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`null` = the whole business; a value = this member is scoped to that\none store."
+          }
+        }
+      },
+      "MenuItemResponse": {
+        "type": "object",
+        "description": "A placeholder until the S3 catalog slice lands: the store detail's menu\nis empty because store_products have no endpoints yet. The mobile store\nscreen renders the honest empty state.",
+        "required": [
+          "id",
+          "name",
+          "price",
+          "is_available"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "is_active": {
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_available": {
             "type": "boolean"
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
-          "phone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": "string",
-            "examples": [
-              "customer"
-            ]
+          "price": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
       "MerchantDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MerchantResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "stores",
+              "members"
+            ],
+            "properties": {
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              },
+              "stores": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminStoreResponse"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MerchantOrderItemResponse": {
         "type": "object",
+        "description": "One frozen line, with the line total the customer saw.",
         "required": [
-          "id",
-          "role",
-          "is_active",
-          "created_at",
-          "stores"
+          "product_name",
+          "unit_price",
+          "quantity"
         ],
         "properties": {
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
+          "product_name": {
+            "type": "string"
           },
-          "email": {
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unit_price": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MerchantResponse": {
+        "type": "object",
+        "description": "A merchant business as the admin sees it.",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "business_email": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "business_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           },
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "is_active": {
-            "type": "boolean"
-          },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
-          "phone": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "MerchantStoreOrderDetailResponse": {
+        "type": "object",
+        "description": "The full store-order detail for the operator: what to prepare (items),\nwhere it goes (address + coordinates), who to contact (customer name +\nphone), and the money. This is the fulfillment sheet.",
+        "required": [
+          "id",
+          "number",
+          "store_id",
+          "store_name",
+          "status",
+          "subtotal",
+          "delivery_fee",
+          "total",
+          "address_text",
+          "payment_status",
+          "created_at",
+          "items"
+        ],
+        "properties": {
+          "address_lat": {
             "type": [
-              "string",
+              "number",
               "null"
-            ]
+            ],
+            "format": "double"
           },
-          "role": {
+          "address_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "address_text": {
+            "type": "string"
+          },
+          "created_at": {
             "type": "string",
-            "examples": [
-              "merchant"
+            "format": "date-time"
+          },
+          "customer_name": {
+            "type": [
+              "string",
+              "null"
             ]
           },
-          "stores": {
+          "customer_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivery_fee": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminStoreResponse"
+              "$ref": "#/components/schemas/MerchantOrderItemResponse"
             }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_status": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MerchantStoreOrderResponse": {
+        "type": "object",
+        "description": "A store order on the merchant's board: what to fulfill, for whom, and\nwhere.",
+        "required": [
+          "id",
+          "number",
+          "store_id",
+          "store_name",
+          "status",
+          "total",
+          "address_text",
+          "created_at"
+        ],
+        "properties": {
+          "address_text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "OrderGroupResponse": {
+        "type": "object",
+        "description": "The customer-facing purchase: one checkout, N store orders, one\npayment. `status` is derived from the children server-side.",
+        "required": [
+          "id",
+          "number",
+          "address_text",
+          "subtotal",
+          "delivery_total",
+          "grand_total",
+          "status",
+          "payment_status",
+          "created_at",
+          "store_orders"
+        ],
+        "properties": {
+          "address_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "address_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "address_text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delivery_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "grand_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_status": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreOrderResponse"
+            }
+          },
+          "subtotal": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "OrderItemResponse": {
+        "type": "object",
+        "description": "One frozen line of a store order.",
+        "required": [
+          "store_product_id",
+          "product_id",
+          "product_name",
+          "unit_price",
+          "quantity"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "store_product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unit_price": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -1403,16 +2634,163 @@
           }
         }
       },
-      "ProductResponse": {
+      "PaymentResponse": {
         "type": "object",
         "required": [
           "id",
-          "store_id",
+          "order_group_id",
+          "amount",
+          "currency",
+          "status"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_group_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductResponse": {
+        "type": "object",
+        "description": "A catalog product as the API returns it.",
+        "required": [
+          "id",
+          "merchant_id",
           "name",
-          "price",
-          "is_available",
           "created_at",
           "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "StoreOrderResponse": {
+        "type": "object",
+        "description": "A store order as the customer sees it: one store's slice of the\ncheckout, with its own status and totals.",
+        "required": [
+          "id",
+          "number",
+          "store_id",
+          "store_name",
+          "status",
+          "subtotal",
+          "delivery_fee",
+          "total",
+          "items"
+        ],
+        "properties": {
+          "delivery_fee": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponse"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "StoreProductResponse": {
+        "type": "object",
+        "description": "A store_product as the merchant sees it: its catalog identity, its\nstore, and its sell configuration.",
+        "required": [
+          "id",
+          "store_id",
+          "store_name",
+          "product_id",
+          "product_name",
+          "price",
+          "is_available",
+          "created_at"
         ],
         "properties": {
           "created_at": {
@@ -1438,20 +2816,37 @@
           "is_available": {
             "type": "boolean"
           },
-          "name": {
-            "type": "string"
-          },
           "price": {
             "type": "integer",
             "format": "int64"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stock": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`null` = untracked (made to order). A number is reserved atomically\nat checkout."
           },
           "store_id": {
             "type": "string",
             "format": "uuid"
           },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
+          "store_name": {
+            "type": "string"
           }
         }
       },
@@ -1469,6 +2864,12 @@
         ],
         "properties": {
           "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
             "type": [
               "string",
               "null"
@@ -1538,7 +2939,7 @@
           "products": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProductResponse"
+              "$ref": "#/components/schemas/MenuItemResponse"
             }
           },
           "store": {
@@ -1548,7 +2949,7 @@
       },
       "UpdateCustomerInput": {
         "type": "object",
-        "description": "Admin edits to a customer account. Same semantics as merchant edits:\nprovided fields overwrite, an empty name clears it, absent fields keep\ntheir value. Phone stays editable because a typo'd number during OTP\nsignup is exactly the kind of thing an admin corrects. `is_active`\nrides the same endpoint.",
+        "description": "Admin edits to a customer account. Provided fields overwrite, an empty\nname clears it, absent fields keep their value. Phone stays editable\nbecause a typo'd number during OTP signup is exactly the kind of thing\nan admin corrects; a taken phone is the typed 409.",
         "properties": {
           "is_active": {
             "type": [
@@ -1583,17 +2984,20 @@
       },
       "UpdateMerchantInput": {
         "type": "object",
-        "description": "Admin edits to a merchant account. Every field is optional: provided\nfields overwrite, an empty name clears it, absent fields keep their\ncurrent value. `is_active` rides the same endpoint — toggling is an\nedit like any other.",
+        "description": "Admin edits to a business. Every field is optional: provided fields\noverwrite, an empty string clears an optional contact field, absent\nfields keep their value. Suspension is the pause tool — a suspended\nbusiness is refused by the merchant wing and stops taking orders.",
+        "required": [
+          "status"
+        ],
         "properties": {
-          "email": {
+          "business_email": {
             "type": [
               "string",
               "null"
             ]
           },
-          "is_active": {
+          "business_phone": {
             "type": [
-              "boolean",
+              "string",
               "null"
             ]
           },
@@ -1602,6 +3006,9 @@
               "string",
               "null"
             ]
+          },
+          "status": {
+            "type": "string"
           }
         }
       },
@@ -1620,24 +3027,11 @@
               "null"
             ]
           },
-          "is_available": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "name": {
             "type": [
               "string",
               "null"
             ]
-          },
-          "price": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           }
         }
       },
@@ -1645,6 +3039,12 @@
         "type": "object",
         "properties": {
           "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
             "type": [
               "string",
               "null"
@@ -1694,6 +3094,39 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateStoreProductInput": {
+        "type": "object",
+        "description": "PATCH on the sell configuration: price, stock (a number sets it, explicit\n`null` switches back to untracked), availability, SKU. Absent fields\nkeep their value.",
+        "properties": {
+          "is_available": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "price": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stock": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Absent = keep, `null` = untracked, a number = the on-hand count."
           }
         }
       }
