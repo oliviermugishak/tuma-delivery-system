@@ -32,16 +32,23 @@ needs the customer's location?
    is: *a store without coordinates is not fully onboarded* — the store
    create/edit UI must capture them (see §7; today it doesn't, which is a
    🔴 gap).
-2. **The app asks for the customer's location** (permission-gated GPS fix),
-   and sends it with the browse request: `GET /v1/stores?lat=…&lng=…`.
-3. **The server computes distance and ETA** — haversine distance (fine at
-   Kigali scale; PostGIS only when zone/radius queries become real) and
-   `eta_min` = distance ÷ effective moto speed (~25 km/h in Kigali traffic)
-   + a preparation buffer. 🟡 Not built yet. The server computes because
-   *the server owns truth* — clients render, never calculate business facts.
-4. **The placeholder file retires** the day the real fields land; the
-   category half of the deviation is already resolved ✅ (stores now carry a
-   real server-owned `category`, and the home cards render it).
+2. **The app asks for the customer's location** ✅ Slice L1 (founder chose
+   the auto prompt on launch): Home tries a GPS fix on load, persists it,
+   and sends it with the browse request `GET /v1/stores?lat=…&lng=…`.
+   Failures fall back cleanly — persisted pin first (set by the checkout
+   map), else the bare feed with no distances. No Linux GPS in desktop dev;
+   Android prompts and works.
+3. **The server computes distance and ETA** ✅ Slice L1 — haversine distance
+   (fine at Kigali scale; PostGIS only when zone/radius queries become
+   real) and `eta_min` = **pure ride time at 25 km/h with a `~` prefix**
+   (founder decision: no preparation buffer on browse cards). The server
+   computes because *the server owns truth* — clients render, never
+   calculate business facts. Nearest-first ordering, coordinate-less
+   stores trailing with nulls.
+4. **The placeholder file retires** ✅ Slice L1 — `placeholder_store_facts.dart`
+   is deleted; the category half was already real (server-owned
+   `category`, rendered on the cards). Every card fact is now server-owned
+   or honestly hidden.
 5. **Build order #4 (tracking)** reuses the same machinery end-to-end: the
    rider's phone pushes real GPS every ~5s to
    `POST /deliveries/:id/location`, the customer polls
@@ -49,11 +56,10 @@ needs the customer's location?
    ETA = *remaining* travel time. Schema is already in place
    (`commerce.deliveries`); nothing about this is simulated in production.
 
-**Open decision (founder):** straight-line haversine distance for ETA in V1
-vs. road-distance via a routing provider from day one. Recommendation:
-haversine for the browse cards (honest enough for "near you" sorting), road
-distance only for the active-delivery ETA in #4 — it needs the routing
-provider anyway (§6).
+**Decided (founder):** straight-line haversine distance for the browse
+cards (honest enough for "near you" sorting); road distance via a routing
+provider arrives with #4, where the active-delivery ETA needs it anyway
+(§6).
 
 ---
 
@@ -68,10 +74,12 @@ progression:
 
 1. ✅ **Now:** free-text address only (lat/lng sent as null). Honest but
    weak — a rider would navigate by phone call.
-2. 🟡 **Next slice — map-pin picker at checkout:** a flutter_map view,
-   drag-the-pin or "use my current location", plus the text field as the
-   human-readable label ("Kimironko, past the market, blue gate"). Purely
-   additive client work; the API already accepts the coordinates.
+2. ✅ **Slice L1 — map-pin picker at checkout:** a flutter_map view
+   (OSM tiles), tap-to-drop pin or "Use my location", with the text field
+   as the human-readable label ("Kimironko, past the market, blue gate").
+   The chosen pin flows into `address_lat`/`address_lng` **and** persists
+   to the customer location — Home's distances sharpen after the first
+   checkout too.
 3. 🟡 **Saved-addresses book** (the `addresses` table we deliberately
    deferred): label + pin + delivery instructions + a default flag, so
    reordering is one tap. It earns its place the moment checkout has a map.
@@ -307,9 +315,9 @@ work is surfacing plus the "orders needing you" hero.
 1. ~~Merchant order items~~ **✅ F1** — fulfillment sheet + board dialog.
 2. ~~Mobile wayfinding fixes~~ **✅ F1** — push-after-checkout, explicit
    back/home, plain AppBar header.
-3. 🟡 Location capture, phase 2 — checkout gains the delivery-pin picker;
-   server browse route gains `lat`/`lng` → server-computed
-   `distance_m`/`eta_min`; the placeholder file retires. (Store-side
+3. ~~Location capture~~ **✅ L1** — GPS prompt on launch + persisted pin +
+   nearest-first feed with server-computed distance/eta; checkout map-pin
+   picker; `placeholder_store_facts.dart` retired. (Store-side
    capture ✅ F1.)
 4. ~~Status relabel~~ **✅ F1** — `picked_up` renders as "Out for delivery"
    on the merchant board; map-view activation gate lands with #4.

@@ -15,6 +15,7 @@ import 'package:tuma_app/core/router/app_router.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
+import 'package:tuma_app/features/location/customer_location.dart';
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -119,9 +120,16 @@ http.Response _json(Object body, [int status = 200]) => http.Response(
     );
 
 /// Real [ApiClient] backed by a scripted server. Every screen the test
-/// visits gets its data from here — nothing touches the network.
-ApiClient _apiClient({List<Map<String, dynamic>> groups = const []}) {
+/// visits gets its data from here — nothing touches the network. With
+/// [seen], every request is captured for wire-level assertions. The
+/// /stores stub mirrors the real server's contract: distance/eta only
+/// when the request carried the customer's location.
+ApiClient _apiClient({
+  List<Map<String, dynamic>> groups = const [],
+  List<http.Request>? seen,
+}) {
   final handler = MockClient((request) async {
+    seen?.add(request);
     final path = request.url.path;
     final method = request.method;
 
@@ -135,6 +143,12 @@ ApiClient _apiClient({List<Map<String, dynamic>> groups = const []}) {
       return _json(_group(), 200);
     }
     if (path.endsWith('/stores')) {
+      final query = request.url.queryParameters;
+      if (query.containsKey('lat') && query.containsKey('lng')) {
+        return _json([
+          {..._store, 'distance_m': 900, 'eta_min': 3},
+        ], 200);
+      }
       return _json([_store], 200);
     }
     if (RegExp(r'/stores/[^/]+$').hasMatch(path) && method == 'GET') {
@@ -191,6 +205,12 @@ Widget _harness(ApiClient client) {
       tokenStorageProvider.overrideWithValue(_FakeTokenStorage()),
       apiClientProvider.overrideWithValue(client),
       sessionProvider.overrideWith(_SignedInSession.new),
+      // No GPS in widget tests: a real platform-channel call doesn't
+      // fail there, it hangs forever. The stub throws so screens take
+      // their documented fallback (the persisted pin).
+      acquireLocationProvider.overrideWithValue(
+        () async => throw StateError('no GPS in widget tests'),
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.dark(),
@@ -350,6 +370,11 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Checkout'), findsOneWidget);
+    // The delivery-pin map pushes address + payment below the fold, and
+    // a ListView only builds visible children — scroll down (topmost
+    // route's list) before interacting with them.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await _settle(tester);
     expect(find.text('Cash on delivery'), findsOneWidget);
 
     // Enter an address and place the order.
@@ -369,6 +394,79 @@ void main() {
     expect(find.text('Completed'), findsOneWidget);
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.textContaining('Delivered'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a persisted location drives the feed request and the real card',
+      (tester) async {
+    // A pin the checkout map (or an earlier GPS fix) persisted. In tests
+    // acquireLocation has no platform channel — this exercises exactly
+    // the desktop fallback: GPS fails, the persisted pin wins.
+    SharedPreferences.setMockInitialValues({
+      'tuma_location_v1': jsonEncode({'lat': -1.9512, 'lng': 30.0623}),
+    });
+    final seen = <http.Request>[];
+    await _landOnShell(tester, _apiClient(seen: seen));
+
+    // The feed request carried the pin…
+    final storesCall =
+        seen.singleWhere((r) => r.url.path.endsWith('/stores'));
+    expect(storesCall.url.queryParameters['lat'], '-1.9512');
+    expect(storesCall.url.queryParameters['lng'], '30.0623');
+
+    // …and the card renders the server-computed facts — no placeholder
+    // numbers anywhere.
+    expect(find.text('0.9 km'), findsOneWidget);
+    expect(find.text('~3 min'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('checkout sends the pinned delivery coordinates with the order',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'tuma_cart_v2': jsonEncode([
+        {
+          'storeId': 'store-1',
+          'storeName': "Aline's Kitchen",
+          'deliveryFee': 1500,
+          'items': [
+            {
+              'storeProductId': 'menu-1',
+              'productId': 'product-1',
+              'name': 'Ibirazi',
+              'unitPrice': 3500,
+              'imageUrl': null,
+              'quantity': 2,
+            },
+          ],
+        },
+      ]),
+      'tuma_location_v1': jsonEncode({'lat': -1.9449, 'lng': 30.0619}),
+    });
+    final seen = <http.Request>[];
+    await _landOnShell(tester, _apiClient(seen: seen));
+
+    await tester.tap(find.text('Cart'));
+    await _settle(tester);
+    await tester.tap(find.text('Proceed to checkout'));
+    await _settle(tester);
+    // Scroll past the map so the address field is built and visible.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await _settle(tester);
+    await tester.enterText(
+      find.byType(TextField),
+      'KN 4 Ave, Kigali',
+    );
+    await tester.tap(find.text('Place order'));
+    await _settle(tester);
+
+    // The checkout POST body carries the pin the map was seeded with.
+    final checkout = seen.singleWhere(
+      (r) => r.method == 'POST' && r.url.path.endsWith('/orders'),
+    );
+    final body = jsonDecode(checkout.body) as Map<String, dynamic>;
+    expect(body['address_lat'], -1.9449);
+    expect(body['address_lng'], 30.0619);
     expect(tester.takeException(), isNull);
   });
 

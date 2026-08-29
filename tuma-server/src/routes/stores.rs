@@ -7,8 +7,9 @@
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
 use crate::domain::catalog;
+use crate::domain::geo;
 use crate::domain::stores::{self, StoreChanges};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,15 @@ pub struct StoreResponse {
     pub category: Option<String>,
     pub delivery_fee: i64,
     pub is_open: bool,
+    /// Straight-line meters from the customer, when the request carried
+    /// `lat`/`lng` and the store has coordinates. Server-computed — the
+    /// client never does geo math.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_m: Option<i64>,
+    /// Pure ride time at Kigali's effective moto speed (`~` prefix in the
+    /// UI). Present exactly when `distance_m` is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eta_min: Option<i64>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -50,6 +60,8 @@ impl From<stores::Store> for StoreResponse {
             category: store.category,
             delivery_fee: store.delivery_fee,
             is_open: store.is_open,
+            distance_m: None,
+            eta_min: None,
             created_at: store.created_at,
             updated_at: store.updated_at,
         }
@@ -313,24 +325,76 @@ pub async fn delete_own_store(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Optional customer location on the browse request. Both or neither —
+/// one coordinate alone is meaningless, so it's a 400, not a guess.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+pub struct LocateQuery {
+    /// Customer latitude, -90..90.
+    pub lat: Option<f64>,
+    /// Customer longitude, -180..180.
+    pub lng: Option<f64>,
+}
+
 #[utoipa::path(
     get,
     path = "/v1/stores",
+    params(("lat" = Option<f64>, Query, description = "Customer latitude (-90..90); requires lng"),
+           ("lng" = Option<f64>, Query, description = "Customer longitude (-180..180); requires lat")),
     responses(
-        (status = 200, description = "Open stores, oldest first", body = Vec<StoreResponse>),
+        (status = 200, description = "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)", body = Vec<StoreResponse>),
+        (status = 400, description = "Only one of lat/lng, or a coordinate out of range / not a number"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not a customer"),
     ),
     tag = "stores"
 )]
-#[tracing::instrument(name = "List stores")]
+#[tracing::instrument(name = "List stores", skip_all)]
 pub async fn list_stores(
     State(app): State<AppState>,
     Extension(_context): Extension<UserContext>,
+    Query(query): Query<LocateQuery>,
 ) -> AppResult<Json<Vec<StoreResponse>>> {
+    // Location validation at the door: both-or-neither, finite, in range.
+    let customer = match (query.lat, query.lng) {
+        (None, None) => None,
+        (Some(lat), Some(lng)) => {
+            let valid = lat.is_finite()
+                && lng.is_finite()
+                && (-90.0..=90.0).contains(&lat)
+                && (-180.0..=180.0).contains(&lng);
+            if !valid {
+                return Err(AppError::BadRequest(
+                    "lat must be -90..90 and lng -180..180 — both or neither".into(),
+                ));
+            }
+            Some((lat, lng))
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "lat and lng must be provided together".into(),
+            ));
+        }
+    };
+
     let mut conn = app.db_pool.acquire().await?;
     let stores = stores::open_stores(&mut conn).await?;
-    Ok(Json(stores.into_iter().map(StoreResponse::from).collect()))
+    let mut responses: Vec<StoreResponse> = stores.into_iter().map(StoreResponse::from).collect();
+
+    if let Some((customer_lat, customer_lng)) = customer {
+        for response in &mut responses {
+            if let (Some(lat), Some(lng)) = (response.lat, response.lng) {
+                let distance_m = geo::haversine_m(customer_lat, customer_lng, lat, lng);
+                response.distance_m = Some(distance_m);
+                response.eta_min = Some(geo::ride_minutes(distance_m));
+            }
+        }
+        // Nearest first; coordinate-less stores trail, their creation
+        // order preserved. `sort_by` is stable, so equal distances keep
+        // their relative order.
+        responses.sort_by_key(|response| response.distance_m.unwrap_or(i64::MAX));
+    }
+
+    Ok(Json(responses))
 }
 
 #[utoipa::path(

@@ -7,8 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
-import 'package:tuma_app/core/constants/placeholder_store_facts.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
@@ -35,7 +35,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _load() async {
     setState(() => _error = null);
     try {
-      final stores = await ref.read(storeApiProvider).listStores();
+      final located = await _locate();
+      final stores = await ref
+          .read(storeApiProvider)
+          .listStores(lat: located?.lat, lng: located?.lng);
       if (!mounted) return;
       setState(() => _stores = stores);
     } on ApiError catch (error) {
@@ -43,6 +46,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // A refresh failure with a list on screen keeps the list; the error
       // state is for first loads with nothing to show.
       if (_stores == null) setState(() => _error = error.message);
+    }
+  }
+
+  /// Locate once per load, the founder-chosen launch flow: a fresh GPS
+  /// fix when the device can (the OS prompt on first run), else the
+  /// persisted pin, else null — the bare feed with no distances. GPS is
+  /// best-effort by design: it must never block or break the feed.
+  Future<CustomerLocation?> _locate() async {
+    try {
+      final acquire = ref.read(acquireLocationProvider);
+      final fix = await acquire();
+      await ref.read(customerLocationProvider.notifier).setPin(fix);
+      return fix;
+    } on Object {
+      // No GPS (desktop dev), services off, permission denied — fall
+      // back to the pin the checkout map persisted, if there is one.
+      return await ref.read(customerLocationProvider.future);
     }
   }
 
@@ -140,10 +160,10 @@ const double _cardSpacing = 16;
 
 /// One open store: a picture across the top — its top-right corner
 /// stays clear for the merchant star rating later — then the name, the
-/// gray food category with the distance on its line, and the ETA with
-/// the delivery-fee badge on the far right. Category/km/minutes are
-/// placeholders until the server owns them (see
-/// placeholder_store_facts.dart).
+/// gray category with the distance on its line, and the ETA with the
+/// delivery-fee badge on the far right. Every fact is server-owned:
+/// category hides when the merchant set none, and distance/ETA only
+/// render when the request carried the customer's location.
 class _StoreCard extends StatelessWidget {
   const _StoreCard({required this.store, required this.onTap});
 
@@ -153,13 +173,9 @@ class _StoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    // The server-owned category wins when the merchant set one; the
-    // deterministic placeholder covers the rest (see the API doc's
-    // temporary-deviation note).
-    final facts = placeholderStoreFacts(store.name);
     final category = (store.category != null && store.category!.isNotEmpty)
-        ? store.category!
-        : facts.category;
+        ? store.category
+        : null;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
@@ -201,49 +217,57 @@ class _StoreCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              category,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelMedium?.copyWith(
+                      if (category != null || store.distanceM != null)
+                        Row(
+                          children: [
+                            if (category != null)
+                              Expanded(
+                                child: Text(
+                                  category,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.labelMedium?.copyWith(
+                                    color: AppColors.onSurfaceMuted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            else
+                              const Spacer(),
+                            if (store.distanceM != null) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.route_rounded,
+                                size: 13,
                                 color: AppColors.onSurfaceMuted,
-                                fontWeight: FontWeight.w600,
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.route_rounded,
-                            size: 13,
-                            color: AppColors.onSurfaceMuted,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${facts.km.toStringAsFixed(1)} km',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceMuted,
-                            ),
-                          ),
-                        ],
-                      ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${(store.distanceM! / 1000).toStringAsFixed(1)} km',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.schedule_rounded,
-                            size: 13,
-                            color: AppColors.onSurfaceMuted,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${facts.minutes} min',
-                            style: textTheme.bodySmall?.copyWith(
+                          if (store.etaMin != null) ...[
+                            const Icon(
+                              Icons.schedule_rounded,
+                              size: 13,
                               color: AppColors.onSurfaceMuted,
                             ),
-                          ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '~${store.etaMin} min',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                              ),
+                            ),
+                          ],
                           const Spacer(),
                           FeeChip(fee: store.deliveryFee),
                         ],

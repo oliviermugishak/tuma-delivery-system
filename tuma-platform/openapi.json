@@ -1472,9 +1472,31 @@
           "stores"
         ],
         "operationId": "list_stores",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "description": "Customer latitude (-90..90); requires lng",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "description": "Customer longitude (-180..180); requires lat",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Open stores, oldest first",
+            "description": "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1485,6 +1507,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Only one of lat/lng, or a coordinate out of range / not a number"
           },
           "401": {
             "description": "Not authenticated"
@@ -2758,6 +2783,22 @@
               "string",
               "null"
             ]
+          },
+          "distance_m": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Straight-line meters from the customer, when the request carried\n`lat`/`lng` and the store has coordinates. Server-computed — the\nclient never does geo math."
+          },
+          "eta_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Pure ride time at Kigali's effective moto speed (`~` prefix in the\nUI). Present exactly when `distance_m` is."
           },
           "id": {
             "type": "string",

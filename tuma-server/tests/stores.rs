@@ -447,6 +447,108 @@ async fn customer_sees_only_open_stores(pool: sqlx::PgPool) {
     assert_eq!(body["products"], json!([]));
 }
 
+/// "Stores near you" with the customer's real location: server-computed
+/// distances, nearest first, coordinate-less stores trailing.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn list_stores_computes_distance_and_sorts_nearest_first(pool: sqlx::PgPool) {
+    let app = spawn_app(pool.clone()).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    // Two located stores: the customer's pin sits right next to Near
+    // Kitchen (~100 m); Far Kitchen is ~5 km away. Plus one store without
+    // coordinates at all.
+    create_store(
+        &aline,
+        json!({ "name": "Near Kitchen", "lat": -1.9630, "lng": 30.1290 }),
+    )
+    .await;
+    create_store(
+        &aline,
+        json!({ "name": "Far Kitchen", "lat": -1.9390, "lng": 30.1255 }),
+    )
+    .await;
+    create_store(&aline, json!({ "name": "Unlocated Kitchen" })).await;
+    for name in ["Near Kitchen", "Far Kitchen", "Unlocated Kitchen"] {
+        let mut conn = pool.acquire().await.unwrap();
+        let store_id: (Uuid,) = sqlx::query_as(
+            "SELECT id FROM marketplace.stores WHERE name = $1 AND merchant_id = $2",
+        )
+        .bind(name)
+        .bind(aline.merchant_id)
+        .fetch_one(&mut *conn)
+        .await
+        .unwrap();
+        open(&app.pool, aline.merchant_id, store_id.0).await;
+    }
+
+    let (chantal, token) = customer_session(&app, "+250780000020").await;
+    // Customer pin at KG 7 Ave, Remera — right next to Near Kitchen.
+    let response = chantal
+        .get("/v1/stores?lat=-1.9620&lng=30.1290")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let stores: Value = response.json().await.unwrap();
+    let stores = stores.as_array().unwrap();
+    assert_eq!(stores.len(), 3);
+
+    // Nearest first; the unlocated store trails.
+    assert_eq!(stores[0]["name"], "Near Kitchen");
+    assert_eq!(stores[1]["name"], "Far Kitchen");
+    assert_eq!(stores[2]["name"], "Unlocated Kitchen");
+
+    // Server-computed facts: Near ≈ 100 m, Far ≈ 5 km.
+    let near_distance = stores[0]["distance_m"].as_i64().unwrap();
+    assert!(
+        (50..=1_200).contains(&near_distance),
+        "near store distance, got {near_distance}"
+    );
+    let far_distance = stores[1]["distance_m"].as_i64().unwrap();
+    assert!(
+        (2_200..=3_000).contains(&far_distance),
+        "far store distance, got {far_distance}"
+    );
+    assert!(near_distance < far_distance);
+    // Pure ride time at 25 km/h, ceil.
+    assert_eq!(stores[0]["eta_min"].as_i64().unwrap(), 1); // ~0.1 km → 1 min
+    assert_eq!(stores[1]["eta_min"].as_i64().unwrap(), 7); // ~2.6 km → 7 min
+    // The trailing store has no distance facts at all.
+    assert!(stores[2]["distance_m"].is_null());
+    assert!(stores[2]["eta_min"].is_null());
+
+    // Without a location the response is exactly the old shape: no
+    // distance fields, creation order preserved.
+    let response = chantal
+        .get("/v1/stores")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    let stores = stores.as_array().unwrap();
+    assert_eq!(stores[0]["name"], "Near Kitchen"); // creation order
+    assert!(stores[0]["distance_m"].is_null());
+
+    // One coordinate alone, or an out-of-range/non-numeric one, is a 400 —
+    // not a guess.
+    for bad in [
+        "?lat=-1.96",
+        "?lng=30.12",
+        "?lat=-999&lng=30.12",
+        "?lat=abc&lng=30.12",
+    ] {
+        let response = chantal
+            .get(&format!("/v1/stores{bad}"))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400, "bad location query {bad}");
+    }
+}
+
 async fn open(pool: &PgPool, merchant_id: Uuid, store_id: Uuid) {
     let mut conn = pool.acquire().await.unwrap();
     sqlx::query("UPDATE marketplace.stores SET is_open = true WHERE id = $1 AND merchant_id = $2")

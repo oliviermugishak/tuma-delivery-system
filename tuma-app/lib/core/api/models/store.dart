@@ -17,6 +17,8 @@ class Store {
     this.category,
     this.lat,
     this.lng,
+    this.distanceM,
+    this.etaMin,
   });
 
   final String id;
@@ -29,6 +31,11 @@ class Store {
   final String? category;
   final double? lat;
   final double? lng;
+  /// Present only when the request carried the customer's location —
+  /// the server computes both (haversine distance, 25 km/h ride time)
+  /// and sorts nearest-first. Null otherwise; never computed client-side.
+  final int? distanceM;
+  final int? etaMin;
   final int deliveryFee;
   final bool isOpen;
 
@@ -46,6 +53,8 @@ class Store {
         category: json['category'] as String?,
         lat: (json['lat'] as num?)?.toDouble(),
         lng: (json['lng'] as num?)?.toDouble(),
+        distanceM: json['distance_m'] as int?,
+        etaMin: json['eta_min'] as int?,
         deliveryFee: json['delivery_fee'] as int,
         isOpen: json['is_open'] as bool,
         createdAt: json['created_at'] as String,

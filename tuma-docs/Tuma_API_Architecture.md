@@ -11,30 +11,28 @@ Companion doc: `Tuma_Auth_and_RBAC_Architecture.md` (identity, tokens, roles).
 2. **The server owns truth.** Prices, order state, delivery location, roles — clients display, they never decide.
 3. **Boring and predictable beats clever.** REST, JSON, stable envelopes, additive evolution. No GraphQL, no WebSocket, no event bus until something measurably hurts.
 
-### ⚠️ Temporary deviation — client-side placeholder store facts
+### ✅ Resolved — client-side placeholder store facts (2026-08-29, slice L1)
 
-Principle 2 has one known, deliberate exception while delivery
-operations predate the real fields: the customer app's store cards
-display a **distance (km)** and an **arrival estimate (minutes)**
+The deviation below is closed. The home cards now carry only
+server-owned facts: `GET /v1/stores` accepts optional `lat`/`lng`, the
+server computes `distance_m` (haversine) + `eta_min` (ride time at
+25 km/h, `~` prefix on cards) and sorts nearest-first; the app sends the
+customer's GPS fix (or the persisted pin) and renders the real values,
+hiding them when the request carried no location. The category was
+already real (`stores.category`). `placeholder_store_facts.dart` is
+deleted — no client-side pseudo-facts remain.
+
+<details><summary>Original deviation record (for history)</summary>
+
+Principle 2 had one known, deliberate exception while delivery
+operations predated the real fields: the customer app's store cards
+displayed a **distance (km)** and an **arrival estimate (minutes)**
 generated client-side in
 `tuma-app/lib/core/constants/placeholder_store_facts.dart` —
-deterministic pseudo-values derived from the store name (distance a
-float in a range of 10; minutes in a range of 10). They exist for
-layout and feel only, and must be treated as follows:
+deterministic pseudo-values derived from the store name. They existed
+for layout and feel only.
 
-- **Distance and arrival time are NOT real.** They must be replaced
-  by server-owned values — real distance computed from the customer's
-  GPS and the store's lat/lng, and a real arrival estimate once
-  delivery operations exist. Until then the numbers must never be
-  read as fact, and no client logic may depend on them.
-- **Category IS real now** (2026-08-29 re-architecture):
-  `stores.category` is server-owned and the app renders it whenever
-  the merchant set one; the placeholder category only covers empty
-  values and retires when the data does.
-
-When the real distance/ETA land on the API (additive, per §3), they
-simply win and the placeholder file retires. This is a must-fix
-before the delivery iteration.
+</details>
 
 > **2026-08-29 — Marketplace re-architecture note.** The URL tree and
 > role model below describe the pre-re-architecture foundations and are

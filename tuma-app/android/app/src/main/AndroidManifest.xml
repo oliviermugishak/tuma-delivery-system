@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Slice L1: GPS delivery location — nearest-first feed and the
+         checkout's delivery pin. Coarse is the floor, fine is the aim. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="tuma_app"
         android:name="${applicationName}"

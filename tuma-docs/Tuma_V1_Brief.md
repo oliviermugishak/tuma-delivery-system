@@ -92,7 +92,8 @@ merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE 
            GET  /merchant/store-orders/:id     (fulfillment sheet: items, address, customer contact)
            PATCH /merchant/store-orders/:id (advance status)
 
-customer:  GET  /stores              (open stores only)
+customer:  GET  /stores              (open stores only; ?lat&lng → server-computed
+                                       distance_m/eta_min, nearest first — nulls without)
            GET  /stores/:id          (store + its available store_products)
            POST /orders               (CHECKOUT: items from many stores → one order group)
            GET  /orders               (order groups, newest first)

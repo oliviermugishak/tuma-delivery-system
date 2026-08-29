@@ -75,8 +75,8 @@ class ApiClient {
   final AppConfig _config;
   final TokenProvider _tokenProvider;
 
-  Future<dynamic> get(String path) async {
-    return _send('GET', path, null);
+  Future<dynamic> get(String path, {Map<String, String>? query}) {
+    return _send('GET', path, null, query: query);
   }
 
   Future<dynamic> post(String path, {Object? body}) async {
@@ -96,8 +96,12 @@ class ApiClient {
     String path,
     Object? body, {
     String? token,
+    Map<String, String>? query,
   }) async {
-    final url = Uri.parse('${_config.apiV1}$path');
+    var url = Uri.parse('${_config.apiV1}$path');
+    if (query != null && query.isNotEmpty) {
+      url = url.replace(queryParameters: query);
+    }
     final bearer = token ?? _tokenProvider();
     final headers = <String, String>{
       'Accept': 'application/json',

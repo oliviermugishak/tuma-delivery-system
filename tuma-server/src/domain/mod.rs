@@ -3,4 +3,5 @@
 //! `From<DomainError> for AppError` impls live in `crate::error`.
 
 pub mod catalog;
+pub mod geo;
 pub mod stores;

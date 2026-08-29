@@ -403,6 +403,17 @@ export type StoreResponse = {
     created_at: string;
     delivery_fee: number;
     description?: string | null;
+    /**
+     * Straight-line meters from the customer, when the request carried
+     * `lat`/`lng` and the store has coordinates. Server-computed — the
+     * client never does geo math.
+     */
+    distance_m?: number | null;
+    /**
+     * Pure ride time at Kigali's effective moto speed (`~` prefix in the
+     * UI). Present exactly when `distance_m` is.
+     */
+    eta_min?: number | null;
     id: string;
     image_url?: string | null;
     is_open: boolean;
@@ -1733,11 +1744,24 @@ export type CancelStoreOrderResponse = CancelStoreOrderResponses[keyof CancelSto
 export type ListStoresData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Customer latitude (-90..90); requires lng
+         */
+        lat?: number;
+        /**
+         * Customer longitude (-180..180); requires lat
+         */
+        lng?: number;
+    };
     url: '/v1/stores';
 };
 
 export type ListStoresErrors = {
+    /**
+     * Only one of lat/lng, or a coordinate out of range / not a number
+     */
+    400: unknown;
     /**
      * Not authenticated
      */
@@ -1750,7 +1774,7 @@ export type ListStoresErrors = {
 
 export type ListStoresResponses = {
     /**
-     * Open stores, oldest first
+     * Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)
      */
     200: Array<StoreResponse>;
 };

@@ -11,6 +11,8 @@ import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/location/customer_location.dart';
+import 'package:tuma_app/features/location/delivery_pin_map.dart';
 
 /// Checkout — one checkout no matter how many stores are in the cart. The
 /// customer reviews the grouped summary, enters a delivery address, and
@@ -30,9 +32,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressController = TextEditingController();
   bool _placing = false;
   String? _error;
+  /// The delivery pin from the map (or GPS). Seeds itself from the
+  /// persisted customer location; every choice re-persists, so Home's
+  /// distances sharpen after the first checkout too.
+  CustomerLocation? _pin;
   /// Generated once per checkout attempt and kept until the order lands,
   /// so a retry (timeout, back button, re-tap) can never place twice.
   String? _idempotencyKey;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initPin());
+  }
+
+  Future<void> _initPin() async {
+    final persisted = await ref.read(customerLocationProvider.future);
+    if (!mounted || _pin != null) return;
+    setState(() => _pin = persisted);
+  }
+
+  Future<void> _choosePin(CustomerLocation pin) async {
+    setState(() => _pin = pin);
+    await ref.read(customerLocationProvider.notifier).setPin(pin);
+  }
 
   @override
   void dispose() {
@@ -82,6 +105,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ];
       final request = CheckoutRequest(
         addressText: _addressController.text.trim(),
+        addressLat: _pin?.lat,
+        addressLng: _pin?.lng,
         idempotencyKey: _idempotencyKey ??= _newIdempotencyKey(),
         items: lines,
       );
@@ -264,6 +289,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          // Delivery location — the real pin the rider will navigate to.
+          // Tap the map to drop it; the human-readable label below stays
+          // the address text.
+          _SectionTitle('Delivery location'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SizedBox(
+              height: 220,
+              child: DeliveryPinMap(
+                pin: _pin,
+                onPin: _choosePin,
+                locate: ref.read(acquireLocationProvider),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           // Delivery address — one address for the whole purchase.
           _SectionTitle('Delivery address'),
           Padding(
