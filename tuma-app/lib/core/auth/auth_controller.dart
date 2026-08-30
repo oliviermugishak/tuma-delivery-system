@@ -9,6 +9,7 @@ import 'package:tuma_app/core/api/order_api.dart';
 import 'package:tuma_app/core/auth/token_storage.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
+import 'package:tuma_app/features/search/search_screen.dart' as search;
 
 /// Holds the in-memory bearer token. `null` = anonymous. Hydrated on
 /// bootstrap from secure storage and cleared on logout.
@@ -138,9 +139,11 @@ class SessionNotifier extends AsyncNotifier<SessionState> {
       // Server logout is best-effort: a stale token is fine to drop locally.
     }
     // End-of-session hygiene: everything that belongs to one customer
-    // goes with them (the docs on both promise this).
+    // goes with them (the docs on both promise this) — cart, delivery
+    // pin, and the search recents that joined in the discovery slice.
     await ref.read(cartProvider.notifier).clear();
     await ref.read(customerLocationProvider.notifier).clear();
+    await search.clearRecentSearches();
     await ref.read(authTokenProvider.notifier).clear();
     _set(const SessionState.anon());
   }

@@ -640,9 +640,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('signing out clears the cart and the pinned location',
+  testWidgets('signing out clears the cart, the pin, and the recents',
       (tester) async {
-    // One customer's session state: a multi-item cart and a delivery pin.
+    // One customer's session state: a multi-item cart, a delivery pin,
+    // and their search recents — everything personal on this phone.
     SharedPreferences.setMockInitialValues({
       'tuma_cart_v2': jsonEncode([
         {
@@ -662,6 +663,7 @@ void main() {
         },
       ]),
       'tuma_location_v1': jsonEncode({'lat': -1.9449, 'lng': 30.0619}),
+      'tuma_recent_searches_v1': ['brochettes', 'kfc'],
     });
     await _landOnShell(tester, _apiClient());
 
@@ -672,10 +674,12 @@ void main() {
 
     // The router redirect lands on the phone screen…
     expect(find.text('Welcome to Tuma'), findsOneWidget);
-    // …and everything that belonged to this customer is gone.
+    // …and everything that belonged to this customer is gone — the next
+    // person on this phone sees none of it.
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('tuma_cart_v2'), isNull);
     expect(prefs.getString('tuma_location_v1'), isNull);
+    expect(prefs.getString('tuma_recent_searches_v1'), isNull);
     expect(tester.takeException(), isNull);
   });
 

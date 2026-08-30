@@ -19,6 +19,18 @@ import 'package:tuma_app/shared/widgets/remote_image.dart';
 const _kRecentSearches = 'tuma_recent_searches_v1';
 const _maxRecentSearches = 5;
 
+/// Sign-out wipes the recents with the rest of the customer's data —
+/// the clear lives beside the key so the two can't drift apart.
+Future<void> clearRecentSearches() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kRecentSearches);
+  } on Object {
+    // Best-effort, like every end-of-session write: a failure must not
+    // break the sign-out flow. The in-memory list drops with the screen.
+  }
+}
+
 /// The Search tab — discovery. One field, two tabs: **Products**
 /// (default: the 🔥 Popular near you shelf — real order counts, never
 /// fake) and **Stores** (default: every open store). A search term
