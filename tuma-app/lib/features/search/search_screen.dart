@@ -69,11 +69,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   /// Best-effort persistence: a failed write never breaks searching.
-  Future<void> _rememberSearch(String term) async {
-    final recents = [
-      term,
-      ..._recents.where((r) => r.toLowerCase() != term.toLowerCase()),
-    ].take(_maxRecentSearches).toList();
+  Future<void> _saveRecents(List<String> recents) async {
     setState(() => _recents = recents);
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -81,6 +77,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     } on Object {
       // In-memory recents survive; persistence tried again next time.
     }
+  }
+
+  Future<void> _rememberSearch(String term) => _saveRecents([
+        term,
+        ..._recents.where((r) => r.toLowerCase() != term.toLowerCase()),
+      ].take(_maxRecentSearches).toList());
+
+  /// Removes one recent (its ✕) — or all of them (the row's "Clear").
+  Future<void> _forgetSearch(String? term) async {
+    final remaining =
+        term == null ? const <String>[] : _recents.where((r) => r != term);
+    await _saveRecents(remaining.toList());
   }
 
   /// Keystrokes debounce; only the settled term reaches the server, and
@@ -187,6 +195,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 style: textTheme.bodyMedium,
               ),
             ),
+            // Recents belong to the EMPTY-FIELD state — a visible rule,
+            // not a focus rule: empty field = shortcuts on screen; a
+            // committed term = results. Removing them is always one
+            // clear-tap away.
             if (_query.isEmpty && _recents.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
@@ -197,6 +209,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     _query = term;
                     unawaited(_runSearch());
                   },
+                  onRemove: (term) => unawaited(_forgetSearch(term)),
+                  onClearAll: () => unawaited(_forgetSearch(null)),
                 ),
               ),
             TabBar(
@@ -230,63 +244,118 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 }
 
-/// The persisted recent searches, as quiet tappable chips.
+/// The persisted recent searches, as quiet chips — each tappable to
+/// re-run, each removable with its ✕, the whole row clearable.
 class _RecentSearches extends StatelessWidget {
-  const _RecentSearches({required this.recents, required this.onPick});
+  const _RecentSearches({
+    required this.recents,
+    required this.onPick,
+    required this.onRemove,
+    required this.onClearAll,
+  });
 
   final List<String> recents;
   final ValueChanged<String> onPick;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onClearAll;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          for (final term in recents)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Material(
-                color: AppColors.surfaceAlt,
-                shape: StadiumBorder(
-                  side: BorderSide(color: AppColors.surfaceBorder),
-                ),
-                child: InkWell(
-                  customBorder: const StadiumBorder(),
-                  onTap: () => onPick(term),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.history_rounded,
-                          size: 14,
-                          color: AppColors.onSurfaceMuted,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          term,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
-                              ?.copyWith(
-                                color: AppColors.onSurfaceMuted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.history_rounded,
+              size: 14,
+              color: AppColors.onSurfaceMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Recent searches',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
                   ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: onClearAll,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 4,
+                ),
+                child: Text(
+                  'Clear',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ),
             ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final term in recents)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Material(
+                    color: AppColors.surfaceAlt,
+                    shape: StadiumBorder(
+                      side: BorderSide(color: AppColors.surfaceBorder),
+                    ),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: () => onPick(term),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              term,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: AppColors.onSurfaceMuted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(width: 4),
+                            // The chip's own ✕ — removing one recent
+                            // never disturbs the others.
+                            GestureDetector(
+                              onTap: () => onRemove(term),
+                              behavior: HitTestBehavior.opaque,
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 14,
+                                  color: AppColors.onSurfaceMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

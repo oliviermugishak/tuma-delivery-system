@@ -8,15 +8,14 @@ import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
-import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
 /// Home tab: greeting, then sections — "Stores near you" first; more
-/// sections slot in below it as they earn their place. Browsing only:
-/// the search field is a door to the Search tab, chips filter in place.
+/// sections slot in below it as they earn their place. Pure browsing:
+/// discovery lives on the Search tab; chips filter the feed in place.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,8 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// fake.
   bool _showLocationHint = false;
   /// The category chips are a client-side filter over the server feed —
-  /// browsing, not searching. The name search lives on the Search tab;
-  /// home's field is its door.
+  /// browsing, not searching. The name search lives on the Search tab.
   String? _category;
 
   @override
@@ -151,47 +149,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              // The search field is a DOOR: tapping opens the Search tab,
-              // where discovery (products, stores, the 🔥 shelf) lives.
-              // Home stays browse: chips filter the feed in place.
+              // Home is pure browse — no search field. A large input that
+              // acts as a button misleads; the always-visible Search tab
+              // in the bottom bar owns discovery (founder decision).
               if (stores != null) ...[
-                Material(
-                  color: AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () =>
-                        ref.read(shellTabProvider.notifier).select(1),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.surfaceBorder),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.search_rounded,
-                            size: 20,
-                            color: AppColors.onSurfaceMuted,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Search stores or food…',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: AppColors.onSurfaceMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
                 if (categories!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(

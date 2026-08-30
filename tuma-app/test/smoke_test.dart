@@ -710,20 +710,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home search field is a door to the Search tab', (tester) async {
+  testWidgets('home shows no search field — the Search tab owns discovery',
+      (tester) async {
     SharedPreferences.setMockInitialValues({});
     await _landOnShell(tester, _apiClient());
 
-    // Tapping the field opens discovery — the home feed keeps its
-    // stores underneath.
-    await tester.tap(find.text('Search stores or food…'));
-    await _settle(tester);
-
-    // The Search tab is on screen: field + tabs + the hot shelf, fed by
-    // the /search stub.
-    expect(find.text('Popular near you'), findsOneWidget);
-    expect(find.text('Ibirazi'), findsOneWidget);
-    expect(find.byType(TabBar), findsOneWidget);
+    // Home is pure browse: no input-shaped button, the feed directly
+    // under the greeting.
+    expect(find.text('Search stores or food…'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -751,11 +747,24 @@ void main() {
     await _settle(tester);
     expect(find.text('Ibirazi'), findsOneWidget);
 
-    // The search landed in recents; clearing the field shows it back.
+    // The search landed in recents; clearing the field shows them back —
+    // visible only while the field is active.
     await tester.enterText(find.byType(TextField).first, '');
     await _settle(tester);
     expect(find.text('ibi'), findsOneWidget, reason: 'recent search chip');
-    expect(find.text('Popular near you'), findsOneWidget);
+    expect(find.text('zzz'), findsOneWidget, reason: 'the other recent');
+    expect(find.text('Recent searches'), findsOneWidget);
+
+    // The chip's own ✕ removes exactly that recent; the others survive.
+    final ibiChip =
+        find.ancestor(of: find.text('ibi'), matching: find.byType(Material)).first;
+    await tester.tap(
+      find.descendant(of: ibiChip, matching: find.byIcon(Icons.close_rounded)),
+    );
+    await _settle(tester);
+    expect(find.text('ibi'), findsNothing);
+    expect(find.text('zzz'), findsOneWidget, reason: 'siblings untouched');
+    expect(find.text('Recent searches'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
