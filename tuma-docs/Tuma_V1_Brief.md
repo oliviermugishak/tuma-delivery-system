@@ -114,7 +114,11 @@ customer:  GET  /stores              (open stores only; ?lat&lng → server-comp
            POST /orders/:id/store-orders/:sid/cancel   (customer cancels one store order)
            GET  /orders/:id/tracking   (real lat/lng + status — build order #4)
 
-rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s — #4)
+rider:     POST /deliveries/:id/location   (rider's phone pushes real GPS every ~5s — #4)
+           POST /deliveries/:id/delivered  (rider confirms at the door — #4)
+           Tuma-owned riders (OTP accounts + unique rider numbers); merchants
+           assign at handoff by entering the rider number. Full design:
+           tuma-docs/Tuma_Delivery_Tracking_Architecture.md
 
 public:    GET  /files/{key}         (stored objects — dev/LAN read path; prod reads
                                        go straight to the R2/CDN URL, immutable cache)
