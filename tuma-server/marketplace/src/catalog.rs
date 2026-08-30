@@ -7,6 +7,7 @@
 //! both ids. Ownership resolves through the store / merchant the same way
 //! stores do — foreign resources look missing.
 
+use sqlx::Connection;
 use sqlx::PgConnection;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -67,18 +68,35 @@ pub async fn create_product(
     .await
 }
 
-/// The business's catalog, oldest first.
+/// The business's catalog, oldest first, with each product's gallery
+/// cover resolved (the lowest-position gallery image; `cover_key` is the
+/// object-storage key — the response layer composes the URL).
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ProductWithCover {
+    pub id: Uuid,
+    pub merchant_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub image_url: Option<String>,
+    pub cover_key: Option<String>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
 pub async fn products_for_merchant(
     conn: &mut PgConnection,
     merchant_id: Uuid,
-) -> Result<Vec<Product>, sqlx::Error> {
+) -> Result<Vec<ProductWithCover>, sqlx::Error> {
     sqlx::query_as!(
-        Product,
+        ProductWithCover,
         r#"
-        SELECT id, merchant_id, name, description, image_url, created_at, updated_at
-        FROM marketplace.products
-        WHERE merchant_id = $1
-        ORDER BY created_at
+        SELECT p.id, p.merchant_id, p.name, p.description, p.image_url,
+               (SELECT pi.storage_key FROM marketplace.product_images pi
+                WHERE pi.product_id = p.id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,
+               p.created_at, p.updated_at
+        FROM marketplace.products p
+        WHERE p.merchant_id = $1
+        ORDER BY p.created_at
         "#,
         merchant_id,
     )
@@ -174,6 +192,7 @@ pub struct StoreProductView {
     pub product_name: String,
     pub product_description: Option<String>,
     pub image_url: Option<String>,
+    pub cover_key: Option<String>,
     pub price: i64,
     pub stock: Option<i64>,
     pub is_available: bool,
@@ -263,7 +282,10 @@ pub async fn store_products_for_merchant_scoped(
         r#"
         SELECT sp.id, sp.store_id, s.name AS store_name, sp.product_id,
                p.name AS product_name, p.description AS product_description,
-               p.image_url, sp.price, sp.stock, sp.is_available, sp.sku,
+               p.image_url,
+               (SELECT pi.storage_key FROM marketplace.product_images pi
+                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,
+               sp.price, sp.stock, sp.is_available, sp.sku,
                sp.created_at
         FROM marketplace.store_products sp
         JOIN marketplace.products p ON p.id = sp.product_id
@@ -364,7 +386,9 @@ pub async fn delete_store_product(
 }
 
 /// A store's available menu, oldest first — the customer view (available
-/// items only; the open-store rule is enforced by the caller).
+/// items only; the open-store rule is enforced by the caller). Each item
+/// carries its full gallery (`images`, cover first) so the client never
+/// needs a second fetch to show a product.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct MenuItem {
     pub id: Uuid,
@@ -372,6 +396,8 @@ pub struct MenuItem {
     pub description: Option<String>,
     pub price: i64,
     pub image_url: Option<String>,
+    pub cover_key: Option<String>,
+    pub images: Vec<String>,
     pub is_available: bool,
 }
 
@@ -382,7 +408,16 @@ pub async fn menu_for_store(
     sqlx::query_as!(
         MenuItem,
         r#"
-        SELECT sp.id, p.name, p.description, sp.price, p.image_url, sp.is_available
+        SELECT sp.id, p.name, p.description, sp.price, p.image_url,
+               (SELECT pi.storage_key FROM marketplace.product_images pi
+                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,
+               COALESCE(
+                   (SELECT array_agg(pi.storage_key ORDER BY pi.position, pi.id)
+                    FROM marketplace.product_images pi
+                    WHERE pi.product_id = sp.product_id),
+                   ARRAY[]::text[]
+               ) AS "images!",
+               sp.is_available
         FROM marketplace.store_products sp
         JOIN marketplace.products p ON p.id = sp.product_id
         WHERE sp.store_id = $1 AND sp.is_available
@@ -392,4 +427,221 @@ pub async fn menu_for_store(
     )
     .fetch_all(&mut *conn)
     .await
+}
+
+// ---------------------------------------------------------------------------
+// Product images (slice U1) — the gallery. Bytes live in object storage;
+// these rows hold storage keys + gallery order only. The lowest position
+// is the cover; every customer view joins it by that rule.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ProductImage {
+    pub id: Uuid,
+    pub product_id: Uuid,
+    pub storage_key: String,
+    pub position: i32,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProductImageError {
+    /// Missing, or belongs to another merchant's product — the same
+    /// response either way.
+    #[error("product image not found")]
+    NotFound,
+    /// [`MAX_IMAGES_PER_PRODUCT`] reached — a genuine conflict with the
+    /// product's current gallery state.
+    #[error("this product's gallery is full — 8 images max")]
+    GalleryFull,
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+}
+
+/// Hard cap on one product's gallery — the menu response carries every
+/// URL, so the cap is also a mobile-data budget.
+pub const MAX_IMAGES_PER_PRODUCT: i64 = 8;
+
+/// Append a gallery image at the next position, enforcing the gallery cap.
+/// The product row is locked `FOR UPDATE` for the check-and-insert, so two
+/// concurrent uploads cannot both slip past the cap. The caller has
+/// already uploaded the bytes and established ownership.
+pub async fn insert_product_image(
+    conn: &mut PgConnection,
+    product_id: Uuid,
+    storage_key: &str,
+) -> Result<ProductImage, ProductImageError> {
+    let mut tx = conn.begin().await?;
+    sqlx::query!(
+        r#"
+        SELECT id FROM marketplace.products WHERE id = $1 FOR UPDATE
+        "#,
+        product_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(ProductImageError::NotFound)?;
+    let count = sqlx::query!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM marketplace.product_images
+        WHERE product_id = $1
+        "#,
+        product_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .count;
+    if count >= MAX_IMAGES_PER_PRODUCT {
+        return Err(ProductImageError::GalleryFull);
+    }
+    let position = sqlx::query!(
+        r#"
+        SELECT COALESCE(MAX(position), -1) AS "max!: i32"
+        FROM marketplace.product_images
+        WHERE product_id = $1
+        "#,
+        product_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .max + 1;
+    let image = sqlx::query_as!(
+        ProductImage,
+        r#"
+        INSERT INTO marketplace.product_images (product_id, storage_key, position)
+        VALUES ($1, $2, $3)
+        RETURNING id, product_id, storage_key, position, created_at, updated_at
+        "#,
+        product_id,
+        storage_key,
+        position,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(image)
+}
+
+/// One product's gallery, cover first.
+pub async fn images_for_product(
+    conn: &mut PgConnection,
+    product_id: Uuid,
+) -> Result<Vec<ProductImage>, sqlx::Error> {
+    sqlx::query_as!(
+        ProductImage,
+        r#"
+        SELECT id, product_id, storage_key, position, created_at, updated_at
+        FROM marketplace.product_images
+        WHERE product_id = $1
+        ORDER BY position, id
+        "#,
+        product_id,
+    )
+    .fetch_all(&mut *conn)
+    .await
+}
+
+/// One gallery image with its product's merchant attached, for ownership
+/// resolution: the caller filters through its grant.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ProductImageWithMerchant {
+    pub id: Uuid,
+    pub product_id: Uuid,
+    pub merchant_id: Uuid,
+    pub storage_key: String,
+    pub position: i32,
+}
+
+pub async fn product_image_by_id(
+    conn: &mut PgConnection,
+    image_id: Uuid,
+) -> Result<Option<ProductImageWithMerchant>, sqlx::Error> {
+    sqlx::query_as!(
+        ProductImageWithMerchant,
+        r#"
+        SELECT pi.id, pi.product_id, p.merchant_id, pi.storage_key, pi.position
+        FROM marketplace.product_images pi
+        JOIN marketplace.products p ON p.id = pi.product_id
+        WHERE pi.id = $1
+        "#,
+        image_id,
+    )
+    .fetch_optional(&mut *conn)
+    .await
+}
+
+/// Delete a gallery image. The object in storage is cleaned up by the
+/// caller (best-effort) after the row is gone.
+pub async fn delete_product_image(
+    conn: &mut PgConnection,
+    image_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM marketplace.product_images
+        WHERE id = $1
+        "#,
+        image_id,
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Make one image the cover: swap positions with the current cover in one
+/// transaction. A no-op when the image already is the cover. Positions are
+/// deliberately unconstrained so the two-row swap cannot trip a unique
+/// index mid-flight.
+pub async fn set_product_cover(
+    conn: &mut PgConnection,
+    image_id: Uuid,
+) -> Result<(), ProductImageError> {
+    let mut tx = conn.begin().await?;
+    let target = sqlx::query!(
+        r#"
+        SELECT id, product_id, position
+        FROM marketplace.product_images
+        WHERE id = $1
+        "#,
+        image_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(ProductImageError::NotFound)?;
+    let cover = sqlx::query!(
+        r#"
+        SELECT id, position
+        FROM marketplace.product_images
+        WHERE product_id = $1
+        ORDER BY position, id
+        LIMIT 1
+        "#,
+        target.product_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(cover) = cover.filter(|cover| cover.id != target.id) {
+        sqlx::query!(
+            r#"
+            UPDATE marketplace.product_images SET position = $2 WHERE id = $1
+            "#,
+            target.id,
+            cover.position,
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query!(
+            r#"
+            UPDATE marketplace.product_images SET position = $2 WHERE id = $1
+            "#,
+            cover.id,
+            target.position,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
 }

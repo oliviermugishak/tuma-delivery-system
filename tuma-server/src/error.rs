@@ -1,11 +1,12 @@
 use crate::app::AppError;
-use crate::domain::catalog::{ProductError, StoreProductError};
-use crate::domain::stores::StoreError;
 use accounts::otp::VerifyError;
 use accounts::{ChangePasswordError, CreateAccountError};
 use commerce::CheckoutError;
 use commerce::TransitionError;
+use marketplace::catalog::{ProductError, ProductImageError, StoreProductError};
+use marketplace::stores::StoreError;
 use serde::Serialize;
+use storage::StorageError;
 use validator::ValidationErrors;
 
 /// Uniform JSON error body returned by every failing endpoint.
@@ -94,6 +95,17 @@ impl From<ProductError> for AppError {
     }
 }
 
+impl From<ProductImageError> for AppError {
+    fn from(error: ProductImageError) -> Self {
+        match error {
+            // Missing, foreign, or mismatched — the same 404 either way.
+            ProductImageError::NotFound => AppError::NotFound(error.to_string()),
+            ProductImageError::GalleryFull => AppError::Conflict(error.to_string()),
+            ProductImageError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
 impl From<StoreProductError> for AppError {
     fn from(error: StoreProductError) -> Self {
         match error {
@@ -151,6 +163,21 @@ impl From<StoreError> for AppError {
         match error {
             StoreError::NotFound => AppError::NotFound(error.to_string()),
             StoreError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<StorageError> for AppError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            // The bytes are not an image we accept — a 415, not a 400:
+            // the request was well-formed, the media is not.
+            StorageError::NotAnImage => AppError::UnsupportedMediaType(error.to_string()),
+            StorageError::TooLarge => AppError::PayloadTooLarge(error.to_string()),
+            StorageError::Decode(_) | StorageError::Store(_) => {
+                AppError::Internal(error.to_string())
+            }
+            StorageError::Configuration(message) => AppError::Internal(message),
         }
     }
 }

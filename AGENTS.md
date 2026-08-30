@@ -86,6 +86,12 @@ flutter pub get && flutter analyze && flutter test
 flutter run
 ```
 
+**Test discipline (founder rule, 2026-08-30):** agents NEVER run the full
+suite — `cargo test --workspace` and whole-file `flutter test` runs can
+crash under load and waste time. Run ONLY your slice's new tests
+(`cargo test --test <area>` / `flutter test --plain-name "<name>"`); when
+they pass, move on. The founder runs the global suite himself.
+
 ## Founder-review required (never autonomous)
 
 Payments and money math · order/payment/delivery state · migrations ·

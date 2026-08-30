@@ -1,0 +1,16 @@
+[package]
+name = "storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app-config = { path = "../app-config" }
+bytes = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+object_store = { version = "0.12", features = ["aws"] }
+secrecy = { version = "0.10.3", features = ["serde"] }
+thiserror = "2.0.19"
+uuid = { version = "1.24.0", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["rt", "macros"] }

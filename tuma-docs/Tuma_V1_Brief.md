@@ -91,10 +91,23 @@ merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE 
            GET  /merchant/orders         (store orders across authorized stores)
            GET  /merchant/store-orders/:id     (fulfillment sheet: items, address, customer contact)
            PATCH /merchant/store-orders/:id (advance status)
+           POST|DELETE /merchant/stores/:id/banner    (upload/replace | clear the store banner)
+           GET|POST /merchant/products/:id/images     (gallery, cover first | append an image
+                                                       — 409 when the 8-image cap is full)
+           DELETE /merchant/products/:pid/images/:iid (remove one image + its object)
+           POST /merchant/products/:pid/images/:iid/cover (make it the cover)
 
 customer:  GET  /stores              (open stores only; ?lat&lng → server-computed
-                                       distance_m/eta_min, nearest first — nulls without)
-           GET  /stores/:id          (store + its available store_products)
+                                       distance_m/eta_min, nearest first — nulls without;
+                                       ?q → server-side search on name/category,
+                                       composes with lat&lng; absent q = unchanged feed)
+           GET  /search              (discovery: ?q → matched products (catalog name) +
+                                       matched stores; absent q → popular products by
+                                       real order counts + all open stores; ?lat&lng
+                                       attach distance/eta to both sections)
+           GET  /stores/:id          (store + its available store_products; each item
+                                       carries its full gallery `images[]`, cover first —
+                                       max 8 per product, server-enforced)
            POST /orders               (CHECKOUT: items from many stores → one order group)
            GET  /orders               (order groups, newest first)
            GET  /orders/:id           (group detail: store orders, items, payment)
@@ -102,6 +115,9 @@ customer:  GET  /stores              (open stores only; ?lat&lng → server-comp
            GET  /orders/:id/tracking   (real lat/lng + status — build order #4)
 
 rider:     POST /deliveries/:id/location   (phone pushes real GPS every ~5s — #4)
+
+public:    GET  /files/{key}         (stored objects — dev/LAN read path; prod reads
+                                       go straight to the R2/CDN URL, immutable cache)
 ```
 
 **Store orders are the merchants' monopoly.** The admin namespace has no

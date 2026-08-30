@@ -3,3 +3,6 @@ application:
   cookie_secure: true
 database:
   require_ssl: true
+# Storage is configured entirely through APP_STORAGE__* env vars in
+# production (secrets never live in files): backend, public_base_url
+# (the R2 public/CDN URL), and s3 bucket/endpoint/region/credentials.

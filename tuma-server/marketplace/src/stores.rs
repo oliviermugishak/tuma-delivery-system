@@ -3,10 +3,9 @@
 //! A store belongs to exactly one merchant business; a merchant can have
 //! several. Ownership is resolved server-side from the account's merchant
 //! memberships: clients never claim ownership — the signed-in account's
-//! grants decide, and a foreign resource is indistinguishable from a
+//! scopes decide, and a foreign resource is indistinguishable from a
 //! missing one. Money is integer RWF (`BIGINT`), enforced non-negative at
-//! the schema. The catalog (products / store_products) lands in the S3
-//! slice against the same schema.
+//! the schema.
 
 use sqlx::PgConnection;
 use time::OffsetDateTime;
@@ -20,6 +19,10 @@ pub struct Store {
     pub name: String,
     pub description: Option<String>,
     pub image_url: Option<String>,
+    /// Object-storage key of the uploaded banner (slice U1). The public
+    /// URL is composed at response time — stored URLs would rot when the
+    /// base changes (e.g. a dev machine's LAN IP).
+    pub banner_key: Option<String>,
     pub address_text: Option<String>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,
@@ -67,7 +70,7 @@ pub async fn create_store(
             lat, lng, category, delivery_fee, is_open
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id, merchant_id, name, description, image_url, address_text,
+        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
                   lat, lng, category, delivery_fee, is_open, created_at, updated_at
         "#,
         merchant_id,
@@ -97,7 +100,7 @@ pub async fn stores_for_merchant_scoped(
     sqlx::query_as!(
         Store,
         r#"
-        SELECT id, merchant_id, name, description, image_url, address_text,
+        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
                lat, lng, category, delivery_fee, is_open, created_at, updated_at
         FROM marketplace.stores
         WHERE merchant_id = $1
@@ -111,43 +114,62 @@ pub async fn stores_for_merchant_scoped(
     .await
 }
 
+/// The slice of authorization this domain needs: which merchant's rows,
+/// and — for a store-scoped manager — which stores. The API layer builds
+/// it from its richer membership grant; the domain never depends on HTTP
+/// or auth-middleware types.
+#[derive(Debug, Clone)]
+pub struct StoreScope {
+    pub merchant_id: Uuid,
+    /// `None` = every store of the merchant; `Some` = only these.
+    pub store_ids: Option<Vec<Uuid>>,
+}
+
+impl StoreScope {
+    pub fn allows(&self, store_id: Uuid) -> bool {
+        self.store_ids
+            .as_ref()
+            .is_none_or(|ids| ids.contains(&store_id))
+    }
+}
+
 /// All stores across the account's accessible merchants with per-merchant
-/// scoping applied — the multi-membership case. One scoped query per grant;
+/// scoping applied — the multi-membership case. One scoped query per scope;
 /// memberships are few by construction.
-pub async fn stores_for_grants(
+pub async fn stores_for_scopes(
     conn: &mut PgConnection,
-    grants: &[crate::app::MerchantGrant],
+    scopes: &[StoreScope],
 ) -> Result<Vec<Store>, sqlx::Error> {
     let mut stores = Vec::new();
-    for grant in grants {
-        let scoped = grant.store_ids.as_deref();
-        stores.extend(stores_for_merchant_scoped(&mut *conn, grant.merchant_id, scoped).await?);
+    for scope in scopes {
+        let scoped = scope.store_ids.as_deref();
+        stores.extend(stores_for_merchant_scoped(&mut *conn, scope.merchant_id, scoped).await?);
     }
     Ok(stores)
 }
 
-/// One store of one merchant business, scoped to the grant. Another
+/// One store of one merchant business, scoped to the scope. Another
 /// merchant's store — or an out-of-scope store — is indistinguishable from
 /// a missing one.
-pub async fn store_for_grant(
+pub async fn store_for_scope(
     conn: &mut PgConnection,
-    grant: &crate::app::MerchantGrant,
+    scope: &StoreScope,
     store_id: Uuid,
 ) -> Result<Store, StoreError> {
     let store = sqlx::query_as!(
         Store,
         r#"
-        SELECT id, merchant_id, name, description, image_url, address_text,
+        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
                lat, lng, category, delivery_fee, is_open, created_at, updated_at
         FROM marketplace.stores
         WHERE id = $1 AND merchant_id = $2
         "#,
         store_id,
-        grant.merchant_id,
+        scope.merchant_id,
     )
     .fetch_optional(&mut *conn)
     .await?
-    .filter(|store| grant.can_access_store(store.id))
+    .filter(|store| scope.allows(store.id))
     .ok_or(StoreError::NotFound)?;
     Ok(store)
 }
@@ -167,7 +189,7 @@ pub async fn update_store(
         SET name = $2, description = $3, image_url = $4, address_text = $5,
             lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10
         WHERE id = $1
-        RETURNING id, merchant_id, name, description, image_url, address_text,
+        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
                   lat, lng, category, delivery_fee, is_open, created_at, updated_at
         "#,
         store_id,
@@ -195,7 +217,7 @@ pub async fn store_by_id(
     sqlx::query_as!(
         Store,
         r#"
-        SELECT id, merchant_id, name, description, image_url, address_text,
+        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
                lat, lng, category, delivery_fee, is_open, created_at, updated_at
         FROM marketplace.stores
         WHERE id = $1
@@ -211,12 +233,49 @@ pub async fn open_stores(conn: &mut PgConnection) -> Result<Vec<Store>, sqlx::Er
     sqlx::query_as!(
         Store,
         r#"
-        SELECT id, merchant_id, name, description, image_url, address_text,
+        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
                lat, lng, category, delivery_fee, is_open, created_at, updated_at
         FROM marketplace.stores
         WHERE is_open
         ORDER BY created_at
         "#,
+    )
+    .fetch_all(&mut *conn)
+    .await
+}
+
+/// Escapes the LIKE wildcards so a customer searching "100%" finds
+/// "100% Juices" rather than everything. The pattern is still wrapped
+/// in %...% by the caller for substring matching.
+pub fn escape_like(input: &str) -> String {
+    let mut escaped = String::with_capacity(input.len());
+    for ch in input.chars() {
+        if matches!(ch, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+/// Open stores whose name or category matches the search pattern, oldest
+/// first. A separate query from [open_stores] on purpose: the no-search
+/// path stays byte-for-byte identical, and this one stays free of
+/// null-branches that would keep the trigram index from being used.
+pub async fn search_stores(
+    conn: &mut PgConnection,
+    pattern: &str,
+) -> Result<Vec<Store>, sqlx::Error> {
+    sqlx::query_as!(
+        Store,
+        r#"
+        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
+               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+        FROM marketplace.stores
+        WHERE is_open AND (name ILIKE $1 OR category ILIKE $1)
+        ORDER BY created_at
+        "#,
+        pattern,
     )
     .fetch_all(&mut *conn)
     .await
@@ -298,4 +357,32 @@ pub async fn delete_store(conn: &mut PgConnection, store_id: Uuid) -> Result<(),
         return Err(StoreError::NotFound);
     }
     Ok(())
+}
+
+/// Set (or clear) the store's banner storage key. Only `banner_key` is
+/// stored — the public URL is composed at response time from config, so
+/// a base-URL change (CDN cutover, new LAN IP) never rots stored rows.
+/// The legacy `image_url` column is left alone: it keeps serving whatever
+/// external URL the merchant typed, and the response layer prefers the
+/// banner when both exist.
+pub async fn set_banner(
+    conn: &mut PgConnection,
+    store_id: Uuid,
+    banner_key: Option<&str>,
+) -> Result<Store, StoreError> {
+    sqlx::query_as!(
+        Store,
+        r#"
+        UPDATE marketplace.stores
+        SET banner_key = $2
+        WHERE id = $1
+        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
+                  lat, lng, category, delivery_fee, is_open, created_at, updated_at
+        "#,
+        store_id,
+        banner_key,
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(StoreError::NotFound)
 }

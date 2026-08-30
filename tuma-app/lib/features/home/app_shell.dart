@@ -7,27 +7,39 @@ import 'package:tuma_app/features/cart/cart_view.dart';
 import 'package:tuma_app/features/home/home_screen.dart';
 import 'package:tuma_app/features/orders/orders_screen.dart';
 import 'package:tuma_app/features/profile/profile_screen.dart';
+import 'package:tuma_app/features/search/search_screen.dart';
 
-class AppShell extends ConsumerStatefulWidget {
+/// Which tab the shell shows. Global so screens can navigate by tab —
+/// the home search field is a door to the Search tab, not its own
+/// controller.
+class ShellTabNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void select(int index) => state = index;
+}
+
+final shellTabProvider =
+    NotifierProvider<ShellTabNotifier, int>(ShellTabNotifier.new);
+
+/// The five-tab shell: browse (Home), discovery (Search), history
+/// (Orders), the cart, and identity (Profile). Tabs live in one
+/// IndexedStack — switching keeps every tab's scroll and state alive.
+class AppShell extends ConsumerWidget {
   const AppShell({super.key});
 
   @override
-  ConsumerState<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends ConsumerState<AppShell> {
-  int _tab = 0;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(shellTabProvider);
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       // Each tab owns its body; no shell appBar — the cart lives in the
       // bottom bar where the user actually looks for it.
       body: IndexedStack(
-        index: _tab,
+        index: tab,
         children: const [
           HomeScreen(),
+          SearchScreen(),
           OrdersScreen(),
           CartView(),
           ProfileScreen(),
@@ -59,13 +71,19 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
           child: NavigationBar(
             elevation: 0,
-            selectedIndex: _tab,
-            onDestinationSelected: (index) => setState(() => _tab = index),
+            selectedIndex: tab,
+            onDestinationSelected: (index) =>
+                ref.read(shellTabProvider.notifier).select(index),
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.storefront_outlined),
                 selectedIcon: Icon(Icons.storefront),
                 label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.search),
+                label: 'Search',
               ),
               NavigationDestination(
                 icon: Icon(Icons.receipt_long_rounded),

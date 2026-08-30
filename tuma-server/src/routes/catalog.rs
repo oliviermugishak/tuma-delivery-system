@@ -4,10 +4,10 @@
 //! manageable by anyone who can reach the store.
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
-use crate::domain::catalog::{self, ProductChanges, StoreProductChanges, StoreProductError};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
+use marketplace::catalog::{self, ProductChanges, StoreProductChanges, StoreProductError};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -41,6 +41,26 @@ impl From<catalog::Product> for ProductResponse {
     }
 }
 
+impl ProductResponse {
+    /// The list view: the gallery cover wins; the product's legacy
+    /// external URL falls through when nothing is uploaded.
+    pub fn from_with_cover(product: catalog::ProductWithCover, base_url: &str) -> Self {
+        Self {
+            id: product.id,
+            merchant_id: product.merchant_id,
+            name: product.name,
+            description: product.description,
+            image_url: storage::resolve_image_url(
+                base_url,
+                product.cover_key.as_deref(),
+                product.image_url.as_deref(),
+            ),
+            created_at: product.created_at,
+            updated_at: product.updated_at,
+        }
+    }
+}
+
 /// A store_product as the merchant sees it: its catalog identity, its
 /// store, and its sell configuration.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -62,8 +82,9 @@ pub struct StoreProductResponse {
     pub created_at: OffsetDateTime,
 }
 
-impl From<catalog::StoreProductView> for StoreProductResponse {
-    fn from(view: catalog::StoreProductView) -> Self {
+impl StoreProductResponse {
+    /// Gallery cover wins; the product's legacy external URL falls through.
+    pub fn from_view(view: catalog::StoreProductView, base_url: &str) -> Self {
         Self {
             id: view.id,
             store_id: view.store_id,
@@ -71,7 +92,11 @@ impl From<catalog::StoreProductView> for StoreProductResponse {
             product_id: view.product_id,
             product_name: view.product_name,
             description: view.product_description,
-            image_url: view.image_url,
+            image_url: storage::resolve_image_url(
+                base_url,
+                view.cover_key.as_deref(),
+                view.image_url.as_deref(),
+            ),
             price: view.price,
             stock: view.stock,
             is_available: view.is_available,
@@ -190,7 +215,10 @@ pub async fn list_products(
         products.extend(catalog::products_for_merchant(&mut conn, grant.merchant_id).await?);
     }
     Ok(Json(
-        products.into_iter().map(ProductResponse::from).collect(),
+        products
+            .into_iter()
+            .map(|p| ProductResponse::from_with_cover(p, &app.storage.public_base_url))
+            .collect(),
     ))
 }
 
@@ -313,7 +341,7 @@ pub async fn create_store_product(
     // The store must be one this operator can reach; a store-scoped manager
     // attaches to their own store.
     let mut conn = app.db_pool.acquire().await?;
-    let store = crate::domain::stores::store_by_id(&mut conn, input.store_id)
+    let store = marketplace::stores::store_by_id(&mut conn, input.store_id)
         .await?
         .filter(|store| access.can_access_store(store.merchant_id, store.id))
         .ok_or_else(|| AppError::NotFound("store not found".into()))?;
@@ -341,7 +369,13 @@ pub async fn create_store_product(
     .into_iter()
     .find(|view| view.id == created.id)
     .ok_or_else(|| AppError::Internal("attached product disappeared".into()))?;
-    Ok((StatusCode::CREATED, Json(StoreProductResponse::from(view))))
+    Ok((
+        StatusCode::CREATED,
+        Json(StoreProductResponse::from_view(
+            view,
+            &app.storage.public_base_url,
+        )),
+    ))
 }
 
 #[utoipa::path(
@@ -370,7 +404,10 @@ pub async fn list_store_products(
         );
     }
     Ok(Json(
-        items.into_iter().map(StoreProductResponse::from).collect(),
+        items
+            .into_iter()
+            .map(|v| StoreProductResponse::from_view(v, &app.storage.public_base_url))
+            .collect(),
     ))
 }
 
@@ -468,7 +505,10 @@ pub async fn update_store_product(
     .into_iter()
     .find(|view| view.id == id)
     .ok_or_else(|| AppError::Internal("updated product disappeared".into()))?;
-    Ok(Json(StoreProductResponse::from(view)))
+    Ok(Json(StoreProductResponse::from_view(
+        view,
+        &app.storage.public_base_url,
+    )))
 }
 
 /// Detach one product from one store. The catalog identity stays — the

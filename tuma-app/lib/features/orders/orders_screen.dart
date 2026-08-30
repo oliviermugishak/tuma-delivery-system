@@ -91,8 +91,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.only(top: 8),
         itemCount: _orders!.length,
-        separatorBuilder: (ctx, i) =>
-            Divider(height: 1, thickness: 1 / MediaQuery.of(context).devicePixelRatio),
+        separatorBuilder: (ctx, i) => const Divider(
+          height: 1,
+          thickness: 0.5,
+          color: AppColors.surfaceBorder,
+        ),
         itemBuilder: (context, index) => _OrderGroupCard(
           group: _orders![index],
           onTap: () => context.push('/orders/${_orders![index].id}'),
@@ -259,14 +262,19 @@ class _OrderGroupCard extends StatelessWidget {
 
 /// Format an RFC-3339 date string into a compact relative or absolute form.
 /// V1 keeps it simple — "Today"/"Yesterday" and short dates otherwise.
+/// Calendar-day comparison (not raw elapsed hours) so an order placed
+/// late in the evening still reads "Today" the next morning, and UTC
+/// timestamps are read in the device's zone before comparing.
 String _formatDate(String rfc3339) {
   try {
-    final dt = DateTime.parse(rfc3339);
+    final dt = DateTime.parse(rfc3339).toLocal();
     final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inDays == 0) return 'Today';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    final today = DateTime(now.year, now.month, now.day);
+    final thatDay = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(thatDay).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return '${diff}d ago';
     return '${dt.month}/${dt.day}';
   } on Object {
     return rfc3339;

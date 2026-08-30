@@ -29,7 +29,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
 /// How often the in-flight group re-fetches its state.
 const _pollInterval = Duration(seconds: 5);
 
-class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
+    with WidgetsBindingObserver {
   OrderGroup? _order;
   String? _error;
   Timer? _pollTimer;
@@ -157,11 +158,31 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A backgrounded screen must not keep polling — that is someone
+    // else's battery. Pause cancels the timer; resume re-fetches and
+    // restarts it only while the group is still in flight.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    } else if (state == AppLifecycleState.resumed) {
+      final order = _order;
+      if (order != null && order.isInFlight) {
+        unawaited(_refresh());
+        _syncPolling(order);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     super.dispose();
   }

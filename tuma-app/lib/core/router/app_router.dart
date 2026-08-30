@@ -10,6 +10,7 @@ import 'package:tuma_app/features/cart/cart_view.dart';
 import 'package:tuma_app/features/cart/checkout_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/orders/order_detail_screen.dart';
+import 'package:tuma_app/features/profile/location_screen.dart';
 import 'package:tuma_app/features/store/store_screen.dart';
 
 /// Build a fresh router. A factory so tests and hot-restarts never reuse a
@@ -68,6 +69,10 @@ GoRouter buildRouter() => GoRouter(
       builder: (_, state) => OrderDetailScreen(
         orderId: state.pathParameters['id']!,
       ),
+    ),
+    GoRoute(
+      path: '/profile/location',
+      builder: (_, _) => const DeliveryLocationScreen(),
     ),
       ],
     );

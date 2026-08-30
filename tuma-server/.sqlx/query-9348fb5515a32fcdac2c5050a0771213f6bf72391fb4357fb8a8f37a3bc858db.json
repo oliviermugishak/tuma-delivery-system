@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT sp.id, p.name, p.description, sp.price, p.image_url, sp.is_available\n        FROM marketplace.store_products sp\n        JOIN marketplace.products p ON p.id = sp.product_id\n        WHERE sp.store_id = $1 AND sp.is_available\n        ORDER BY sp.created_at\n        ",
+  "query": "\n        SELECT sp.id, p.name, p.description, sp.price, p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               COALESCE(\n                   (SELECT array_agg(pi.storage_key ORDER BY pi.position, pi.id)\n                    FROM marketplace.product_images pi\n                    WHERE pi.product_id = sp.product_id),\n                   ARRAY[]::text[]\n               ) AS \"images!\",\n               sp.is_available\n        FROM marketplace.store_products sp\n        JOIN marketplace.products p ON p.id = sp.product_id\n        WHERE sp.store_id = $1 AND sp.is_available\n        ORDER BY sp.created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,18 @@
       },
       {
         "ordinal": 5,
+        "name": "cover_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "images!",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
         "name": "is_available",
         "type_info": "Bool",
         "origin": {
@@ -81,8 +93,10 @@
       true,
       false,
       true,
+      null,
+      null,
       false
     ]
   },
-  "hash": "1c3ca6a5340cb7e25d03f85c999e127152b1ce2f27da7ea22b2be057d4215269"
+  "hash": "9348fb5515a32fcdac2c5050a0771213f6bf72391fb4357fb8a8f37a3bc858db"
 }

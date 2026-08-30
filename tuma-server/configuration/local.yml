@@ -12,3 +12,11 @@ secret:
 auth:
   # Local development only — no SMS gateway yet. Keep out of production config.
   dev_otp_code: "123456"
+storage:
+  backend: local
+  # The phone on the LAN must be able to reach uploaded images — 127.0.0.1
+  # only works for the desktop. Point this at the machine's LAN IP when
+  # testing on a device (or override with APP_STORAGE__PUBLIC_BASE_URL).
+  public_base_url: "http://127.0.0.1:8080/api/v1/files"
+  local:
+    root: ./data/storage

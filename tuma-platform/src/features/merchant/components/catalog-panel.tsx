@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ImageWithFallback } from '@/components/image-with-fallback'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CatalogProductDialog } from '@/features/merchant/components/catalog-product-dialog'
@@ -216,20 +217,7 @@ function CatalogCard({
       className="group cursor-pointer overflow-hidden rounded-xl border bg-card text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       <div className="aspect-[4/3] w-full overflow-hidden bg-muted/30">
-        {product.image_url ? (
-          <img
-            src={product.image_url}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Package
-              className="size-8 text-muted-foreground/40"
-              aria-hidden
-            />
-          </div>
-        )}
+        <ImageWithFallback src={product.image_url} alt={product.name} />
       </div>
 
       <div className="p-5">

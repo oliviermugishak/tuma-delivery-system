@@ -7,6 +7,8 @@ import 'package:tuma_app/core/api/models/authenticated_user.dart';
 import 'package:tuma_app/core/api/store_api.dart';
 import 'package:tuma_app/core/api/order_api.dart';
 import 'package:tuma_app/core/auth/token_storage.dart';
+import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/location/customer_location.dart';
 
 /// Holds the in-memory bearer token. `null` = anonymous. Hydrated on
 /// bootstrap from secure storage and cleared on logout.
@@ -124,12 +126,21 @@ class SessionNotifier extends AsyncNotifier<SessionState> {
     _set(SessionState.user(user));
   }
 
+  /// Replaces the known user after a profile edit (PATCH /me) so every
+  /// screen reading the session — the greeting, the identity card —
+  /// reflects the change without a re-fetch.
+  void updateUser(AuthenticatedUser user) => _set(SessionState.user(user));
+
   Future<void> signOut() async {
     try {
       await ref.read(authApiProvider).logout();
     } on Object {
       // Server logout is best-effort: a stale token is fine to drop locally.
     }
+    // End-of-session hygiene: everything that belongs to one customer
+    // goes with them (the docs on both promise this).
+    await ref.read(cartProvider.notifier).clear();
+    await ref.read(customerLocationProvider.notifier).clear();
     await ref.read(authTokenProvider.notifier).clear();
     _set(const SessionState.anon());
   }

@@ -140,9 +140,46 @@ adapting, flagged below):
   `#[sqlx::test]` handler tests + a fresh-DB migration check; nothing ever
   touches real R2 credentials.
 
-⏸️ Status: still deferred as a slice, but now fully specified. The seed data
-uses real Unsplash CDN URLs as stand-in imagery, which keep working until
-real uploads replace them.
+✅ Status: BUILT (slice U1, 2026-08-30), with two founder decisions that
+sharpened the answer above:
+
+- **Proxy uploads through the API** (founder decision — "easier
+  deployment" won over presigned direct-to-R2). One multipart path for
+  all three backends, hermetic tests, zero bucket CORS setup. Presigned
+  can be added later with zero schema/client changes — it only changes
+  how bytes enter, and the `storage` crate boundary hides it.
+- **Normalization at upload** (founder decision — "high performance,
+  delivery is the key"): every upload is EXIF-oriented, downscaled to
+  fit 1600px, and re-encoded JPEG q85. A 4 MB phone photo becomes
+  ~200-350 KB. Named consequences: JPEG-only output (no transparency),
+  EXIF stripped (GPS tags gone — a privacy plus).
+- **Architecture note (founder directive):** no business logic in
+  `src/` — the object-store wrapper, key generation, and normalization
+  live in the new **`storage` crate**; stores/catalog/geo moved out of
+  `src/domain/` into the new **`marketplace` crate**. `src/` is purely
+  the API layer (routes, middleware, error mapping, wiring).
+- **Schema as specified:** migration `04_storage.sql` —
+  `stores.banner_key` + `marketplace.product_images` (cover = lowest
+  position, no `is_primary` column; swaps happen in one transaction).
+  URLs are composed at response time from `storage.public_base_url`
+  (keys in DB — a base change never rots rows). The legacy
+  `image_url` columns stay as the fallback; banner/cover win when
+  present. In production `public_base_url` points at the R2 public URL
+  (Cloudflare CDN in front); keys are content-UUIDs so every object is
+  served `Cache-Control: immutable`.
+- **Endpoints (all founder-reviewed in the slice plan):**
+  `POST|DELETE /v1/merchant/stores/{id}/banner`,
+  `GET|POST /v1/merchant/products/{id}/images`,
+  `DELETE …/images/{image_id}`, `POST …/images/{image_id}/cover`, plus
+  the public `GET /v1/files/{key}` (dev/LAN read path). Platform UI:
+  banner card on store detail, gallery editor in the catalog dialog,
+  one shared `ImageWithFallback`. The customer app needed zero changes.
+- **Testing per the guidance, all hermetic:** in-memory backend unit
+  tests in the storage crate (keys, sniffing, resize, roundtrip) +
+  9 `#[sqlx::test]` integration tests (banner flow, replace-retires-
+  object, ownership, 415/413, gallery order + cover + customer view,
+  delete cleanup, hostile keys). Real R2 activation is config-only:
+  create the bucket, set `APP_STORAGE__*` env vars.
 
 ---
 

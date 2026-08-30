@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-config", "accounts", "commerce"]
+members = ["app-config", "accounts", "commerce", "marketplace", "storage"]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,7 +15,9 @@ default-run = "tuma-server"
 accounts = { path = "accounts" }
 app-config = { path = "app-config" }
 commerce = { path = "commerce" }
-axum = { version = "0.8.9", features = ["macros"] }
+marketplace = { path = "marketplace" }
+storage = { path = "storage" }
+axum = { version = "0.8.9", features = ["macros", "multipart"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 config = "0.15.25"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -41,4 +43,6 @@ version = "0.9.0"
 features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "time", "sqlx-toml", "uuid"]
 
 [dev-dependencies]
-reqwest = { version = "0.13.4", features = ["json", "cookies"] }
+# PNG/JPEG encode for upload-test fixtures (storage slice).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+reqwest = { version = "0.13.4", features = ["json", "cookies", "multipart"] }

@@ -1,0 +1,185 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE marketplace.stores\n        SET banner_key = $2\n        WHERE id = $1\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "merchant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "merchant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "image_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "image_url"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "banner_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "banner_key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "category",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "category"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "delivery_fee",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "delivery_fee"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "is_open",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "is_open"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1e75752f7ba1c000682210c37be0ca4e7afd59c0c084a861c4c3e4ee16b5ed51"
+}

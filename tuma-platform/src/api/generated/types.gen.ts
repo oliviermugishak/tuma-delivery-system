@@ -168,6 +168,17 @@ export type GroupSummaryResponse = {
     stores: Array<string>;
 };
 
+/**
+ * The multipart schema in the OpenAPI contract — hey-api generates a
+ * FormData request type from it.
+ */
+export type ImageUpload = {
+    /**
+     * The image file (JPEG, PNG, or WebP; at most 5 MB).
+     */
+    file: Blob | File;
+};
+
 export type LoginInput = {
     email: string;
     password: string;
@@ -210,14 +221,17 @@ export type MembershipResponse = {
 };
 
 /**
- * A placeholder until the S3 catalog slice lands: the store detail's menu
- * is empty because store_products have no endpoints yet. The mobile store
- * screen renders the honest empty state.
+ * One item of a store's menu, as the customer sees it.
  */
 export type MenuItemResponse = {
     description?: string | null;
     id: string;
     image_url?: string | null;
+    /**
+     * The full gallery, cover first (composed URLs). Empty when the
+     * product has no uploads.
+     */
+    images: Array<string>;
     is_available: boolean;
     name: string;
     price: number;
@@ -338,6 +352,39 @@ export type OtpVerifyResponse = {
 };
 
 /**
+ * One product hit as the API returns it: the store_product (what the
+ * customer buys, per-store price) dressed by its catalog identity and
+ * the open store that fulfills it. Distance facts ride along exactly
+ * like the store feed's — server-computed, never client math.
+ */
+export type ProductHitResponse = {
+    description?: string | null;
+    distance_m?: number | null;
+    eta_min?: number | null;
+    image_url?: string | null;
+    name: string;
+    price: number;
+    store_id: string;
+    store_name: string;
+    store_product_id: string;
+};
+
+/**
+ * One gallery image as the API returns it.
+ */
+export type ProductImageResponse = {
+    created_at: string;
+    id: string;
+    /**
+     * The URL the object is served from (composed against the
+     * environment's public storage base).
+     */
+    image_url: string;
+    position: number;
+    product_id: string;
+};
+
+/**
  * A catalog product as the API returns it.
  */
 export type ProductResponse = {
@@ -353,6 +400,20 @@ export type ProductResponse = {
 export type ProfileResponse = {
     id: string;
     name?: string | null;
+};
+
+export type SearchResponse = {
+    /**
+     * Empty `q`: the most-purchased products (real order counts). With
+     * `q`: catalog-name matches, alphabetical. Availability and the
+     * open-store rule are enforced server-side either way.
+     */
+    products: Array<ProductHitResponse>;
+    /**
+     * Empty `q`: all open stores. With `q`: name/category matches —
+     * nearest first when the request carries a location.
+     */
+    stores: Array<StoreResponse>;
 };
 
 /**
@@ -946,6 +1007,34 @@ export type ChangePasswordResponses = {
 
 export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
 
+export type GetFileData = {
+    body?: never;
+    path: {
+        /**
+         * Storage key of the object
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/v1/files/{key}';
+};
+
+export type GetFileErrors = {
+    /**
+     * No object at that key
+     */
+    404: unknown;
+};
+
+export type GetFileResponses = {
+    /**
+     * The stored object's bytes
+     */
+    200: Blob | File;
+};
+
+export type GetFileResponse = GetFileResponses[keyof GetFileResponses];
+
 export type MeData = {
     body?: never;
     path?: never;
@@ -1173,6 +1262,166 @@ export type UpdateProductResponses = {
 };
 
 export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
+
+export type ListProductImagesData = {
+    body?: never;
+    path: {
+        /**
+         * Catalog product id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/products/{id}/images';
+};
+
+export type ListProductImagesErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this owner's products
+     */
+    404: unknown;
+};
+
+export type ListProductImagesResponses = {
+    /**
+     * The gallery, cover first
+     */
+    200: Array<ProductImageResponse>;
+};
+
+export type ListProductImagesResponse = ListProductImagesResponses[keyof ListProductImagesResponses];
+
+export type UploadProductImageData = {
+    body: ImageUpload;
+    path: {
+        /**
+         * Catalog product id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/products/{id}/images';
+};
+
+export type UploadProductImageErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Only the business owner manages the catalog
+     */
+    403: unknown;
+    /**
+     * Not one of this owner's products
+     */
+    404: unknown;
+    /**
+     * The image exceeds 5 MB
+     */
+    413: unknown;
+    /**
+     * Not a JPEG, PNG, or WebP image
+     */
+    415: unknown;
+};
+
+export type UploadProductImageResponses = {
+    /**
+     * Image appended to the gallery
+     */
+    201: ProductImageResponse;
+};
+
+export type UploadProductImageResponse = UploadProductImageResponses[keyof UploadProductImageResponses];
+
+export type DeleteProductImageData = {
+    body?: never;
+    path: {
+        /**
+         * Catalog product id
+         */
+        product_id: string;
+        /**
+         * Gallery image id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/products/{product_id}/images/{image_id}';
+};
+
+export type DeleteProductImageErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Only the business owner manages the catalog
+     */
+    403: unknown;
+    /**
+     * Not one of this owner's images
+     */
+    404: unknown;
+};
+
+export type DeleteProductImageResponses = {
+    /**
+     * Image removed
+     */
+    204: void;
+};
+
+export type DeleteProductImageResponse = DeleteProductImageResponses[keyof DeleteProductImageResponses];
+
+export type SetProductCoverData = {
+    body?: never;
+    path: {
+        /**
+         * Catalog product id
+         */
+        product_id: string;
+        /**
+         * Gallery image id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/products/{product_id}/images/{image_id}/cover';
+};
+
+export type SetProductCoverErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Only the business owner manages the catalog
+     */
+    403: unknown;
+    /**
+     * Not one of this owner's images
+     */
+    404: unknown;
+};
+
+export type SetProductCoverResponses = {
+    /**
+     * The image is now the cover
+     */
+    204: void;
+};
+
+export type SetProductCoverResponse = SetProductCoverResponses[keyof SetProductCoverResponses];
 
 export type GetMerchantStoreOrderData = {
     body?: never;
@@ -1566,6 +1815,86 @@ export type UpdateOwnStoreResponses = {
 
 export type UpdateOwnStoreResponse = UpdateOwnStoreResponses[keyof UpdateOwnStoreResponses];
 
+export type DeleteStoreBannerData = {
+    body?: never;
+    path: {
+        /**
+         * Store id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/stores/{id}/banner';
+};
+
+export type DeleteStoreBannerErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this operator's stores
+     */
+    404: unknown;
+};
+
+export type DeleteStoreBannerResponses = {
+    /**
+     * Banner cleared
+     */
+    204: void;
+};
+
+export type DeleteStoreBannerResponse = DeleteStoreBannerResponses[keyof DeleteStoreBannerResponses];
+
+export type UploadStoreBannerData = {
+    body: ImageUpload;
+    path: {
+        /**
+         * Store id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/stores/{id}/banner';
+};
+
+export type UploadStoreBannerErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this operator's stores
+     */
+    404: unknown;
+    /**
+     * The image exceeds 5 MB
+     */
+    413: unknown;
+    /**
+     * Not a JPEG, PNG, or WebP image
+     */
+    415: unknown;
+};
+
+export type UploadStoreBannerResponses = {
+    /**
+     * Banner stored; the store's image_url now serves it
+     */
+    201: StoreResponse;
+};
+
+export type UploadStoreBannerResponse = UploadStoreBannerResponses[keyof UploadStoreBannerResponses];
+
 export type OpenapiJsonData = {
     body?: never;
     path?: never;
@@ -1741,6 +2070,50 @@ export type CancelStoreOrderResponses = {
 
 export type CancelStoreOrderResponse = CancelStoreOrderResponses[keyof CancelStoreOrderResponses];
 
+export type SearchData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Search term matched against product names (stores section: name + category); empty = popular products + all open stores
+         */
+        q?: string;
+        /**
+         * Customer latitude (-90..90); requires lng
+         */
+        lat?: number;
+        /**
+         * Customer longitude (-180..180); requires lat
+         */
+        lng?: number;
+    };
+    url: '/v1/search';
+};
+
+export type SearchErrors = {
+    /**
+     * Only one of lat/lng, a coordinate out of range / not a number, or a search term over 100 characters
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+};
+
+export type SearchResponses = {
+    /**
+     * Discovery: products and stores sections, both honoring the search term and the open-store rule
+     */
+    200: SearchResponse;
+};
+
+export type SearchResponse2 = SearchResponses[keyof SearchResponses];
+
 export type ListStoresData = {
     body?: never;
     path?: never;
@@ -1753,13 +2126,17 @@ export type ListStoresData = {
          * Customer longitude (-180..180); requires lat
          */
         lng?: number;
+        /**
+         * Search term matched against store name and category; empty = no filter
+         */
+        q?: string;
     };
     url: '/v1/stores';
 };
 
 export type ListStoresErrors = {
     /**
-     * Only one of lat/lng, or a coordinate out of range / not a number
+     * Only one of lat/lng, a coordinate out of range / not a number, or a search term over 100 characters
      */
     400: unknown;
     /**
@@ -1774,7 +2151,7 @@ export type ListStoresErrors = {
 
 export type ListStoresResponses = {
     /**
-     * Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)
+     * Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail); filtered to name/category matches when q is present
      */
     200: Array<StoreResponse>;
 };

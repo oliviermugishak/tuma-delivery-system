@@ -20,15 +20,20 @@ use crate::routes::orders::{
     advance_store_order, checkout, get_merchant_store_order, get_order, list_merchant_orders,
     list_orders,
 };
+use crate::routes::search::search;
+use crate::routes::storage::{
+    delete_product_image, delete_store_banner, list_product_images, set_product_cover,
+    upload_product_image, upload_store_banner,
+};
 use crate::routes::stores::{
     create_own_store, delete_own_store, get_own_store, get_store, list_own_stores, list_stores,
     update_own_store,
 };
-use axum::extract::FromRequest;
+use axum::extract::{DefaultBodyLimit, FromRequest};
 use axum::http::StatusCode;
 use axum::middleware;
 use axum::response::IntoResponse;
-use axum::routing::{get, patch, post};
+use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use secrecy::SecretString;
 use serde::de::DeserializeOwned;
@@ -51,6 +56,9 @@ pub struct AppState {
     /// `Secure` flag for session cookies: false on local plain-http, true
     /// behind TLS in production.
     pub cookie_secure: bool,
+    /// Object storage (slice U1): images. Backend is config — local disk
+    /// in dev, in-memory in tests, S3-compatible R2 in production.
+    pub storage: Arc<storage::StorageService>,
 }
 
 impl AppState {
@@ -60,6 +68,7 @@ impl AppState {
         jwt_signing_key: SecretString,
         dev_otp_code: Option<String>,
         cookie_secure: bool,
+        storage: storage::StorageService,
     ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
@@ -67,6 +76,7 @@ impl AppState {
             jwt_signing_key,
             dev_otp_code,
             cookie_secure,
+            storage: Arc::new(storage),
         }
     }
 }
@@ -176,6 +186,18 @@ impl MerchantAccess {
             .iter()
             .any(|grant| grant.merchant_id == merchant_id)
     }
+
+    /// The domain's narrow view of the grants — the marketplace crate has
+    /// no HTTP or auth-middleware types.
+    pub fn store_scopes(&self) -> Vec<marketplace::stores::StoreScope> {
+        self.grants
+            .iter()
+            .map(|grant| marketplace::stores::StoreScope {
+                merchant_id: grant.merchant_id,
+                store_ids: grant.store_ids.clone(),
+            })
+            .collect()
+    }
 }
 
 /// Who is making this request. Built once per request by the `auth_context`
@@ -284,6 +306,27 @@ pub fn build_app_with_state(state: AppState) -> Router {
             "/store-orders/{id}",
             get(get_merchant_store_order).patch(advance_store_order),
         )
+        // Image uploads (slice U1). The default 2 MB body limit would
+        // reject real photos before the 5 MB policy could answer 413, so
+        // the multipart routes get a raised ceiling; the domain cap is
+        // the actual policy.
+        .route(
+            "/stores/{id}/banner",
+            post(upload_store_banner).delete(delete_store_banner),
+        )
+        .route(
+            "/products/{id}/images",
+            post(upload_product_image).get(list_product_images),
+        )
+        .route(
+            "/products/{product_id}/images/{image_id}",
+            delete(delete_product_image),
+        )
+        .route(
+            "/products/{product_id}/images/{image_id}/cover",
+            post(set_product_cover),
+        )
+        .layer(DefaultBodyLimit::max(6 * 1024 * 1024))
         .layer(middleware::from_fn(require_merchant));
 
     // Customer audience namespace: browse open stores and their menus.
@@ -292,17 +335,24 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/{id}", get(get_store))
         .layer(middleware::from_fn(require_customer));
 
+    // Discovery: search products + stores; empty q = popular + open feed.
+    let discovery = Router::new()
+        .route("/", get(search))
+        .layer(middleware::from_fn(require_customer));
+
     // Business routes live under /api/v1, namespaced by audience
     // (/auth, /me, /admin, /merchant, /stores). The OpenAPI contract is
     // served alongside them. See tuma-docs/Tuma_API_Architecture.md.
     let v1 = Router::new()
         .route("/openapi.json", get(openapi_json))
+        .route("/files/{*key}", get(crate::routes::files::get_file))
         .route("/auth/otp/request", post(otp_request))
         .route("/auth/otp/verify", post(otp_verify))
         .route("/auth/login", post(login))
         .nest("/admin", admin)
         .nest("/merchant", merchant)
         .nest("/stores", stores)
+        .nest("/search", discovery)
         .nest(
             "/orders",
             Router::new()
@@ -366,6 +416,10 @@ pub enum AppError {
     Conflict(String),
     #[error("Bad Request: {0}")]
     BadRequest(String),
+    #[error("Payload too large: {0}")]
+    PayloadTooLarge(String),
+    #[error("Unsupported media type: {0}")]
+    UnsupportedMediaType(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     #[error("Internal server error")]
@@ -389,6 +443,18 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg, None),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg, None),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "bad_request", msg, None),
+            AppError::PayloadTooLarge(msg) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload_too_large",
+                msg,
+                None,
+            ),
+            AppError::UnsupportedMediaType(msg) => (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "unsupported_media_type",
+                msg,
+                None,
+            ),
             AppError::Database(e) => {
                 tracing::debug!("Database error: {}", e);
                 (

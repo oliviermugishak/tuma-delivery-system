@@ -4,7 +4,6 @@
 //! admins profile row, resolved fresh per request by the guard.
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
-use crate::domain;
 use crate::routes::auth::validate_phone;
 use accounts::customers;
 use accounts::merchants::{self, Merchant, MerchantStatus};
@@ -171,7 +170,7 @@ pub async fn get_merchant(
     let merchant = merchants::by_id(&mut conn, id)
         .await?
         .ok_or_else(|| AppError::NotFound("merchant not found".into()))?;
-    let stores = domain::stores::store_summaries_for_merchant(&mut conn, merchant.id).await?;
+    let stores = marketplace::stores::store_summaries_for_merchant(&mut conn, merchant.id).await?;
     let members = accounts::memberships::list_for_merchant(&mut conn, merchant.id).await?;
     Ok(Json(MerchantDetailResponse {
         merchant: MerchantResponse::from(merchant),
@@ -205,8 +204,8 @@ pub struct AdminStoreResponse {
     pub created_at: OffsetDateTime,
 }
 
-impl From<domain::stores::StoreSummary> for AdminStoreResponse {
-    fn from(store: domain::stores::StoreSummary) -> Self {
+impl From<marketplace::stores::StoreSummary> for AdminStoreResponse {
+    fn from(store: marketplace::stores::StoreSummary) -> Self {
         Self {
             id: store.id,
             name: store.name,
@@ -367,7 +366,7 @@ pub async fn summary(
     let mut conn = app.db_pool.acquire().await?;
     let merchant_count = merchants::count(&mut conn).await?;
     let customer_count = customers::count(&mut conn).await?;
-    let catalog = domain::stores::catalog_counts(&mut conn).await?;
+    let catalog = marketplace::stores::catalog_counts(&mut conn).await?;
     let orders_in_progress = commerce::orders::count_in_progress(&mut conn).await?;
     Ok(Json(AdminSummaryResponse {
         merchants: merchant_count,

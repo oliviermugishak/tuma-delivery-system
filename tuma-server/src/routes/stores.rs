@@ -6,12 +6,12 @@
 //! - `/v1/stores*` — customers browse open stores.
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
-use crate::domain::catalog;
-use crate::domain::geo;
-use crate::domain::stores::{self, StoreChanges};
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
+use marketplace::catalog;
+use marketplace::geo;
+use marketplace::stores::{self, StoreChanges};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -46,14 +46,21 @@ pub struct StoreResponse {
     pub updated_at: OffsetDateTime,
 }
 
-impl From<stores::Store> for StoreResponse {
-    fn from(store: stores::Store) -> Self {
+impl StoreResponse {
+    /// Compose against the environment's public storage base: an uploaded
+    /// banner wins, a legacy external URL falls through, both absent means
+    /// no image (clients render their placeholder).
+    pub fn from_store(store: stores::Store, base_url: &str) -> Self {
         Self {
             id: store.id,
             merchant_id: store.merchant_id,
             name: store.name,
             description: store.description,
-            image_url: store.image_url,
+            image_url: storage::resolve_image_url(
+                base_url,
+                store.banner_key.as_deref(),
+                store.image_url.as_deref(),
+            ),
             address_text: store.address_text,
             lat: store.lat,
             lng: store.lng,
@@ -185,7 +192,13 @@ pub async fn create_own_store(
         },
     )
     .await?;
-    Ok((StatusCode::CREATED, Json(StoreResponse::from(store))))
+    Ok((
+        StatusCode::CREATED,
+        Json(StoreResponse::from_store(
+            store,
+            &app.storage.public_base_url,
+        )),
+    ))
 }
 
 #[utoipa::path(
@@ -205,8 +218,13 @@ pub async fn list_own_stores(
 ) -> AppResult<Json<Vec<StoreResponse>>> {
     let access = merchant_access(&context)?;
     let mut conn = app.db_pool.acquire().await?;
-    let stores = stores::stores_for_grants(&mut conn, &access.grants).await?;
-    Ok(Json(stores.into_iter().map(StoreResponse::from).collect()))
+    let stores = stores::stores_for_scopes(&mut conn, &access.store_scopes()).await?;
+    Ok(Json(
+        stores
+            .into_iter()
+            .map(|s| StoreResponse::from_store(s, &app.storage.public_base_url))
+            .collect(),
+    ))
 }
 
 #[utoipa::path(
@@ -235,7 +253,10 @@ pub async fn get_own_store(
         .await?
         .filter(|store| access.can_access_store(store.merchant_id, store.id))
         .ok_or(AppError::NotFound(stores::StoreError::NotFound.to_string()))?;
-    Ok(Json(StoreResponse::from(store)))
+    Ok(Json(StoreResponse::from_store(
+        store,
+        &app.storage.public_base_url,
+    )))
 }
 
 #[utoipa::path(
@@ -279,7 +300,10 @@ pub async fn update_own_store(
         is_open: input.is_open.unwrap_or(store.is_open),
     };
     let store = stores::update_store(&mut conn, store.id, changes).await?;
-    Ok(Json(StoreResponse::from(store)))
+    Ok(Json(StoreResponse::from_store(
+        store,
+        &app.storage.public_base_url,
+    )))
 }
 
 /// Hard-delete one of the operator's stores. Its store_products follow via
@@ -325,24 +349,111 @@ pub async fn delete_own_store(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Optional customer location on the browse request. Both or neither —
-/// one coordinate alone is meaningless, so it's a 400, not a guess.
+/// Optional customer location and search term on the browse request.
+/// Both-or-neither coordinates — one coordinate alone is meaningless, so
+/// it's a 400, not a guess. A search term present after trimming drives
+/// server-side matching; absent means the plain feed.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct LocateQuery {
     /// Customer latitude, -90..90.
     pub lat: Option<f64>,
     /// Customer longitude, -180..180.
     pub lng: Option<f64>,
+    /// Search stores by name or category (case-insensitive substring).
+    pub q: Option<String>,
+}
+
+/// Optional customer location and search term validation shared by the
+/// browse feed and discovery: both-or-neither coordinates, finite, in
+/// range; trimmed search term capped at 100 characters.
+pub fn validated_coords(
+    lat: Option<f64>,
+    lng: Option<f64>,
+) -> Result<Option<(f64, f64)>, AppError> {
+    match (lat, lng) {
+        (None, None) => Ok(None),
+        (Some(lat), Some(lng)) => {
+            let valid = lat.is_finite()
+                && lng.is_finite()
+                && (-90.0..=90.0).contains(&lat)
+                && (-180.0..=180.0).contains(&lng);
+            if !valid {
+                return Err(AppError::BadRequest(
+                    "lat must be -90..90 and lng -180..180 — both or neither".into(),
+                ));
+            }
+            Ok(Some((lat, lng)))
+        }
+        _ => Err(AppError::BadRequest(
+            "lat and lng must be provided together".into(),
+        )),
+    }
+}
+
+pub fn validated_term(q: Option<String>) -> Result<Option<String>, AppError> {
+    // Trim to nothing = absent; a bound on length keeps one request from
+    // asking Postgres to think hard about a 10 KB string.
+    let term = q.as_deref().map(str::trim).filter(|q| !q.is_empty());
+    if term.is_some_and(|raw| raw.chars().count() > 100) {
+        return Err(AppError::BadRequest(
+            "search term must be 100 characters or fewer".into(),
+        ));
+    }
+    Ok(term.map(str::to_string))
+}
+
+/// Rows the feed can place: coordinates in, distance/ETA out. One trait
+/// for stores and product hits keeps the geo presentation in one place.
+pub trait Located {
+    fn coords(&self) -> (Option<f64>, Option<f64>);
+    fn distance_m(&self) -> Option<i64>;
+    fn set_distance(&mut self, distance_m: i64, eta_min: i64);
+}
+
+/// Attaches server-computed distance/ETA when the request carried a
+/// location. Existing server order is preserved.
+pub fn attach_distance<T: Located>(rows: &mut [T], customer: Option<(f64, f64)>) {
+    let Some((customer_lat, customer_lng)) = customer else {
+        return;
+    };
+    for row in rows.iter_mut() {
+        let (Some(lat), Some(lng)) = row.coords() else {
+            continue;
+        };
+        let distance_m = geo::haversine_m(customer_lat, customer_lng, lat, lng);
+        row.set_distance(distance_m, geo::ride_minutes(distance_m));
+    }
+}
+
+/// [`attach_distance`] plus the nearest-first sort (stable — equal
+/// distances keep their relative order, coordinate-less rows trail).
+pub fn attach_distance_and_sort<T: Located>(rows: &mut [T], customer: Option<(f64, f64)>) {
+    attach_distance(rows, customer);
+    rows.sort_by_key(|row| row.distance_m().unwrap_or(i64::MAX));
+}
+
+impl Located for StoreResponse {
+    fn coords(&self) -> (Option<f64>, Option<f64>) {
+        (self.lat, self.lng)
+    }
+    fn distance_m(&self) -> Option<i64> {
+        self.distance_m
+    }
+    fn set_distance(&mut self, distance_m: i64, eta_min: i64) {
+        self.distance_m = Some(distance_m);
+        self.eta_min = Some(eta_min);
+    }
 }
 
 #[utoipa::path(
     get,
     path = "/v1/stores",
     params(("lat" = Option<f64>, Query, description = "Customer latitude (-90..90); requires lng"),
-           ("lng" = Option<f64>, Query, description = "Customer longitude (-180..180); requires lat")),
+           ("lng" = Option<f64>, Query, description = "Customer longitude (-180..180); requires lat"),
+           ("q" = Option<String>, Query, description = "Search term matched against store name and category; empty = no filter")),
     responses(
-        (status = 200, description = "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)", body = Vec<StoreResponse>),
-        (status = 400, description = "Only one of lat/lng, or a coordinate out of range / not a number"),
+        (status = 200, description = "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail); filtered to name/category matches when q is present", body = Vec<StoreResponse>),
+        (status = 400, description = "Only one of lat/lng, a coordinate out of range / not a number, or a search term over 100 characters"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not a customer"),
     ),
@@ -354,45 +465,23 @@ pub async fn list_stores(
     Extension(_context): Extension<UserContext>,
     Query(query): Query<LocateQuery>,
 ) -> AppResult<Json<Vec<StoreResponse>>> {
-    // Location validation at the door: both-or-neither, finite, in range.
-    let customer = match (query.lat, query.lng) {
-        (None, None) => None,
-        (Some(lat), Some(lng)) => {
-            let valid = lat.is_finite()
-                && lng.is_finite()
-                && (-90.0..=90.0).contains(&lat)
-                && (-180.0..=180.0).contains(&lng);
-            if !valid {
-                return Err(AppError::BadRequest(
-                    "lat must be -90..90 and lng -180..180 — both or neither".into(),
-                ));
-            }
-            Some((lat, lng))
-        }
-        _ => {
-            return Err(AppError::BadRequest(
-                "lat and lng must be provided together".into(),
-            ));
-        }
-    };
+    let customer = validated_coords(query.lat, query.lng)?;
+    let term = validated_term(query.q)?;
 
     let mut conn = app.db_pool.acquire().await?;
-    let stores = stores::open_stores(&mut conn).await?;
-    let mut responses: Vec<StoreResponse> = stores.into_iter().map(StoreResponse::from).collect();
-
-    if let Some((customer_lat, customer_lng)) = customer {
-        for response in &mut responses {
-            if let (Some(lat), Some(lng)) = (response.lat, response.lng) {
-                let distance_m = geo::haversine_m(customer_lat, customer_lng, lat, lng);
-                response.distance_m = Some(distance_m);
-                response.eta_min = Some(geo::ride_minutes(distance_m));
-            }
+    let stores = match term.as_deref() {
+        Some(raw) => {
+            let pattern = format!("%{}%", stores::escape_like(raw));
+            stores::search_stores(&mut conn, &pattern).await?
         }
-        // Nearest first; coordinate-less stores trail, their creation
-        // order preserved. `sort_by` is stable, so equal distances keep
-        // their relative order.
-        responses.sort_by_key(|response| response.distance_m.unwrap_or(i64::MAX));
-    }
+        None => stores::open_stores(&mut conn).await?,
+    };
+    let base_url = app.storage.public_base_url.clone();
+    let mut responses: Vec<StoreResponse> = stores
+        .into_iter()
+        .map(|store| StoreResponse::from_store(store, &base_url))
+        .collect();
+    attach_distance_and_sort(&mut responses, customer);
 
     Ok(Json(responses))
 }
@@ -424,8 +513,11 @@ pub async fn get_store(
     let products = catalog::menu_for_store(&mut conn, store.id).await?;
 
     Ok(Json(StoreWithProductsResponse {
-        store: StoreResponse::from(store),
-        products: products.into_iter().map(MenuItemResponse::from).collect(),
+        store: StoreResponse::from_store(store, &app.storage.public_base_url),
+        products: products
+            .into_iter()
+            .map(|item| MenuItemResponse::from_item(item, &app.storage.public_base_url))
+            .collect(),
     }))
 }
 
@@ -435,9 +527,7 @@ pub struct StoreWithProductsResponse {
     pub products: Vec<MenuItemResponse>,
 }
 
-/// A placeholder until the S3 catalog slice lands: the store detail's menu
-/// is empty because store_products have no endpoints yet. The mobile store
-/// screen renders the honest empty state.
+/// One item of a store's menu, as the customer sees it.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct MenuItemResponse {
     pub id: Uuid,
@@ -445,17 +535,30 @@ pub struct MenuItemResponse {
     pub description: Option<String>,
     pub price: i64,
     pub image_url: Option<String>,
+    /// The full gallery, cover first (composed URLs). Empty when the
+    /// product has no uploads.
+    pub images: Vec<String>,
     pub is_available: bool,
 }
 
-impl From<catalog::MenuItem> for MenuItemResponse {
-    fn from(item: catalog::MenuItem) -> Self {
+impl MenuItemResponse {
+    /// Gallery cover wins; the product's legacy external URL falls through.
+    pub fn from_item(item: catalog::MenuItem, base_url: &str) -> Self {
         Self {
             id: item.id,
             name: item.name,
             description: item.description,
             price: item.price,
-            image_url: item.image_url,
+            image_url: storage::resolve_image_url(
+                base_url,
+                item.cover_key.as_deref(),
+                item.image_url.as_deref(),
+            ),
+            images: item
+                .images
+                .iter()
+                .map(|key| storage::public_url(base_url, key))
+                .collect(),
             is_available: item.is_available,
         }
     }

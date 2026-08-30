@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, merchant_id, name, description, image_url, created_at, updated_at\n        FROM marketplace.products\n        WHERE merchant_id = $1\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, product_id, storage_key, position, created_at, updated_at\n        FROM marketplace.product_images\n        WHERE product_id = $1\n        ORDER BY position, id\n        ",
   "describe": {
     "columns": [
       {
@@ -9,73 +9,62 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
+            "table": "marketplace.product_images",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "merchant_id",
+        "name": "product_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
-            "name": "merchant_id"
+            "table": "marketplace.product_images",
+            "name": "product_id"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "name",
+        "name": "storage_key",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
-            "name": "name"
+            "table": "marketplace.product_images",
+            "name": "storage_key"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "description",
-        "type_info": "Text",
+        "name": "position",
+        "type_info": "Int4",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
-            "name": "description"
+            "table": "marketplace.product_images",
+            "name": "position"
           }
         }
       },
       {
         "ordinal": 4,
-        "name": "image_url",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "marketplace.products",
-            "name": "image_url"
-          }
-        }
-      },
-      {
-        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
+            "table": "marketplace.product_images",
             "name": "created_at"
           }
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "marketplace.products",
+            "table": "marketplace.product_images",
             "name": "updated_at"
           }
         }
@@ -90,11 +79,10 @@
       false,
       false,
       false,
-      true,
-      true,
+      false,
       false,
       false
     ]
   },
-  "hash": "7276d536d6f9e9a2c4df2b194ef9c8fba8cb96a40ba91698ca612b3a4a3a0073"
+  "hash": "3d70b4690d24163db88e2d7eccef6f6c8ec217bfdfd1430a07ca4873c87794c2"
 }

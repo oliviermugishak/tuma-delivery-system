@@ -60,7 +60,10 @@ pub struct TestApp {
 }
 
 pub async fn spawn_app(pool: PgPool) -> TestApp {
-    let config = get_configuration().expect("Failed to get configuration");
+    let mut config = get_configuration().expect("Failed to get configuration");
+    // Tests are hermetic: the in-memory backend, always — uploads never
+    // touch the developer's disk and vanish with the test.
+    config.storage.backend = tuma_server::config::StorageBackend::Memory;
 
     let listener = tokio::net::TcpListener::bind(format!("{}:0", config.application.host))
         .await
@@ -74,6 +77,7 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
         config.secret.jwt_signing_key.clone(),
         config.auth.dev_otp_code.clone(),
         config.application.cookie_secure,
+        storage::build_service(&config.storage).expect("Failed to build the storage backend"),
     );
     let app = build_app_with_state(state);
 
@@ -188,12 +192,12 @@ pub async fn seed_store(
     merchant_id: uuid::Uuid,
     name: &str,
     is_open: bool,
-) -> tuma_server::domain::stores::Store {
+) -> marketplace::stores::Store {
     let mut conn = pool.acquire().await.expect("failed to acquire connection");
-    tuma_server::domain::stores::create_store(
+    marketplace::stores::create_store(
         &mut conn,
         merchant_id,
-        tuma_server::domain::stores::StoreChanges {
+        marketplace::stores::StoreChanges {
             name: name.to_string(),
             description: None,
             image_url: None,

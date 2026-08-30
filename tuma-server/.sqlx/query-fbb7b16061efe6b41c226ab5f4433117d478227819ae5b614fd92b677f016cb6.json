@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO marketplace.stores (\n            merchant_id, name, description, image_url, address_text,\n            lat, lng, category, delivery_fee, is_open\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, merchant_id, name, description, image_url, address_text,\n                  lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        ",
+  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        FROM marketplace.stores\n        WHERE merchant_id = $1\n          AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR id = ANY($2::uuid[]))\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "banner_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "banner_key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "address_text",
         "type_info": "Text",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "lat",
         "type_info": "Float8",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "lng",
         "type_info": "Float8",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "category",
         "type_info": "Text",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "delivery_fee",
         "type_info": "Int8",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "is_open",
         "type_info": "Bool",
         "origin": {
@@ -125,7 +136,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -136,7 +147,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -150,15 +161,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Float8",
-        "Float8",
-        "Text",
-        "Int8",
-        "Bool"
+        "UuidArray"
       ]
     },
     "nullable": [
@@ -171,11 +174,12 @@
       true,
       true,
       true,
+      true,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "25eb97edcfc72313e87366a2c7c22a2b7aef2bb7c5321dc79e45ad29bcd3d635"
+  "hash": "fbb7b16061efe6b41c226ab5f4433117d478227819ae5b614fd92b677f016cb6"
 }

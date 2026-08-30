@@ -11,11 +11,11 @@
 //! Owner sign-ins are documented in MEMORY.md — the founder should change
 //! them before anything real.
 
+use marketplace::catalog::{self, NewStoreProduct};
+use marketplace::stores::{self, StoreChanges};
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 use tuma_server::config::get_configuration;
-use tuma_server::domain::catalog::{self, NewStoreProduct};
-use tuma_server::domain::stores::{self, StoreChanges};
 
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 

@@ -18,3 +18,20 @@ database:
 secret:
   # Generate with: openssl rand -base64 64
   jwt_signing_key: ""
+storage:
+  # local (dev) | memory (tests) | s3 (S3-compatible; Cloudflare R2 in prod).
+  # Clients only ever see URLs — a backend swap is config, never code.
+  backend: local
+  # Where stored objects are served from. Empty = the API's own file route
+  # (relative /api/v1/files/… URLs). Production: the R2 public URL (CDN).
+  # Dev with a phone on the LAN: http://<machine-ip>:8080/api/v1/files
+  public_base_url: ""
+  local:
+    root: ./data/storage
+  s3:
+    bucket: ""
+    # R2: https://<account-id>.r2.cloudflarestorage.com — empty means AWS S3.
+    endpoint: ""
+    region: auto
+    access_key_id: ""
+    secret_access_key: ""

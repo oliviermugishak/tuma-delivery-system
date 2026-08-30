@@ -15,10 +15,12 @@ import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
-/// A store and its menu, the way customers see it: full-bleed banner, then
-/// the identity block (name, description, badges, location), then the menu
-/// — the delivery-app layout people already know. The server only serves
-/// open stores with available products; a 404 means "closed or gone" and
+/// A store and its menu, the way customers see it: a fixed full-bleed
+/// banner behind everything, then the identity block (name, description,
+/// badges, location) and the menu on a rounded sheet that slides up over
+/// the picture — scrolling moves only the sheet, never the image, with
+/// ghost back/cart buttons on a top scrim. The server only serves open
+/// stores with available products; a 404 means "closed or gone" and
 /// gets a clean terminal state — never a retry loop.
 class StoreScreen extends ConsumerStatefulWidget {
   const StoreScreen({super.key, required this.storeId});
@@ -60,34 +62,47 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     }
   }
 
+  /// Way out of any state — even a cold start on this route with an
+  /// empty navigation stack.
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
+    final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
-      // Back and cart sit together in one transparent top bar over the
-      // banner — the delivery-app pattern, with no floating orphans.
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: _BackButton(onTap: () => context.pop()),
-        ),
-        actions: const [
-          _CartButton(),
-          SizedBox(width: 12),
-        ],
-      ),
+      // No AppBar: the backdrop, sheet, and floating buttons are one Stack.
+      // extendBodyBehindAppBar keeps the banner clear of the system bar.
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           if (_notFound)
-            SafeArea(child: _ClosedState(onBack: () => context.pop()))
+            SafeArea(child: _ClosedState(onBack: _goBack))
           else if (detail != null)
             _content(context, detail)
           else
             _loadingOrError(),
+          // Layer 3 — ghost back + cart on the scrim, over every state
+          // (content, skeleton, error) so there is always a way out.
+          if (!_notFound)
+            Positioned(
+              top: topInset,
+              left: 8,
+              right: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _BackButton(onTap: _goBack),
+                  const _CartButton(),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -99,87 +114,129 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     final products = detail.products;
     final address = store.addressText;
     final description = store.description;
+    final topInset = MediaQuery.paddingOf(context).top;
+    // How much of the photo stays visible above the sheet on entry — the
+    // framed first impression the founder asked for.
+    const imagePeek = 24.0;
+    final bannerHeight = topInset + _bannerHeight;
 
-    return ListView(
-      padding: EdgeInsets.zero,
+    return Stack(
       children: [
-        // Full-bleed banner, edge to edge — no corner cuts.
-        RemoteImage(
-          url: store.imageUrl,
-          seed: store.name,
-          height: 210,
-          borderRadius: 0,
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                store.name,
-                style: textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
+        // Layer 1 — the fixed backdrop: the banner never scrolls; the
+        // content sheet slides over it. Extends up under the status bar,
+        // with a top scrim so the ghost buttons read on any picture.
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SizedBox(
+            height: bannerHeight,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RemoteImage(
+                  url: store.imageUrl,
+                  seed: store.name,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.storefront_rounded,
                 ),
-              ),
-              if (description != null && description.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  description,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                    height: 1.5,
-                  ),
-                ),
+                const _TopScrim(),
               ],
-              const SizedBox(height: 14),
-              // Badges sit together on one row. The star badge joins when
-              // ratings exist — no fake stars before then.
-              Row(
-                children: [
-                  FeeChip(fee: store.deliveryFee),
-                  if (address != null && address.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Flexible(child: _LocationBadge(address: address)),
-                  ],
+            ),
+          ),
+        ),
+        // Layer 2 — the ONLY scrollable: a transparent gap down to the
+        // peek point, then the rounded sheet with everything in it.
+        ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            SizedBox(height: bannerHeight - imagePeek),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.surface.withValues(alpha: 0.6),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
                 ],
               ),
-              const SizedBox(height: 28),
-              Text(
-                'Menu',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (products.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'Nothing on the menu right now.',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      store.name,
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                )
-              else
-                for (var i = 0; i < products.length; i++) ...[
+                    if (description != null && description.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        description,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    // Badges sit together on one row. The star badge joins when
+                    // ratings exist — no fake stars before then.
+                    Row(
+                      children: [
+                        FeeChip(fee: store.deliveryFee),
+                        if (address != null && address.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Flexible(child: _LocationBadge(address: address)),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      'Menu',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (products.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'Nothing on the menu right now.',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                        ),
+                      )
+                    else
+                      for (var i = 0; i < products.length; i++) ...[
                   _ProductRow(
                     product: products[i],
-                    onTap: () => _showProduct(context, products[i]),
-                    onAdd: () => unawaited(
-                      _addToCart(context, store, products[i]),
-                    ),
-                  ),
-                  if (i < products.length - 1)
-                    Container(
-                      height: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      color: AppColors.surfaceBorder,
-                    ),
-                ],
-            ],
-          ),
+                    onTap: () => _showProduct(context, store, products[i]),
+                          onAdd: () => unawaited(
+                            _addToCart(context, store, products[i]),
+                          ),
+                        ),
+                        if (i < products.length - 1)
+                          Container(
+                            height: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            color: AppColors.surfaceBorder,
+                          ),
+                      ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -188,10 +245,13 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
   Widget _loadingOrError() {
     final error = _error;
     if (error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(24),
-        children: [ErrorState(message: error, onRetry: _load)],
+      // Top padding clears the floating back button above it.
+      return SafeArea(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 72, 24, 24),
+          children: [ErrorState(message: error, onRetry: _load)],
+        ),
       );
     }
     return const _StoreSkeleton();
@@ -237,14 +297,20 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     );
   }
 
-  /// Product tap → bottom sheet: picture, name, price, full description.
+  /// Product tap → bottom sheet: picture, name, price, full description,
+  /// and the add button — the sheet is where the buying decision happens,
+  /// so the add lives here too (no hunt back to the row's small circle).
   ///
   /// The sheet's content scrolls: a Column sized to its children inside a
   /// height-capped sheet overflows (yellow-black stripes) the moment a
   /// merchant writes a long description. `isScrollControlled` lifts the
   /// default half-screen cap, the box bounds the sheet at ~85% of the
   /// screen, and the scroll view carries anything taller.
-  void _showProduct(BuildContext context, MenuItem product) {
+  void _showProduct(
+    BuildContext context,
+    Store store,
+    MenuItem product,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final description = product.description;
     showModalBottomSheet<void>(
@@ -276,16 +342,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 10,
-                    child: RemoteImage(
-                      url: product.imageUrl,
-                      seed: product.name,
-                    ),
-                  ),
-                ),
+                _SheetGallery(product: product),
                 const SizedBox(height: 20),
                 Text(
                   product.name,
@@ -311,6 +368,25 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 24),
+                FilledButton(
+                  // Close first, then add — the snackbar lands on the
+                  // store screen, confirming the fresh count.
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(_addToCart(context, store, product));
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  child: Text(
+                    'Add to cart · ${formatRwf(product.price)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -387,7 +463,7 @@ class _ProductRow extends StatelessWidget {
           child: Row(
             children: [
               RemoteImage(
-                url: product.imageUrl,
+                url: product.displayImage,
                 seed: product.name,
                 width: 56,
                 height: 56,
@@ -466,8 +542,8 @@ class _AddToCartButton extends StatelessWidget {
   }
 }
 
-/// Floats over the banner: a dark translucent circle that reads on any
-/// picture.
+/// Ghost button over the banner: no chrome, just the icon with a soft
+/// shadow — the scrim above it does the legibility work.
 class _BackButton extends StatelessWidget {
   const _BackButton({required this.onTap});
 
@@ -476,20 +552,24 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface.withValues(alpha: 0.55),
-      shape: const CircleBorder(
-        side: BorderSide(color: AppColors.surfaceBorder),
-      ),
+      color: Colors.transparent,
+      shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: const SizedBox(
+        child: SizedBox(
           width: 40,
           height: 40,
           child: Icon(
             Icons.arrow_back_rounded,
-            size: 20,
+            size: 22,
             color: AppColors.onSurface,
+            shadows: [
+              Shadow(
+                color: AppColors.surface.withValues(alpha: 0.8),
+                blurRadius: 8,
+              ),
+            ],
           ),
         ),
       ),
@@ -497,8 +577,9 @@ class _BackButton extends StatelessWidget {
   }
 }
 
-/// Cart button in the store's top bar. Shows a badge with the item count
-/// when the cart is non-empty; tapping navigates to /cart.
+/// Ghost cart button over the banner — same treatment as the back
+/// button. Shows a badge with the item count when the cart is non-empty;
+/// tapping navigates to /cart.
 class _CartButton extends ConsumerWidget {
   const _CartButton();
 
@@ -509,52 +590,56 @@ class _CartButton extends ConsumerWidget {
       data: (v) => v.itemCount,
       orElse: () => 0,
     );
-    return GestureDetector(
-      onTap: () => context.push('/cart'),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.55),
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Icon(
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => context.push('/cart'),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Icon(
                 Icons.shopping_cart_rounded,
-                size: 20,
-                color: AppColors.primary,
-              ),
-            ),
-            if (count > 0)
-              Positioned(
-                right: -4,
-                top: -4,
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
+                size: 22,
+                color: AppColors.onSurface,
+                shadows: [
+                  Shadow(
+                    color: AppColors.surface.withValues(alpha: 0.8),
+                    blurRadius: 8,
                   ),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.all(2),
-                  child: Text(
-                    count > 99 ? '99+' : '$count',
-                    style: const TextStyle(
-                      color: AppColors.onPrimary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
+                ],
+              ),
+              if (count > 0)
+                Positioned(
+                  right: -4,
+                  top: -2,
+                  child: Container(
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
                     ),
-                    textAlign: TextAlign.center,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(2),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(
+                        color: AppColors.onPrimary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -620,128 +705,286 @@ class _ClosedState extends StatelessWidget {
   }
 }
 
-/// Banner block + identity lines + a few rows, quiet, while the store
-/// loads. Mirrors the real layout so the reveal doesn't jump.
+/// Banner height below the status bar — shared by the real content and
+/// the skeleton so the reveal doesn't jump.
+const double _bannerHeight = 210;
+
+/// Dark fade across the banner's top so the ghost icons read on any
+/// photo, bright or dark.
+class _TopScrim extends StatelessWidget {
+  const _TopScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0, 1],
+          colors: [
+            AppColors.surface.withValues(alpha: 0.72),
+            AppColors.surface.withValues(alpha: 0),
+          ],
+        ),
+      ),
+      child: const SizedBox(height: 96),
+    );
+  }
+}
+
+/// Loading skeleton mirroring the real layout — fixed banner block, then
+/// the sheet's identity lines and a few rows, quiet, while the store
+/// loads.
 class _StoreSkeleton extends StatelessWidget {
   const _StoreSkeleton();
 
   @override
   Widget build(BuildContext context) {
     final block = AppColors.onSurface.withValues(alpha: 0.07);
-    return ListView(
-      padding: EdgeInsets.zero,
+    final topInset = MediaQuery.paddingOf(context).top;
+    const imagePeek = 24.0;
+    return Stack(
       children: [
-        Container(
-          height: 210,
-          color: block,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SizedBox(
+            height: topInset + _bannerHeight,
+            child: const ColoredBox(color: AppColors.surfaceAlt),
+          ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 180,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: block,
-                  borderRadius: BorderRadius.circular(6),
-                ),
+        ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            SizedBox(height: topInset + _bannerHeight - imagePeek),
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              const SizedBox(height: 12),
-              Container(
-                width: 240,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: block,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    width: 96,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: block,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 120,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: block,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              Container(
-                width: 70,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: block,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              const SizedBox(height: 16),
-              for (var i = 0; i < 4; i++)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: block,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 180,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: block,
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 240,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: block,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 96,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: block,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 120,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: block,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Container(
+                      width: 70,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: block,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    for (var i = 0; i < 4; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
+                        child: Row(
                           children: [
                             Container(
-                              width: 140,
-                              height: 12,
+                              width: 56,
+                              height: 56,
                               decoration: BoxDecoration(
                                 color: block,
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 140,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: block,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: 90,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: block,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             Container(
-                              width: 90,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: block,
-                                borderRadius: BorderRadius.circular(6),
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                color: AppColors.surfaceAlt,
+                                shape: BoxShape.circle,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: block,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The product sheet's gallery: swipes through the product's images
+/// (cover first) with tappable position dots when there is more than
+/// one; a lone image renders without the machinery. Mouse drags page the
+/// view too — desktop users are first-class here. Honest icon fallback
+/// via [RemoteImage] — no fake photos, ever.
+class _SheetGallery extends StatefulWidget {
+  const _SheetGallery({required this.product});
+
+  final MenuItem product;
+
+  @override
+  State<_SheetGallery> createState() => _SheetGalleryState();
+}
+
+class _SheetGalleryState extends State<_SheetGallery> {
+  final _controller = PageController();
+  int _page = 0;
+
+  // Flutter's scrollables ignore mouse drags by default (dragDevices
+  // covers touch, stylus, trackpad) — which made the gallery dead on a
+  // desktop window. The mouse joins the list for this view only.
+  static const _dragDevices = {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+  };
+
+  void _goTo(int page) {
+    _controller.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.product.images;
+    final single = ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: AspectRatio(
+        aspectRatio: 16 / 10,
+        child: RemoteImage(
+          url: widget.product.displayImage,
+          seed: widget.product.name,
+        ),
+      ),
+    );
+    if (images.length < 2) return single;
+
+    return Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: AspectRatio(
+            aspectRatio: 16 / 10,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context)
+                  .copyWith(dragDevices: _dragDevices),
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: images.length,
+                onPageChanged: (page) => setState(() => _page = page),
+                itemBuilder: (context, index) => RemoteImage(
+                  url: images[index],
+                  seed: '${widget.product.name}:$index',
+                  borderRadius: 0,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < images.length; i++)
+              // A real tap target around a small dot — the indicator is
+              // a control, not a decoration.
+              GestureDetector(
+                onTap: () => _goTo(i),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 10,
+                  ),
+                  child: Container(
+                    width: _page == i ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: _page == i
+                          ? AppColors.primary
+                          : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ],
     );

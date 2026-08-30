@@ -8,13 +8,15 @@ import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
 /// Home tab: greeting, then sections — "Stores near you" first; more
-/// sections slot in below it as they earn their place.
+/// sections slot in below it as they earn their place. Browsing only:
+/// the search field is a door to the Search tab, chips filter in place.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -25,11 +27,45 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Store>? _stores;
   String? _error;
+  /// True when the feed is bare — no GPS fix AND no persisted pin — so
+  /// one honest hint offers the way to distances. Nothing noisy, nothing
+  /// fake.
+  bool _showLocationHint = false;
+  /// The category chips are a client-side filter over the server feed —
+  /// browsing, not searching. The name search lives on the Search tab;
+  /// home's field is its door.
+  String? _category;
 
   @override
   void initState() {
     super.initState();
     unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  /// The categories present in the current feed, deduped, first-appearance
+  /// order — real data only; the chip row disappears when none is set.
+  List<String> _categories(List<Store> stores) {
+    final seen = <String>{};
+    return [
+      for (final store in stores)
+        if (store.category != null &&
+            store.category!.isNotEmpty &&
+            seen.add(store.category!))
+          store.category!,
+    ];
+  }
+
+  List<Store> _filtered(List<Store> stores) {
+    if (_category == null) return stores;
+    return [
+      for (final store in stores)
+        if (store.category == _category) store,
+    ];
   }
 
   Future<void> _load() async {
@@ -40,13 +76,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .read(storeApiProvider)
           .listStores(lat: located?.lat, lng: located?.lng);
       if (!mounted) return;
-      setState(() => _stores = stores);
+      setState(() {
+        _stores = stores;
+        _showLocationHint = located == null;
+        // A category filter the fresh feed no longer serves resets.
+        if (_category != null && !_categories(stores).contains(_category)) {
+          _category = null;
+        }
+      });
     } on ApiError catch (error) {
       if (!mounted) return;
       // A refresh failure with a list on screen keeps the list; the error
       // state is for first loads with nothing to show.
       if (_stores == null) setState(() => _error = error.message);
     }
+  }
+
+  /// The location hint's tap: one more GPS attempt via a reload. Failure
+  /// brings the hint back; success brings the distances.
+  Future<void> _retryLocation() async {
+    setState(() => _showLocationHint = false);
+    await _load();
   }
 
   /// Locate once per load, the founder-chosen launch flow: a fresh GPS
@@ -75,6 +125,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     };
     final textTheme = Theme.of(context).textTheme;
     final stores = _stores;
+    final filtered = stores == null ? null : _filtered(stores);
+    final categories = stores == null ? null : _categories(stores);
+    // The only in-place filter left is the category chip: an empty feed
+    // with a chip selected means the chip matched nothing, not that the
+    // market is empty.
 
     return Scaffold(
       body: SafeArea(
@@ -95,11 +150,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              // The search field is a DOOR: tapping opens the Search tab,
+              // where discovery (products, stores, the 🔥 shelf) lives.
+              // Home stays browse: chips filter the feed in place.
+              if (stores != null) ...[
+                Material(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () =>
+                        ref.read(shellTabProvider.notifier).select(1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Search stores or food…',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (categories!.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _CategoryChip(
+                          label: 'All',
+                          selected: _category == null,
+                          onTap: () => setState(() => _category = null),
+                        ),
+                        for (final category in categories)
+                          _CategoryChip(
+                            label: category,
+                            selected: _category == category,
+                            onTap: () =>
+                                setState(() => _category = category),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_showLocationHint) ...[
+                  const SizedBox(height: 12),
+                  _LocationHint(onTap: _retryLocation),
+                ],
+                const SizedBox(height: 22),
+              ] else
+                const SizedBox(height: 24),
               if (stores == null && _error != null)
                 ErrorState(message: _error!, onRetry: _load)
               else if (stores == null)
                 const _FeedSkeleton()
+              else if (stores.isEmpty && _category != null)
+                const _NoMatch()
               else if (stores.isEmpty)
                 const _EmptyState()
               else ...[
@@ -110,27 +235,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final metrics = _cardMetrics(constraints.maxWidth);
-                    return Wrap(
-                      spacing: _cardSpacing,
-                      runSpacing: _cardSpacing,
-                      children: [
-                        for (final store in stores)
-                          SizedBox(
-                            width: metrics.cardWidth,
-                            child: _StoreCard(
-                              store: store,
-                              onTap: () => unawaited(
-                                context.push('/stores/${store.id}'),
+                if (filtered!.isEmpty)
+                  const _NoMatch()
+                else
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final metrics = _cardMetrics(constraints.maxWidth);
+                      return Wrap(
+                        spacing: _cardSpacing,
+                        runSpacing: _cardSpacing,
+                        children: [
+                          for (final store in filtered)
+                            SizedBox(
+                              width: metrics.cardWidth,
+                              child: _StoreCard(
+                                store: store,
+                                onTap: () => unawaited(
+                                  context.push('/stores/${store.id}'),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
+                        ],
+                      );
+                    },
+                  ),
               ],
             ],
           ),
@@ -198,6 +326,7 @@ class _StoreCard extends StatelessWidget {
                   url: store.imageUrl,
                   seed: store.name,
                   borderRadius: 0,
+                  fallbackIcon: Icons.storefront_rounded,
                 ),
               ),
               Padding(
@@ -278,6 +407,136 @@ class _StoreCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One category filter pill — gold when selected, quiet otherwise.
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: selected ? AppColors.primary : AppColors.surfaceAlt,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? AppColors.primary : AppColors.surfaceBorder,
+          ),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected
+                        ? AppColors.onPrimary
+                        : AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The bare-feed hint: GPS failed and no pin exists, so distances are
+/// hidden. One tap re-runs the launch flow's GPS attempt.
+class _LocationHint extends StatelessWidget {
+  const _LocationHint({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Turn on location to see distances',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceMuted,
+                      ),
+                ),
+              ),
+              const Icon(
+                Icons.refresh_rounded,
+                size: 14,
+                color: AppColors.onSurfaceMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The filters (search + category) matched nothing. Honest and small —
+/// distinct from "no stores are open", which is the server's answer.
+class _NoMatch extends StatelessWidget {
+  const _NoMatch();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.search_off_rounded,
+              size: 32,
+              color: AppColors.onSurfaceMuted,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No stores match.',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Try another name or category.',
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );

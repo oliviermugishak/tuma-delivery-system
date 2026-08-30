@@ -82,3 +82,25 @@ Design and write sqlx migrations (additive, non-destructive, reversible where th
 6. The new/modified sqlx queries.
 7. Tests covering the above.
 8. A final summary of every file touched and why.
+
+---
+
+## 8. Resolution (2026-08-30, slice U1 — built)
+
+This guidance was executed with two founder decisions diverging from its
+defaults, both recorded in `ARCHITECTURE_DEEP_ANALYSIS.md` §3:
+
+- **Proxy uploads through the API** (not presigned direct-to-R2) — one
+  multipart path for local/memory/s3, the easiest deployment. Presigning
+  remains available later behind the `storage` crate boundary.
+- **Normalization at upload** — EXIF → fit 1600px → JPEG q85; the `image`
+  crate is the one processing dependency.
+
+Everything else followed this document: `object_store` behind a wrapper
+(in its own `storage` crate, per the founder's crates-only rule), config
+driven `local | memory | s3` with R2 as the production target, in-memory
+tests, deterministic keys, magic-number validation + 5 MB cap,
+`marketplace.product_images` (cover = lowest position), banner key on
+`stores`, DB-row-first deletes with best-effort object cleanup, and
+hermetic `#[sqlx::test]` coverage. The file route `GET /v1/files/{key}`
+serves the local/memory backends; production reads go to the R2/CDN URL.

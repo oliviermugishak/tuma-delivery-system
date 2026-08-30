@@ -33,6 +33,7 @@ use utoipa::OpenApi;
         crate::routes::stores::delete_own_store,
         crate::routes::stores::list_stores,
         crate::routes::stores::get_store,
+        crate::routes::search::search,
         crate::routes::catalog::create_product,
         crate::routes::catalog::list_products,
         crate::routes::catalog::update_product,
@@ -48,6 +49,13 @@ use utoipa::OpenApi;
         crate::routes::orders::list_merchant_orders,
         crate::routes::orders::get_merchant_store_order,
         crate::routes::orders::advance_store_order,
+        crate::routes::storage::upload_store_banner,
+        crate::routes::storage::delete_store_banner,
+        crate::routes::storage::list_product_images,
+        crate::routes::storage::upload_product_image,
+        crate::routes::storage::delete_product_image,
+        crate::routes::storage::set_product_cover,
+        crate::routes::files::get_file,
     )
 )]
 pub struct ApiDoc;

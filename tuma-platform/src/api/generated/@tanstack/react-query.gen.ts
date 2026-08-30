@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteStoreProduct, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProducts, listStoreProducts, listStores, login, logout, me, openapiJson, type Options, otpRequest, otpVerify, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateStoreProduct } from '../sdk.gen';
-import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductsData, ListProductsResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateStoreProductData, UpdateStoreProductResponse } from '../types.gen';
+import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listStoreProducts, listStores, login, logout, me, openapiJson, type Options, otpRequest, otpVerify, search, setProductCover, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, SearchData, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -284,6 +284,21 @@ export const changePasswordMutation = (options?: Partial<Options<ChangePasswordD
     return mutationOptions;
 };
 
+export const getFileQueryKey = (options: Options<GetFileData>) => createQueryKey('getFile', options);
+
+export const getFileOptions = (options: Options<GetFileData>) => queryOptions<GetFileResponse, DefaultError, GetFileResponse, ReturnType<typeof getFileQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getFile({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getFileQueryKey(options)
+});
+
 export const meQueryKey = (options?: Options<MeData>) => createQueryKey('me', options);
 
 export const meOptions = (options?: Options<MeData>) => queryOptions<MeResponse2, DefaultError, MeResponse2, ReturnType<typeof meQueryKey>>({
@@ -440,6 +455,69 @@ export const updateProductMutation = (options?: Partial<Options<UpdateProductDat
     const mutationOptions: UseMutationOptions<UpdateProductResponse, DefaultError, Options<UpdateProductData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateProduct({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listProductImagesQueryKey = (options: Options<ListProductImagesData>) => createQueryKey('listProductImages', options);
+
+export const listProductImagesOptions = (options: Options<ListProductImagesData>) => queryOptions<ListProductImagesResponse, DefaultError, ListProductImagesResponse, ReturnType<typeof listProductImagesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listProductImages({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listProductImagesQueryKey(options)
+});
+
+export const uploadProductImageMutation = (options?: Partial<Options<UploadProductImageData>>): UseMutationOptions<UploadProductImageResponse, DefaultError, Options<UploadProductImageData>> => {
+    const mutationOptions: UseMutationOptions<UploadProductImageResponse, DefaultError, Options<UploadProductImageData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadProductImage({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Resolve nothing here — each handler fetches its own image through
+ * `product_for_merchant` (ownership) + `product_image_by_id` filtered on
+ * the product id, so a foreign product, a foreign image, or a mismatched
+ * pair is the same 404.
+ */
+export const deleteProductImageMutation = (options?: Partial<Options<DeleteProductImageData>>): UseMutationOptions<DeleteProductImageResponse, DefaultError, Options<DeleteProductImageData>> => {
+    const mutationOptions: UseMutationOptions<DeleteProductImageResponse, DefaultError, Options<DeleteProductImageData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteProductImage({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const setProductCoverMutation = (options?: Partial<Options<SetProductCoverData>>): UseMutationOptions<SetProductCoverResponse, DefaultError, Options<SetProductCoverData>> => {
+    const mutationOptions: UseMutationOptions<SetProductCoverResponse, DefaultError, Options<SetProductCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setProductCover({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -627,6 +705,34 @@ export const updateOwnStoreMutation = (options?: Partial<Options<UpdateOwnStoreD
     return mutationOptions;
 };
 
+export const deleteStoreBannerMutation = (options?: Partial<Options<DeleteStoreBannerData>>): UseMutationOptions<DeleteStoreBannerResponse, DefaultError, Options<DeleteStoreBannerData>> => {
+    const mutationOptions: UseMutationOptions<DeleteStoreBannerResponse, DefaultError, Options<DeleteStoreBannerData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteStoreBanner({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const uploadStoreBannerMutation = (options?: Partial<Options<UploadStoreBannerData>>): UseMutationOptions<UploadStoreBannerResponse, DefaultError, Options<UploadStoreBannerData>> => {
+    const mutationOptions: UseMutationOptions<UploadStoreBannerResponse, DefaultError, Options<UploadStoreBannerData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadStoreBanner({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const openapiJsonQueryKey = (options?: Options<OpenapiJsonData>) => createQueryKey('openapiJson', options);
 
 /**
@@ -732,6 +838,21 @@ export const cancelStoreOrderMutation = (options?: Partial<Options<CancelStoreOr
     };
     return mutationOptions;
 };
+
+export const searchQueryKey = (options?: Options<SearchData>) => createQueryKey('search', options);
+
+export const searchOptions = (options?: Options<SearchData>) => queryOptions<SearchResponse2, DefaultError, SearchResponse2, ReturnType<typeof searchQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await search({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchQueryKey(options)
+});
 
 export const listStoresQueryKey = (options?: Options<ListStoresData>) => createQueryKey('listStores', options);
 

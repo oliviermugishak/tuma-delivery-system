@@ -615,3 +615,238 @@ async fn operator_login_reaches_the_merchant_wing(pool: sqlx::PgPool) {
         200
     );
 }
+
+/// Open a store by its name within one merchant (test helper).
+async fn open_named(pool: &PgPool, merchant_id: Uuid, name: &str) {
+    let mut conn = pool.acquire().await.unwrap();
+    let (store_id,): (Uuid,) =
+        sqlx::query_as("SELECT id FROM marketplace.stores WHERE name = $1 AND merchant_id = $2")
+            .bind(name)
+            .bind(merchant_id)
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+    drop(conn);
+    open(pool, merchant_id, store_id).await;
+}
+
+/// Server-side search: `?q=` matches store names and categories,
+/// case-insensitively; closed stores never surface; a matchless term is
+/// an empty array; whitespace-only means the plain feed, identical to
+/// the no-query response.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn list_stores_search_matches_name_or_category(pool: sqlx::PgPool) {
+    let app = spawn_app(pool.clone()).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    create_store(
+        &aline,
+        json!({ "name": "Aline's Kitchen", "category": "Grill" }),
+    )
+    .await;
+    create_store(
+        &aline,
+        json!({ "name": "Kigali Heights Cafe", "category": "Coffee" }),
+    )
+    .await;
+    // Matches "grill" by name but stays closed — customers never see it.
+    create_store(&aline, json!({ "name": "Grill Master HQ" })).await;
+    open_named(&app.pool, aline.merchant_id, "Aline's Kitchen").await;
+    open_named(&app.pool, aline.merchant_id, "Kigali Heights Cafe").await;
+
+    let (chantal, token) = customer_session(&app, "+250780000021").await;
+
+    // By name — case-insensitive substring.
+    let response = chantal
+        .get("/v1/stores?q=aline")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let stores: Value = response.json().await.unwrap();
+    let names: Vec<&str> = stores
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|store| store["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Aline's Kitchen"]);
+
+    // By category.
+    let response = chantal
+        .get("/v1/stores?q=coffee")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    assert_eq!(stores[0]["name"], "Kigali Heights Cafe");
+
+    // The closed store is invisible to search even when the term matches.
+    let response = chantal
+        .get("/v1/stores?q=grill")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    let names: Vec<&str> = stores
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|store| store["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Aline's Kitchen"]);
+
+    // No match: an empty array, not an error.
+    let response = chantal
+        .get("/v1/stores?q=zzz")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let stores: Value = response.json().await.unwrap();
+    assert!(stores.as_array().unwrap().is_empty());
+
+    // Whitespace-only and no query are the same plain feed.
+    let response = chantal
+        .get("/v1/stores")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let plain: Value = response.json().await.unwrap();
+    let response = chantal
+        .get("/v1/stores?q=%20%20")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let blank: Value = response.json().await.unwrap();
+    assert_eq!(plain, blank);
+    assert_eq!(plain.as_array().unwrap().len(), 2);
+}
+
+/// Search composes with the customer's location: the filter runs first,
+/// then the remaining matches sort nearest-first with their distances.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn list_stores_search_combines_with_location(pool: sqlx::PgPool) {
+    let app = spawn_app(pool.clone()).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    // Two grills (near and far) and a cafe right next to the customer.
+    create_store(
+        &aline,
+        json!({ "name": "Near Grill", "category": "Grill", "lat": -1.9630, "lng": 30.1290 }),
+    )
+    .await;
+    create_store(
+        &aline,
+        json!({ "name": "Far Grill", "category": "Grill", "lat": -1.9390, "lng": 30.1255 }),
+    )
+    .await;
+    create_store(
+        &aline,
+        json!({ "name": "Near Cafe", "category": "Coffee", "lat": -1.9621, "lng": 30.1291 }),
+    )
+    .await;
+    for name in ["Near Grill", "Far Grill", "Near Cafe"] {
+        open_named(&app.pool, aline.merchant_id, name).await;
+    }
+
+    let (chantal, token) = customer_session(&app, "+250780000022").await;
+    let response = chantal
+        .get("/v1/stores?q=grill&lat=-1.9620&lng=30.1290")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let stores: Value = response.json().await.unwrap();
+    let stores = stores.as_array().unwrap();
+
+    // Only the grills, nearest first; the cafe — though closest — is out.
+    assert_eq!(stores.len(), 2);
+    assert_eq!(stores[0]["name"], "Near Grill");
+    assert_eq!(stores[1]["name"], "Far Grill");
+    assert!(stores[0]["distance_m"].as_i64().unwrap() < stores[1]["distance_m"].as_i64().unwrap());
+}
+
+/// The LIKE wildcards are escaped — searching "%" finds the literal
+/// percent, not everything — and an over-long term is a 400.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn list_stores_search_escapes_wildcards_and_caps_length(pool: sqlx::PgPool) {
+    let app = spawn_app(pool.clone()).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    create_store(
+        &aline,
+        json!({ "name": "100% Juices", "category": "Juice" }),
+    )
+    .await;
+    create_store(
+        &aline,
+        json!({ "name": "Plain Kitchen", "category": "Food" }),
+    )
+    .await;
+    open_named(&app.pool, aline.merchant_id, "100% Juices").await;
+    open_named(&app.pool, aline.merchant_id, "Plain Kitchen").await;
+
+    let (chantal, token) = customer_session(&app, "+250780000023").await;
+
+    // A literal percent inside a store name is findable.
+    let response = chantal
+        .get("/v1/stores?q=100%25")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    assert_eq!(stores[0]["name"], "100% Juices");
+
+    // A bare wildcard is escaped, so it matches nothing rather than
+    // everything. A bare "%" still finds the store whose name genuinely
+    // contains a percent sign — escaping preserves the literal — but
+    // "Plain Kitchen" (no wildcard character in it) stays out.
+    let response = chantal
+        .get("/v1/stores?q=%25")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    let names: Vec<&str> = stores
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|store| store["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["100% Juices"]);
+
+    // A bare underscore is also escaped, and nothing in the seed has a
+    // literal "_" — so it matches nothing rather than everything.
+    let response = chantal
+        .get("/v1/stores?q=_")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let stores: Value = response.json().await.unwrap();
+    assert!(
+        stores.as_array().unwrap().is_empty(),
+        "an escaped underscore must not match everything"
+    );
+
+    // Over-long search term: 400, same validation-at-the-door style as
+    // the coordinates.
+    let long = "a".repeat(101);
+    let response = chantal
+        .get(&format!("/v1/stores?q={long}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 400);
+}

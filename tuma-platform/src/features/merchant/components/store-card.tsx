@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { ChevronRight, MapPin } from 'lucide-react'
 
 import type { StoreResponse } from '@/api/generated'
+import { ImageWithFallback } from '@/components/image-with-fallback'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatRwf, initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -26,8 +27,18 @@ export function StoreCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-heading text-base font-semibold text-primary">
-            {initials(store.name)}
+          <div className="size-12 shrink-0 overflow-hidden rounded-xl border bg-muted/30">
+            {store.image_url ? (
+              <ImageWithFallback
+                src={store.image_url}
+                alt={store.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center bg-primary/10 font-heading text-base font-semibold text-primary">
+                {initials(store.name)}
+              </div>
+            )}
           </div>
           <div className="grid gap-1.5">
             <div className="flex items-center gap-2.5">

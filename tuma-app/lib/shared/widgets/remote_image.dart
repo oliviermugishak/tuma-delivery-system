@@ -2,17 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'package:tuma_app/core/constants/placeholder_images.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 
-/// The image pipeline for stores and products, built before uploading
-/// exists: renders [url] when the server has one, otherwise a
-/// deterministic Unsplash placeholder picked from [seed]. When real
-/// uploading lands, `image_url` values flow through this same widget —
-/// no UI changes.
+/// The image pipeline for stores and products: renders [url] when the
+/// server has one — an uploaded banner or gallery cover, served from the
+/// storage base with immutable caching — otherwise an honest icon block.
 ///
-/// Fallback chain: real URL → placeholder URL → quiet gradient block, so
-/// a dead network never shows a broken-image icon.
+/// There is deliberately NO stock-photo fallback: a hashed photo of some
+/// other food on a store that never uploaded anything is a lie. When
+/// nothing real exists (or the fetch fails), the customer sees exactly
+/// that — a quiet block with [fallbackIcon].
 class RemoteImage extends StatelessWidget {
   const RemoteImage({
     super.key,
@@ -22,19 +21,29 @@ class RemoteImage extends StatelessWidget {
     this.height,
     this.borderRadius = 16,
     this.fit = BoxFit.cover,
+    this.fallbackIcon = Icons.shopping_basket_rounded,
   });
 
   final String? url;
+
+  /// Kept for call-site symmetry (cards pass the name); no longer drives
+  /// any placeholder — imagery is either real or an icon.
   final String seed;
   final double? width;
   final double? height;
   final double borderRadius;
   final BoxFit fit;
 
+  /// The honest stand-in: what this thing is, in one glyph.
+  final IconData fallbackIcon;
+
   @override
   Widget build(BuildContext context) {
+    if (url == null) {
+      return _buildIconBlock();
+    }
     final image = Image.network(
-      url ?? placeholderImageFor(seed),
+      url!,
       width: width,
       height: height,
       fit: fit,
@@ -46,7 +55,7 @@ class RemoteImage extends StatelessWidget {
           color: AppColors.onSurface.withValues(alpha: 0.06),
         );
       },
-      errorBuilder: (context, error, stackTrace) => _fallbackBlock(),
+      errorBuilder: (context, error, stackTrace) => _buildIconBlock(),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
@@ -56,7 +65,9 @@ class RemoteImage extends StatelessWidget {
     );
   }
 
-  Widget _fallbackBlock() {
+  /// The honest fallback: a quiet block and the thing's glyph — the same
+  /// recipe as the closed-store state, never a stock photo.
+  Widget _buildIconBlock() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final side = math.min(
@@ -68,16 +79,13 @@ class RemoteImage extends StatelessWidget {
         return Container(
           width: width,
           height: height,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.primary, AppColors.primaryDeep],
-            ),
+          decoration: BoxDecoration(
+            color: AppColors.onSurface.withValues(alpha: 0.06),
+            border: Border.all(color: AppColors.surfaceBorder),
           ),
           child: Icon(
-            Icons.restaurant,
-            color: AppColors.onPrimary,
+            fallbackIcon,
+            color: AppColors.onSurfaceMuted,
             size: side * 0.32,
           ),
         );

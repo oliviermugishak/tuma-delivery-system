@@ -226,7 +226,7 @@ class CartNotifier extends AsyncNotifier<CartState> {
                 productId: item.id,
                 name: item.name,
                 unitPrice: item.price,
-                imageUrl: item.imageUrl,
+                imageUrl: item.displayImage,
                 quantity: 1,
               ),
             ];
@@ -242,7 +242,7 @@ class CartNotifier extends AsyncNotifier<CartState> {
             productId: item.id,
             name: item.name,
             unitPrice: item.price,
-            imageUrl: item.imageUrl,
+            imageUrl: item.displayImage,
             quantity: 1,
           ),
         ],

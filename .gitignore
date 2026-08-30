@@ -25,3 +25,6 @@ pubspec.lock.bak
 *.log
 *.iml
 user_root_password.txt
+
+# Local object storage (slice U1 dev backend)
+tuma-server/data/

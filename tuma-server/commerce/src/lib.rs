@@ -1,6 +1,6 @@
 //! Commerce domain: checkouts, order groups, store orders, deliveries,
 //! payments — the transaction side of the platform. The catalog
-//! (stores/products) lives in `tuma-server::domain`; this crate owns
+//! (stores/products) lives in the `marketplace` crate; this crate owns
 //! everything that happens after a customer taps "checkout". Tracking
 //! rides on the deliveries table (build order #4).
 //!

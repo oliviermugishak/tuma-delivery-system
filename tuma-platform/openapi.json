@@ -519,6 +519,36 @@
         }
       }
     },
+    "/v1/files/{key}": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "operationId": "get_file",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Storage key of the object",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored object's bytes",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "404": {
+            "description": "No object at that key"
+          }
+        }
+      }
+    },
     "/v1/me": {
       "get": {
         "tags": [
@@ -783,6 +813,194 @@
           },
           "422": {
             "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/merchant/products/{id}/images": {
+      "get": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "list_product_images",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Catalog product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gallery, cover first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this owner's products"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "upload_product_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Catalog product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Image appended to the gallery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Only the business owner manages the catalog"
+          },
+          "404": {
+            "description": "Not one of this owner's products"
+          },
+          "413": {
+            "description": "The image exceeds 5 MB"
+          },
+          "415": {
+            "description": "Not a JPEG, PNG, or WebP image"
+          }
+        }
+      }
+    },
+    "/v1/merchant/products/{product_id}/images/{image_id}": {
+      "delete": {
+        "tags": [
+          "merchant"
+        ],
+        "summary": "Resolve nothing here — each handler fetches its own image through\n`product_for_merchant` (ownership) + `product_image_by_id` filtered on\nthe product id, so a foreign product, a foreign image, or a mismatched\npair is the same 404.",
+        "operationId": "delete_product_image",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "description": "Catalog product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "description": "Gallery image id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Image removed"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Only the business owner manages the catalog"
+          },
+          "404": {
+            "description": "Not one of this owner's images"
+          }
+        }
+      }
+    },
+    "/v1/merchant/products/{product_id}/images/{image_id}/cover": {
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "set_product_cover",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "description": "Catalog product id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "description": "Gallery image id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The image is now the cover"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Only the business owner manages the catalog"
+          },
+          "404": {
+            "description": "Not one of this owner's images"
           }
         }
       }
@@ -1236,6 +1454,95 @@
         }
       }
     },
+    "/v1/merchant/stores/{id}/banner": {
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "upload_store_banner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Banner stored; the store's image_url now serves it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this operator's stores"
+          },
+          "413": {
+            "description": "The image exceeds 5 MB"
+          },
+          "415": {
+            "description": "Not a JPEG, PNG, or WebP image"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "delete_store_banner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Banner cleared"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this operator's stores"
+          }
+        }
+      }
+    },
     "/v1/openapi.json": {
       "get": {
         "tags": [
@@ -1466,6 +1773,66 @@
         }
       }
     },
+    "/v1/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search term matched against product names (stores section: name + category); empty = popular products + all open stores",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "description": "Customer latitude (-90..90); requires lng",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "description": "Customer longitude (-180..180); requires lat",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discovery: products and stores sections, both honoring the search term and the open-store rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Only one of lat/lng, a coordinate out of range / not a number, or a search term over 100 characters"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          }
+        }
+      }
+    },
     "/v1/stores": {
       "get": {
         "tags": [
@@ -1492,11 +1859,20 @@
               "type": "number",
               "format": "double"
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search term matched against store name and category; empty = no filter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail)",
+            "description": "Open stores, oldest first — or nearest first when the request carries a location (coordinate-less stores trail); filtered to name/category matches when q is present",
             "content": {
               "application/json": {
                 "schema": {
@@ -1509,7 +1885,7 @@
             }
           },
           "400": {
-            "description": "Only one of lat/lng, or a coordinate out of range / not a number"
+            "description": "Only one of lat/lng, a coordinate out of range / not a number, or a search term over 100 characters"
           },
           "401": {
             "description": "Not authenticated"
@@ -1997,6 +2373,21 @@
           }
         }
       },
+      "ImageUpload": {
+        "type": "object",
+        "description": "The multipart schema in the OpenAPI contract — hey-api generates a\nFormData request type from it.",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The image file (JPEG, PNG, or WebP; at most 5 MB).",
+            "contentEncoding": "binary"
+          }
+        }
+      },
       "LoginInput": {
         "type": "object",
         "required": [
@@ -2137,11 +2528,12 @@
       },
       "MenuItemResponse": {
         "type": "object",
-        "description": "A placeholder until the S3 catalog slice lands: the store detail's menu\nis empty because store_products have no endpoints yet. The mobile store\nscreen renders the honest empty state.",
+        "description": "One item of a store's menu, as the customer sees it.",
         "required": [
           "id",
           "name",
           "price",
+          "images",
           "is_available"
         ],
         "properties": {
@@ -2160,6 +2552,13 @@
               "string",
               "null"
             ]
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The full gallery, cover first (composed URLs). Empty when the\nproduct has no uploads."
           },
           "is_available": {
             "type": "boolean"
@@ -2559,6 +2958,96 @@
           }
         }
       },
+      "ProductHitResponse": {
+        "type": "object",
+        "description": "One product hit as the API returns it: the store_product (what the\ncustomer buys, per-store price) dressed by its catalog identity and\nthe open store that fulfills it. Distance facts ride along exactly\nlike the store feed's — server-computed, never client math.",
+        "required": [
+          "store_product_id",
+          "store_id",
+          "store_name",
+          "name",
+          "price"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "distance_m": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "eta_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "store_product_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ProductImageResponse": {
+        "type": "object",
+        "description": "One gallery image as the API returns it.",
+        "required": [
+          "id",
+          "product_id",
+          "image_url",
+          "position",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image_url": {
+            "type": "string",
+            "description": "The URL the object is served from (composed against the\nenvironment's public storage base)."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ProductResponse": {
         "type": "object",
         "description": "A catalog product as the API returns it.",
@@ -2618,6 +3107,29 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "products",
+          "stores"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductHitResponse"
+            },
+            "description": "Empty `q`: the most-purchased products (real order counts). With\n`q`: catalog-name matches, alphabetical. Availability and the\nopen-store rule are enforced server-side either way."
+          },
+          "stores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreResponse"
+            },
+            "description": "Empty `q`: all open stores. With `q`: name/category matches —\nnearest first when the request carries a location."
           }
         }
       },

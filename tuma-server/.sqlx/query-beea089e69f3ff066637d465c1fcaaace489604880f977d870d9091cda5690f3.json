@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT pi.id, pi.product_id, p.merchant_id, pi.storage_key, pi.position\n        FROM marketplace.product_images pi\n        JOIN marketplace.products p ON p.id = pi.product_id\n        WHERE pi.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.product_images",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "product_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.product_images",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "merchant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.products",
+            "name": "merchant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "storage_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.product_images",
+            "name": "storage_key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "marketplace.product_images",
+            "name": "position"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "beea089e69f3ff066637d465c1fcaaace489604880f977d870d9091cda5690f3"
+}

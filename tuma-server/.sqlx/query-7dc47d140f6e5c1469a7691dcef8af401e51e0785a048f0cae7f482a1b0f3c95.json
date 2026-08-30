@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE marketplace.product_images SET position = $2 WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7dc47d140f6e5c1469a7691dcef8af401e51e0785a048f0cae7f482a1b0f3c95"
+}

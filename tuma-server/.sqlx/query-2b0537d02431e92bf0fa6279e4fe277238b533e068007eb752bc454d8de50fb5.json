@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT sp.id AS \"store_product_id!\",\n               sp.store_id,\n               s.name AS \"store_name!\",\n               p.name,\n               p.description,\n               sp.price,\n               p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               s.lat AS store_lat,\n               s.lng AS store_lng\n        FROM commerce.order_items oi\n        JOIN marketplace.store_products sp ON sp.id = oi.store_product_id\n        JOIN marketplace.products p ON p.id = sp.product_id\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE s.is_open AND sp.is_available\n        GROUP BY sp.id, p.id, s.id\n        ORDER BY COUNT(*) DESC, p.name\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "store_product_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "store_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "store_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "store_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.products",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.products",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "price",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "price"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "image_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.products",
+            "name": "image_url"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "cover_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "store_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "store_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lng"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      null,
+      true,
+      true
+    ]
+  },
+  "hash": "2b0537d02431e92bf0fa6279e4fe277238b533e068007eb752bc454d8de50fb5"
+}

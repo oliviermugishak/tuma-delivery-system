@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useDeleteStore } from '@/features/merchant/hooks/use-delete-store'
 import { useStoreProducts } from '@/features/merchant/hooks/use-store-products'
 import { StoreLocationFields } from '@/features/merchant/components/store-location-fields'
+import { BannerCard } from '@/features/merchant/components/store-banner-card'
 import { useOwnStore } from '@/features/merchant/hooks/use-store'
 import { useUpdateStore } from '@/features/merchant/hooks/use-update-store'
 import { cn } from '@/lib/utils'
@@ -109,9 +110,6 @@ export function StoreDetailPanel({ storeId }: { storeId: string }) {
       {store.isSuccess ? (
         <>
           <div className="mb-8 flex items-start gap-5">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 font-heading text-lg font-semibold text-primary">
-              {initials(store.data.name)}
-            </div>
             <div className="grid gap-1.5">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="font-heading text-2xl font-semibold tracking-tight">
@@ -162,6 +160,10 @@ export function StoreDetailPanel({ storeId }: { storeId: string }) {
           </div>
 
           <div className="max-w-3xl space-y-6">
+            <BannerCard
+              storeId={store.data.id}
+              imageUrl={store.data.image_url}
+            />
             <OverviewCard
               fee={store.data.delivery_fee}
               createdAt={store.data.created_at}

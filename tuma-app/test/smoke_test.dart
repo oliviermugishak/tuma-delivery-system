@@ -127,7 +127,10 @@ http.Response _json(Object body, [int status = 200]) => http.Response(
 ApiClient _apiClient({
   List<Map<String, dynamic>> groups = const [],
   List<http.Request>? seen,
+  List<Map<String, dynamic>>? stores,
+  List<String>? menuImages,
 }) {
+  final feed = stores ?? [_store];
   final handler = MockClient((request) async {
     seen?.add(request);
     final path = request.url.path;
@@ -142,19 +145,98 @@ ApiClient _apiClient({
     if (RegExp(r'/orders/[^/]+$').hasMatch(path) && method == 'GET') {
       return _json(_group(), 200);
     }
+    if (path.endsWith('/search')) {
+      final query = request.url.queryParameters;
+      // The server owns discovery: the stub matches products/stores the
+      // way /v1/search does — the popular shelf when q is absent.
+      final term = query['q']?.toLowerCase();
+      var matchedStores = [
+        for (final store in feed)
+          if (term == null ||
+              term.isEmpty ||
+              (store['name'] as String? ?? '').toLowerCase().contains(term) ||
+              (store['category'] as String? ?? '')
+                  .toLowerCase()
+                  .contains(term))
+            store,
+      ];
+      if (query.containsKey('lat') && query.containsKey('lng')) {
+        matchedStores = [
+          for (final store in matchedStores)
+            if (store['id'] == _store['id'])
+              {...store, 'distance_m': 900, 'eta_min': 3}
+            else
+              store,
+        ];
+      }
+      final productHit = {
+        'store_product_id': 'menu-1',
+        'store_id': _store['id'],
+        'store_name': _store['name'],
+        'name': _menuItem['name'],
+        'description': _menuItem['description'],
+        'price': _menuItem['price'],
+        'image_url': null,
+      };
+      final matchedProducts = [
+        if (term == null ||
+            term.isEmpty ||
+            (_menuItem['name'] as String).toLowerCase().contains(term))
+          productHit,
+      ];
+      return _json(
+        {'products': matchedProducts, 'stores': matchedStores},
+        200,
+      );
+    }
     if (path.endsWith('/stores')) {
       final query = request.url.queryParameters;
+      // The server owns search now: the stub matches name/category the
+      // way /v1/stores does when the request carries q.
+      final term = query['q']?.toLowerCase();
+      var results = feed;
+      if (term != null && term.isNotEmpty) {
+        results = [
+          for (final store in results)
+            if ((store['name'] as String? ?? '').toLowerCase().contains(term) ||
+                (store['category'] as String? ?? '')
+                    .toLowerCase()
+                    .contains(term))
+              store,
+        ];
+      }
       if (query.containsKey('lat') && query.containsKey('lng')) {
+        // Distance/eta attach to the located feed the way the real
+        // server does — per store, only when coords were sent.
         return _json([
-          {..._store, 'distance_m': 900, 'eta_min': 3},
+          for (final store in results)
+            if (store['id'] == _store['id'])
+              {...store, 'distance_m': 900, 'eta_min': 3}
+            else
+              store,
         ], 200);
       }
-      return _json([_store], 200);
+      return _json(results, 200);
     }
     if (RegExp(r'/stores/[^/]+$').hasMatch(path) && method == 'GET') {
-      return _json({'store': _store, 'products': [_menuItem]}, 200);
+      final item = menuImages == null
+          ? _menuItem
+          : {..._menuItem, 'images': menuImages};
+      return _json({'store': _store, 'products': [item]}, 200);
     }
     if (path.endsWith('/me')) {
+      if (method == 'PATCH') {
+        // The profile edit echoes the submitted name back, the way the
+        // server returns the updated user.
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return _json({
+          'id': 'user-1',
+          'phone': '+250780000001',
+          'customer': {'id': 'customer-1', 'name': body['name'] as String?},
+          'admin': null,
+          'merchant_memberships': <Map<String, dynamic>>[],
+        });
+      }
       return _json({
         'id': 'user-1',
         'phone': '+250780000001',
@@ -260,8 +342,9 @@ void main() {
     // Home feed loads from the stub, and the greeting uses the profile name.
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.text('Hi, Chantal 👋'), findsOneWidget);
-    // The real server-owned category renders on the card.
-    expect(find.text('Grill'), findsOneWidget);
+    // The real server-owned category renders on the card — and on the
+    // category chip row above it, both fed by the same server field.
+    expect(find.text('Grill'), findsWidgets);
     expect(find.text('Home'), findsWidgets);
 
     // Orders tab renders its empty state.
@@ -557,6 +640,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('signing out clears the cart and the pinned location',
+      (tester) async {
+    // One customer's session state: a multi-item cart and a delivery pin.
+    SharedPreferences.setMockInitialValues({
+      'tuma_cart_v2': jsonEncode([
+        {
+          'storeId': 'store-1',
+          'storeName': "Aline's Kitchen",
+          'deliveryFee': 1500,
+          'items': [
+            {
+              'storeProductId': 'menu-1',
+              'productId': 'product-1',
+              'name': 'Ibirazi',
+              'unitPrice': 3500,
+              'imageUrl': null,
+              'quantity': 2,
+            },
+          ],
+        },
+      ]),
+      'tuma_location_v1': jsonEncode({'lat': -1.9449, 'lng': 30.0619}),
+    });
+    await _landOnShell(tester, _apiClient());
+
+    await tester.tap(find.text('Profile'));
+    await _settle(tester);
+    await tester.tap(find.text('Sign out'));
+    await _settle(tester);
+
+    // The router redirect lands on the phone screen…
+    expect(find.text('Welcome to Tuma'), findsOneWidget);
+    // …and everything that belonged to this customer is gone.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('tuma_cart_v2'), isNull);
+    expect(prefs.getString('tuma_location_v1'), isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('product sheet scrolls a long description without overflowing',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -585,6 +707,139 @@ void main() {
     for (var i = 0; i < 15; i++) {
       await tester.pump(const Duration(milliseconds: 60));
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home search field is a door to the Search tab', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    // Tapping the field opens discovery — the home feed keeps its
+    // stores underneath.
+    await tester.tap(find.text('Search stores or food…'));
+    await _settle(tester);
+
+    // The Search tab is on screen: field + tabs + the hot shelf, fed by
+    // the /search stub.
+    expect(find.text('Popular near you'), findsOneWidget);
+    expect(find.text('Ibirazi'), findsOneWidget);
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('search tab: the shelf by default, matches when queried',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    await tester.tap(find.text('Search'));
+    await _settle(tester);
+    // Default state: the popular shelf with the stub's one hit. The
+    // Stores tab rides along in the IndexedStack — the store name shows
+    // both on the product tile's store line and in the hidden store row.
+    expect(find.text('Popular near you'), findsOneWidget);
+    expect(find.text('Ibirazi'), findsOneWidget);
+    expect(find.text("Aline's Kitchen"), findsWidgets);
+
+    // A search narrows both sections; a matchless term empties them
+    // honestly.
+    await tester.enterText(find.byType(TextField).first, 'zzz');
+    await _settle(tester);
+    expect(find.text("No products match 'zzz'."), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'ibi');
+    await _settle(tester);
+    expect(find.text('Ibirazi'), findsOneWidget);
+
+    // The search landed in recents; clearing the field shows it back.
+    await tester.enterText(find.byType(TextField).first, '');
+    await _settle(tester);
+    expect(find.text('ibi'), findsOneWidget, reason: 'recent search chip');
+    expect(find.text('Popular near you'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('category chips filter the home feed in place', (tester) async {
+    final bakery = {
+      ..._store,
+      'id': 'store-2',
+      'name': "Bruce's Bakery",
+      'category': 'Bakery',
+    };
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient(stores: [_store, bakery]));
+
+    // Both cards render; the chips carry the two real categories.
+    expect(find.text("Aline's Kitchen"), findsOneWidget);
+    expect(find.text("Bruce's Bakery"), findsOneWidget);
+
+    // The Grill chip filters client-side: only Aline's survives.
+    await tester.tap(find.text('Grill').first);
+    await _settle(tester);
+    expect(find.text("Aline's Kitchen"), findsOneWidget);
+    expect(find.text("Bruce's Bakery"), findsNothing);
+
+    // All restores the feed.
+    await tester.tap(find.text('All'));
+    await _settle(tester);
+    expect(find.text("Bruce's Bakery"), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('profile: editing the name updates the session greeting',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    await tester.tap(find.text('Profile'));
+    await _settle(tester);
+    // The pencil opens the dialog seeded with the current name.
+    await tester.tap(find.byIcon(Icons.edit_rounded));
+    await _settle(tester);
+    await tester.enterText(find.byType(TextField), 'Mutesi');
+    await tester.tap(find.text('Save'));
+    await _settle(tester);
+
+    // The identity card shows the new name immediately…
+    expect(find.text('Mutesi'), findsOneWidget);
+    // …and the Home greeting follows, because the session updated live.
+    await tester.tap(find.text('Home'));
+    await _settle(tester);
+    expect(find.text('Hi, Mutesi 👋'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('stores without uploads render the honest icon, never a fake photo',
+      (tester) async {
+    // The stub's image_url is null: the card shows the storefront glyph
+    // block — no Unsplash, no other food's picture.
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    expect(find.byIcon(Icons.storefront_rounded), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the product sheet swipes a multi-image gallery',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(
+      tester,
+      _apiClient(
+        menuImages: ['https://cdn.test/cover.jpg', 'https://cdn.test/second.jpg'],
+      ),
+    );
+
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+    await tester.tap(find.text('Ibirazi').first);
+    await _settle(tester);
+
+    // Two images = the carousel; a swipe moves it and nothing overflows.
+    expect(find.byType(PageView), findsOneWidget);
+    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    await _settle(tester);
+    expect(find.byType(PageView), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

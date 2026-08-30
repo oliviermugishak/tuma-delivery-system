@@ -1,4 +1,4 @@
-pub use app_config::{AppConfig, Config, DbConfig, Environment};
+pub use app_config::{AppConfig, Config, DbConfig, Environment, StorageBackend, StorageConfig};
 use std::path::PathBuf;
 
 pub fn get_configuration() -> Result<Config, config::ConfigError> {

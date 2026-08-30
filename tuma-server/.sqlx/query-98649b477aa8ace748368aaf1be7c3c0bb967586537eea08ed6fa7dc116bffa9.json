@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COALESCE(MAX(position), -1) AS \"max!: i32\"\n        FROM marketplace.product_images\n        WHERE product_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max!: i32",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "98649b477aa8ace748368aaf1be7c3c0bb967586537eea08ed6fa7dc116bffa9"
+}
