@@ -43,7 +43,9 @@ async fn main() -> anyhow::Result<()> {
     // The run to simulate: the oldest delivery that is out for delivery
     // with a known destination (the pin is expected-but-optional), or the
     // caller's pick. A cached route_polyline means the walk follows the
-    // real road (decoded below) instead of the straight line.
+    // real road (decoded below) instead of the straight line. The
+    // delivery stores the rider PROFILE id — the phone lives one join
+    // away, through commerce.riders to accounts.users.
     let run = sqlx::query_as::<_, (uuid::Uuid, String, f64, f64, Option<String>)>(
         r#"
         SELECT d.id, u.phone, s.lat, s.lng, d.route_polyline
@@ -51,7 +53,8 @@ async fn main() -> anyhow::Result<()> {
         JOIN commerce.store_orders so ON so.id = d.store_order_id
         JOIN commerce.order_groups og ON og.id = so.order_group_id
         JOIN marketplace.stores s ON s.id = so.store_id
-        JOIN accounts.users u ON u.id = d.rider_id
+        JOIN commerce.riders r ON r.id = d.rider_id
+        JOIN accounts.users u ON u.id = r.account_id
         WHERE so.status = 'picked_up'
           AND d.rider_id IS NOT NULL
           AND s.lat IS NOT NULL AND s.lng IS NOT NULL
