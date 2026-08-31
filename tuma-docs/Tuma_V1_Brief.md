@@ -19,7 +19,7 @@ This is the working source of truth for V1. The big blueprint (`Tuma_Master_Prod
 - **Database:** PostgreSQL.
 - **Mobile:** the Flutter app in `tuma-app/` — the contract between app and backend is the HTTP API.
 - **Web platform:** `tuma-platform/` — React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client generated from the server's OpenAPI (hey-api). Admin + merchant wings.
-- **Map:** flutter_map + real GPS from the rider's phone.
+- **Map:** Google Maps — `google_maps_flutter` on mobile (JS SDK on the platform in D4); road routes + ETA from Google Directions called by the server (tracking doc §4 supersedes the earlier flutter_map choice).
 - **Architecture docs:** `Tuma_Auth_and_RBAC_Architecture.md` and `Tuma_API_Architecture.md` — the foundations (auth sections predate the 2026-08-29 identity split; the split below wins where they disagree).
 
 ## The database (marketplace domain + auth plumbing)
@@ -40,7 +40,7 @@ merchant_memberships (id, user_id, merchant_id, role owner|manager, store_id?, s
 
 CATALOG — the store is the fulfillment boundary
 stores         (id, merchant_id → merchants, name, description, image_url, address_text,
-                lat, lng, category, delivery_fee, is_open)
+                lat, lng, category, delivery_fee, is_open, contact_phone?)
 products       (id, merchant_id → merchants, name, description, image_url)  ← merchant catalog
 store_products (id, store_id, product_id, price, stock? (NULL = untracked, ≥ 0),
                 is_available, sku?)    UNIQUE(store_id, product_id)
@@ -54,7 +54,14 @@ store_orders   (id, order_group_id, merchant_id, store_id, number,
                 status, subtotal, delivery_fee, total)
 order_items    (id, store_order_id, store_product_id, product_id,
                 product_name_snapshot, unit_price, quantity)   ← snapshots at order time
-deliveries     (id, store_order_id UNIQUE, rider_name?, rider_phone?, lat, lng, updated_at)
+deliveries     (id, store_order_id UNIQUE, rider_id → riders, handoff_at?,
+                route_polyline?, eta_target?, last_lat?, last_lng?,
+                last_location_at?)   ← tracking lives here (build order #4)
+riders         (id, rider_number UNIQUE, account_id UNIQUE → users, name,
+                phone, is_active)    ← Tuma-owned drivers; OTP accounts;
+                                         merchants assign by rider number
+delivery_locations (id, delivery_id → deliveries, lat, lng, recorded_at)
+                   ← insert-only GPS breadcrumbs (≥25m/15s), never updated
 
 PAYMENTS — one customer payment, explicit allocations
 payments            (id, order_group_id UNIQUE, provider cash_on_delivery, amount, currency,
@@ -80,6 +87,8 @@ admin:     POST  /admin/merchants    (create business + owner account + owner me
            GET   /admin/merchants    / GET /admin/merchants/:id
            PATCH /admin/merchants/:id  / DELETE /admin/merchants/:id
            GET   /admin/customers    / PATCH /admin/customers/:id  / DELETE /admin/customers/:id
+           POST  /admin/riders       (create rider: OTP account + unique rider number)
+           GET   /admin/riders       / PATCH /admin/riders/:id  / DELETE /admin/riders/:id
            GET   /admin/summary      (platform counts; orders_in_progress is read-only visibility)
 
 merchant:  POST /merchant/stores     / GET /merchant/stores  / GET|PATCH|DELETE /merchant/stores/:id
@@ -114,8 +123,13 @@ customer:  GET  /stores              (open stores only; ?lat&lng → server-comp
            POST /orders/:id/store-orders/:sid/cancel   (customer cancels one store order)
            GET  /orders/:id/tracking   (real lat/lng + status — build order #4)
 
-rider:     POST /deliveries/:id/location   (rider's phone pushes real GPS every ~5s — #4)
-           POST /deliveries/:id/delivered  (rider confirms at the door — #4)
+rider:     POST /deliveries/:id/location   (rider's phone pushes real GPS — ≥25m/15s breadcrumbs)
+           POST /deliveries/:id/delivered  (rider confirms at the door → allocation settles; the
+                                            group's payment collects when every allocation has)
+           GET  /deliveries                (the rider's active runs — D2)
+           POST /merchant/store-orders/:id/handoff  (merchant enters the rider number →
+                                            rider_id + picked_up + route/ETA cached — D2)
+           GET  /orders/:id/tracking       (customer: snapshot per delivery + 204-when-unchanged — D2)
            Tuma-owned riders (OTP accounts + unique rider numbers); merchants
            assign at handoff by entering the rider number. Full design:
            tuma-docs/Tuma_Delivery_Tracking_Architecture.md
@@ -146,8 +160,8 @@ a real money system exists, at which point collection becomes automatic
 
 1. Store order placed → a `deliveries` row exists for it.
 2. Whoever delivers (pilot scale: one rider with the app in "rider mode") pushes real GPS every ~5 seconds.
-3. The customer app polls the group/order tracking every ~3 seconds → real lat/lng + status.
-4. The map draws the rider marker at the real coordinates. ETA = remaining distance ÷ average speed.
+3. The customer app polls the group tracking every ~5 seconds with a `since` echo — a 204 when nothing changed means zero work (battery is the contract).
+4. The map draws the cached road route (Google Directions, called by the server at handoff) and the rider marker at the real coordinates; the ETA is the server's `eta_target`, which the client decays.
 
 No simulation, no dispatch engine, no WebSocket yet — polling is enough for V1.
 
@@ -157,7 +171,7 @@ Cash on delivery first (zero integration). One payment per checkout, with its pe
 
 ## Not building in V1 (on purpose)
 
-Dispatch engine, promotions/discounts, refunds workflow, settlements/payouts, rider accounts (riders are name+phone on the delivery for now), saved-address book, staff-management UI (memberships are enforced server-side; inviting staff comes later), SMS gateway (dev OTP is a fixed code until then), MTN MoMo, Redis, Kafka, microservices — until the loop is real and something actually hurts.
+Dispatch engine, promotions/discounts, refunds workflow, settlements/payouts, saved-address book, staff-management UI (memberships are enforced server-side; inviting staff comes later), SMS gateway (dev OTP is a fixed code until then), MTN MoMo, Redis, Kafka, microservices — until the loop is real and something actually hurts. (Riders were "name+phone on the delivery" before D1; they are now Tuma-owned OTP accounts — the tracking doc §5 supersedes.)
 
 ## Build order (re-architecture program)
 

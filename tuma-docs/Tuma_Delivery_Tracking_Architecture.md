@@ -116,10 +116,14 @@ OpenStreetMap/flutter_map is retired from the product surfaces.
   time — smooth without lying.
 - **Keys — three, one Cloud project, all restricted:** Android (SHA-1
   fingerprint), Web (domains), Directions (server-only, in server
-  config/secrets). **Timing: keys are configured when we reach the map
-  surfaces** — the plumbing slice (schema, endpoints, simulator) needs none,
-  and dev runs the simulator + placeholder until then. (Founder: "when we
-  get there we will look at it.")
+  config/secrets). **State (D3 built, 2026-08-31):** the code runs as if
+  keys exist — they land in the gitignored `.env` files only
+  (`tuma-server/.env` → `APP_ROUTING__API_KEY`, `tuma-app/.env` →
+  `MAPS_API_KEY`, wired through Gradle into the Android manifest;
+  non-sensitive `routing: backend` stays in `configuration/*.yml`). The
+  server refuses `backend: google` without its key at startup. Without
+  keys the system degrades honestly: handoff caches a ride-speed ETA with
+  no polyline, the map shows the two markers with no road line.
 - **Linux dev caveat (honest):** `google_maps_flutter` has no Linux target.
   Desktop shows a real-data placeholder for map panels (timeline, statuses,
   ladder all work); maps are verified on a phone. The pin picker on desktop
@@ -309,8 +313,36 @@ in the bin — never in app code.
    simulator. Watchable via the simulator.
 3. **D3 — Customer map world:** the Google map world in the order detail,
    interpolated marker, ETA decay, fallback ladder. **The moment a moto
-   moves on the founder's phone.**
+   moves on the founder's phone.** *(BUILT 2026-08-31: Directions client
+   live behind `RoutingProvider` + encoded-polyline codec; stray ≥200m
+   re-route with polyline-preserving fallback; the order-detail poll
+   echoes `changed_at` as `since` — 204 means zero rebuilds; `picked_up`
+   sections become the map card + slim strip with the decaying ETA; pin
+   picker on Google with the desktop paste-coordinates field. Keys still
+   land in the gitignored `.env` files — server startup refuses
+   `backend: google` without one.)*
 4. **D4 — Rider mode:** kiosk screen (card, Start/Delivered, `tel:` link,
-   deep-link nav) + merchant fulfillment handoff UI.
+   deep-link nav) + merchant fulfillment handoff UI. *(BUILT 2026-08-31:
+   the kiosk is the rider's whole day — work list (15s poll), job cards
+   with the customer `tel:` link + Navigate deep-link into Google Maps,
+   the rider's own map (destination + cached route + device GPS), one
+   Start/Stop toggle that wakelocks the screen and pushes one real GPS
+   fix every 5s to EVERY active delivery, per-card Delivered confirm that
+   settles the cash; foreground-only, honest push/reconnect status. The
+   merchant board's "Handed to rider" became the real handoff dialog
+   (rider number, re-assign while out) — and the server now REFUSES a
+   bare picked_up advance (400) so the handoff is the only door in. The
+   fulfillment sheet's destination pin is a Google JS map
+   (`VITE_GOOGLE_MAPS_API_KEY` in the platform's gitignored .env; without
+   a key it degrades to the coordinates link).)*
 5. **D5 — Liveness + polish:** badge ladder, polling decay, overdue
-   "call the store", settled states, animations.
+   "call the store", settled states, animations. *(BUILT 2026-08-31: the
+   ladder lives on the map card — Live (green, fresh signal) → Lagging
+   (amber, "Lagging · N min ago" or past-ETA) → Ended (grey, ~24h past
+   ETA, "This delivery is taking much longer than expected"); past the
+   15-min grace the ETA line becomes "Taking longer than expected" with
+   Call-the-store (`store_contact_phone`); the order detail's poll decays
+   5s → 15s → 60s and stops at Ended — pull-to-refresh and foreground
+   always fetch; settled sections show "Delivered · time" from the
+   tracking payload's `updated_at`. Presentation and polling only — no
+   auto-delivered, statuses move by real actors alone.)*
