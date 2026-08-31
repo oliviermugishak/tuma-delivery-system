@@ -42,6 +42,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   List<RiderDelivery>? _deliveries;
   String? _loadError;
   bool _delivering = false;
+  bool _starting = false;
   DateTime? _lastPushAt;
   bool _pushError = false;
   double? _riderLat;
@@ -127,12 +128,17 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   }
 
   Future<void> _startDelivering() async {
+    if (_starting || _delivering) return;
     // The fix the loop will use — and the permission prompt, if this is
-    // the first time. Every failure is an honest on-screen state.
+    // the first time. GPS acquisition can take seconds, so the button
+    // shows "Locating…" until the first fix lands. Every failure is an
+    // honest on-screen state.
+    setState(() => _starting = true);
     try {
       final fix = await ref.read(acquireLocationProvider)();
       if (!mounted) return;
       setState(() {
+        _starting = false;
         _delivering = true;
         _pushError = false;
         _riderLat = fix.lat;
@@ -143,6 +149,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       _pushTimer = Timer.periodic(_pushInterval, (_) => unawaited(_pushOnce()));
     } on Object {
       if (!mounted) return;
+      setState(() => _starting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -391,6 +398,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       children: [
         _StartStopCard(
           delivering: _delivering,
+          starting: _starting,
           lastPushAt: _lastPushAt,
           pushError: _pushError,
           onStart: () => unawaited(_startDelivering()),
@@ -440,6 +448,7 @@ class _JobsCard extends StatelessWidget {
 class _StartStopCard extends StatelessWidget {
   const _StartStopCard({
     required this.delivering,
+    required this.starting,
     required this.lastPushAt,
     required this.pushError,
     required this.onStart,
@@ -447,6 +456,7 @@ class _StartStopCard extends StatelessWidget {
   });
 
   final bool delivering;
+  final bool starting;
   final DateTime? lastPushAt;
   final bool pushError;
   final VoidCallback onStart;
@@ -471,19 +481,32 @@ class _StartStopCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: delivering ? onStop : onStart,
+              onPressed: delivering ? onStop : (starting ? null : onStart),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 backgroundColor:
                     delivering ? AppColors.error : AppColors.primary,
               ),
-              icon: Icon(
-                delivering
-                    ? Icons.stop_circle_rounded
-                    : Icons.play_circle_rounded,
-              ),
+              icon: starting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.onPrimary,
+                      ),
+                    )
+                  : Icon(
+                      delivering
+                          ? Icons.stop_circle_rounded
+                          : Icons.play_circle_rounded,
+                    ),
               label: Text(
-                delivering ? 'Stop delivering' : 'Start delivering',
+                delivering
+                    ? 'Stop delivering'
+                    : starting
+                        ? 'Locating…'
+                        : 'Start delivering',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
