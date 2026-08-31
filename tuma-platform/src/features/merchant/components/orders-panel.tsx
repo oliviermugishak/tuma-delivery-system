@@ -296,10 +296,6 @@ function NextActions({
           Reject
         </Button>
       ) : null}
-      {next === null &&
-      (status === 'delivered' || status === 'cancelled') ? (
-        <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-      ) : null}
     </div>
   )
 }
