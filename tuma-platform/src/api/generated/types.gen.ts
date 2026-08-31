@@ -98,6 +98,17 @@ export type CreateProductInput = {
     name: string;
 };
 
+/**
+ * Create a Tuma rider: an OTP account (phone only — the rider signs in
+ * with the exact customer flow) plus the rider profile with its unique
+ * rider number, in one transaction. The number is generated server-side;
+ * the merchant will ask the rider for it at handoff.
+ */
+export type CreateRiderInput = {
+    name: string;
+    phone: string;
+};
+
 export type CreateStoreInput = {
     address_text?: string | null;
     /**
@@ -156,6 +167,45 @@ export type CustomerAdminResponse = {
     user_id: string;
 };
 
+export type DeliveredResponse = {
+    delivered_at: string;
+    status: string;
+    store_order_id: string;
+};
+
+export type DeliveryTrackingResponse = {
+    /**
+     * Server-provided target the client decays against.
+     */
+    eta_target?: string | null;
+    handoff_at?: string | null;
+    last_lat?: number | null;
+    last_lng?: number | null;
+    last_location_at?: string | null;
+    /**
+     * The road route cached at handoff, or null when no routing backend
+     * is configured — never invented geometry.
+     */
+    route_polyline?: string | null;
+    status: string;
+    /**
+     * The overdue customer's "call the store" action (D5 surfaces it).
+     */
+    store_contact_phone?: string | null;
+    store_lat?: number | null;
+    store_lng?: number | null;
+    store_name: string;
+    /**
+     * The per-store card key — the client joins it to the group detail's
+     * store orders.
+     */
+    store_order_id: string;
+    /**
+     * The recent real positions (tail), oldest first.
+     */
+    trail: Array<TrailResponse>;
+};
+
 export type GroupSummaryResponse = {
     created_at: string;
     grand_total: number;
@@ -169,6 +219,22 @@ export type GroupSummaryResponse = {
 };
 
 /**
+ * The fulfillment sheet's "Handed to rider" action (tracking doc §5): the
+ * merchant types the rider's unique number, the server validates an
+ * active rider, assigns the delivery, and advances the order to
+ * `picked_up`. Runs again while the delivery isn't delivered (the
+ * wrong-number remedy); after `delivered` the assignment is frozen.
+ * Foreign store orders are a plain 404, like every merchant route.
+ */
+export type HandoffInput = {
+    /**
+     * The rider number the store asked for — the whole assignment
+     * interface; there is no directory picker.
+     */
+    rider_number: number;
+};
+
+/**
  * The multipart schema in the OpenAPI contract — hey-api generates a
  * FormData request type from it.
  */
@@ -177,6 +243,11 @@ export type ImageUpload = {
      * The image file (JPEG, PNG, or WebP; at most 5 MB).
      */
     file: Blob | File;
+};
+
+export type LocationInput = {
+    lat: number;
+    lng: number;
 };
 
 export type LoginInput = {
@@ -198,6 +269,7 @@ export type MeResponse = {
     id: string;
     merchant_memberships: Array<MembershipResponse>;
     phone?: string | null;
+    rider?: null | RiderProfileResponse;
 };
 
 export type MemberResponse = {
@@ -402,6 +474,55 @@ export type ProfileResponse = {
     name?: string | null;
 };
 
+/**
+ * A rider as the admin sees them.
+ */
+export type RiderAdminResponse = {
+    created_at: string;
+    id: string;
+    /**
+     * `false` = not assignable at handoff (the rider can still sign in).
+     */
+    is_active: boolean;
+    name: string;
+    phone: string;
+    rider_number: number;
+};
+
+export type RiderDeliveryResponse = {
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    delivery_id: string;
+    destination_address: string;
+    destination_lat?: number | null;
+    destination_lng?: number | null;
+    eta_target?: string | null;
+    handoff_at?: string | null;
+    last_lat?: number | null;
+    last_lng?: number | null;
+    last_location_at?: string | null;
+    route_polyline?: string | null;
+    status: string;
+    store_address?: string | null;
+    store_lat?: number | null;
+    store_lng?: number | null;
+    store_name: string;
+    store_order_id: string;
+};
+
+/**
+ * The rider profile as the account itself sees it: identity plus the
+ * number the merchant asks for at handoff. The phone lives at the account
+ * level (the OTP anchor); assignability (`is_active`) matters to the
+ * rider's own screen too.
+ */
+export type RiderProfileResponse = {
+    id: string;
+    is_active: boolean;
+    name: string;
+    rider_number: number;
+};
+
 export type SearchResponse = {
     /**
      * Empty `q`: the most-purchased products (real order counts). With
@@ -490,6 +611,23 @@ export type StoreWithProductsResponse = {
     store: StoreResponse;
 };
 
+export type TrackingResponse = {
+    /**
+     * Echo this back as `since` on the next poll.
+     */
+    changed_at: string;
+    deliveries: Array<DeliveryTrackingResponse>;
+    group_id: string;
+    group_status: string;
+    payment_status: string;
+};
+
+export type TrailResponse = {
+    lat: number;
+    lng: number;
+    recorded_at: string;
+};
+
 /**
  * Admin edits to a customer account. Provided fields overwrite, an empty
  * name clears it, absent fields keep their value. Phone stays editable
@@ -523,6 +661,19 @@ export type UpdateProductInput = {
     description?: string | null;
     image_url?: string | null;
     name?: string | null;
+};
+
+/**
+ * Admin edits to a rider. Provided fields overwrite, absent fields keep
+ * their value. A phone edit changes the OTP anchor (the account) and the
+ * rider's display phone together; a taken phone is the typed 409. An
+ * empty name is a 400 — rider names are NOT NULL, there is nothing to
+ * clear to.
+ */
+export type UpdateRiderInput = {
+    is_active?: boolean | null;
+    name?: string | null;
+    phone?: string | null;
 };
 
 export type UpdateStoreInput = {
@@ -849,6 +1000,156 @@ export type UpdateMerchantResponses = {
 
 export type UpdateMerchantResponse = UpdateMerchantResponses[keyof UpdateMerchantResponses];
 
+export type ListRidersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/admin/riders';
+};
+
+export type ListRidersErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+};
+
+export type ListRidersResponses = {
+    /**
+     * All riders, oldest first
+     */
+    200: Array<RiderAdminResponse>;
+};
+
+export type ListRidersResponse = ListRidersResponses[keyof ListRidersResponses];
+
+export type CreateRiderData = {
+    body: CreateRiderInput;
+    path?: never;
+    query?: never;
+    url: '/v1/admin/riders';
+};
+
+export type CreateRiderErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+    /**
+     * Phone already taken
+     */
+    409: unknown;
+    /**
+     * Invalid input
+     */
+    422: unknown;
+};
+
+export type CreateRiderResponses = {
+    /**
+     * Rider created with its OTP account and unique rider number
+     */
+    201: RiderAdminResponse;
+};
+
+export type CreateRiderResponse = CreateRiderResponses[keyof CreateRiderResponses];
+
+export type DeleteRiderData = {
+    body?: never;
+    path: {
+        /**
+         * Rider id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/admin/riders/{id}';
+};
+
+export type DeleteRiderErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+    /**
+     * No rider with that id
+     */
+    404: unknown;
+    /**
+     * Rider has delivery history — deactivate instead
+     */
+    409: unknown;
+};
+
+export type DeleteRiderResponses = {
+    /**
+     * Rider deleted
+     */
+    204: void;
+};
+
+export type DeleteRiderResponse = DeleteRiderResponses[keyof DeleteRiderResponses];
+
+export type UpdateRiderData = {
+    body: UpdateRiderInput;
+    path: {
+        /**
+         * Rider id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/admin/riders/{id}';
+};
+
+export type UpdateRiderErrors = {
+    /**
+     * Empty name
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not an admin
+     */
+    403: unknown;
+    /**
+     * No rider with that id
+     */
+    404: unknown;
+    /**
+     * Phone already taken
+     */
+    409: unknown;
+    /**
+     * Invalid input
+     */
+    422: unknown;
+};
+
+export type UpdateRiderResponses = {
+    /**
+     * The updated rider
+     */
+    200: RiderAdminResponse;
+};
+
+export type UpdateRiderResponse = UpdateRiderResponses[keyof UpdateRiderResponses];
+
 export type SummaryData = {
     body?: never;
     path?: never;
@@ -1006,6 +1307,117 @@ export type ChangePasswordResponses = {
 };
 
 export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
+
+export type ListRiderDeliveriesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/deliveries';
+};
+
+export type ListRiderDeliveriesErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a rider
+     */
+    403: unknown;
+};
+
+export type ListRiderDeliveriesResponses = {
+    /**
+     * This rider's deliveries that are out for delivery, newest handoff first
+     */
+    200: Array<RiderDeliveryResponse>;
+};
+
+export type ListRiderDeliveriesResponse = ListRiderDeliveriesResponses[keyof ListRiderDeliveriesResponses];
+
+export type MarkDeliveredData = {
+    body?: never;
+    path: {
+        /**
+         * Delivery id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/deliveries/{id}/delivered';
+};
+
+export type MarkDeliveredErrors = {
+    /**
+     * The delivery is not in a deliverable state
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a rider
+     */
+    403: unknown;
+    /**
+     * Not one of this rider's deliveries
+     */
+    404: unknown;
+};
+
+export type MarkDeliveredResponses = {
+    /**
+     * The delivered store order
+     */
+    200: DeliveredResponse;
+};
+
+export type MarkDeliveredResponse = MarkDeliveredResponses[keyof MarkDeliveredResponses];
+
+export type PushLocationData = {
+    body: LocationInput;
+    path: {
+        /**
+         * Delivery id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/deliveries/{id}/location';
+};
+
+export type PushLocationErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a rider
+     */
+    403: unknown;
+    /**
+     * Not one of this rider's deliveries
+     */
+    404: unknown;
+    /**
+     * The delivery is not out for delivery
+     */
+    409: unknown;
+    /**
+     * Invalid coordinates
+     */
+    422: unknown;
+};
+
+export type PushLocationResponses = {
+    /**
+     * Position accepted (recorded or throttled — same answer)
+     */
+    204: void;
+};
+
+export type PushLocationResponse = PushLocationResponses[keyof PushLocationResponses];
 
 export type GetFileData = {
     body?: never;
@@ -1498,6 +1910,46 @@ export type AdvanceStoreOrderResponses = {
 };
 
 export type AdvanceStoreOrderResponse = AdvanceStoreOrderResponses[keyof AdvanceStoreOrderResponses];
+
+export type HandoffStoreOrderData = {
+    body: HandoffInput;
+    path: {
+        /**
+         * Store order id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/merchant/store-orders/{id}/handoff';
+};
+
+export type HandoffStoreOrderErrors = {
+    /**
+     * The order is not in a handable state (preparing, or re-assign while picked_up)
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * No merchant membership
+     */
+    403: unknown;
+    /**
+     * Not one of this operator's orders, or no active rider with that number
+     */
+    404: unknown;
+};
+
+export type HandoffStoreOrderResponses = {
+    /**
+     * Rider assigned, order handed over (picked_up)
+     */
+    200: MerchantStoreOrderResponse;
+};
+
+export type HandoffStoreOrderResponse = HandoffStoreOrderResponses[keyof HandoffStoreOrderResponses];
 
 export type ListStoreProductsData = {
     body?: never;
@@ -2069,6 +2521,51 @@ export type CancelStoreOrderResponses = {
 };
 
 export type CancelStoreOrderResponse = CancelStoreOrderResponses[keyof CancelStoreOrderResponses];
+
+export type OrderTrackingData = {
+    body?: never;
+    path: {
+        /**
+         * Order group id
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * RFC-3339 timestamp; 204 when the group has nothing newer
+         */
+        since?: string;
+    };
+    url: '/v1/orders/{id}/tracking';
+};
+
+export type OrderTrackingErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a customer
+     */
+    403: unknown;
+    /**
+     * Another customer's order — indistinguishable from a missing one
+     */
+    404: unknown;
+};
+
+export type OrderTrackingResponses = {
+    /**
+     * The tracking snapshot
+     */
+    200: TrackingResponse;
+    /**
+     * Nothing changed since `since`
+     */
+    204: void;
+};
+
+export type OrderTrackingResponse = OrderTrackingResponses[keyof OrderTrackingResponses];
 
 export type SearchData = {
     body?: never;

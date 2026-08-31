@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { HandoffDialog } from '@/features/merchant/components/handoff-dialog'
 import { OrderDetailDialog, StatusBadge } from '@/features/merchant/components/order-detail-dialog'
 import {
   useAdvanceStoreOrder,
@@ -32,7 +33,10 @@ import { formatDate, formatRwf } from '@/lib/format'
  * authorized stores, newest first, polling gently so new work shows up on
  * its own. Each row advances along placed → accepted → preparing →
  * picked_up → delivered — or rejects with cancel while the order is still
- * on the premises. Store-scoped members see only their store.
+ * on the premises. Store-scoped members see only their store. The
+ * preparing → picked_up step is the REAL handoff: the operator types the
+ * rider's number (the server assigns them, caches the route, stamps the
+ * handoff) — a bare advance is refused by the server, by design.
  */
 export function OrdersPanel() {
   const orders = useMerchantOrders()
@@ -40,6 +44,8 @@ export function OrdersPanel() {
   const [selected, setSelected] = useState<MerchantStoreOrderResponse | null>(
     null,
   )
+  const [handoffOrder, setHandoffOrder] =
+    useState<MerchantStoreOrderResponse | null>(null)
 
   // The id whose transition is in flight — that row's buttons disable
   // until the server answers.
@@ -143,6 +149,7 @@ export function OrdersPanel() {
                         body: { status },
                       })
                     }
+                    onHandoff={() => setHandoffOrder(order)}
                     onOpen={() => setSelected(order)}
                   />
                 ))}
@@ -159,6 +166,13 @@ export function OrdersPanel() {
           if (!open) setSelected(null)
         }}
       />
+      <HandoffDialog
+        order={handoffOrder}
+        open={handoffOrder !== null}
+        onOpenChange={(open) => {
+          if (!open) setHandoffOrder(null)
+        }}
+      />
     </div>
   )
 }
@@ -167,11 +181,13 @@ function StoreOrderRow({
   order,
   pending,
   onAdvance,
+  onHandoff,
   onOpen,
 }: {
   order: MerchantStoreOrderResponse
   pending: boolean
   onAdvance: (status: string) => void
+  onHandoff: () => void
   onOpen: () => void
 }) {
   return (
@@ -200,7 +216,12 @@ function StoreOrderRow({
           className="flex items-center justify-end gap-1"
           onClick={(event) => event.stopPropagation()}
         >
-          <NextActions status={order.status} pending={pending} onAdvance={onAdvance} />
+          <NextActions
+            status={order.status}
+            pending={pending}
+            onAdvance={onAdvance}
+            onHandoff={onHandoff}
+          />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -220,21 +241,24 @@ function NextActions({
   status,
   pending,
   onAdvance,
+  onHandoff,
 }: {
   status: string
   pending: boolean
   onAdvance: (status: string) => void
+  onHandoff: () => void
 }) {
+  // preparing's next step is the handoff DIALOG (the rider's number is
+  // required — the server refuses a bare picked_up advance), so it gets
+  // no `status` here; everything else is a plain advance.
   const next: { status: string; label: string; icon: typeof Check } | null =
     status === 'placed'
       ? { status: 'accepted', label: 'Accept', icon: Check }
       : status === 'accepted'
         ? { status: 'preparing', label: 'Prepare', icon: CookingPot }
-        : status === 'preparing'
-          ? { status: 'picked_up', label: 'Handed to rider', icon: ShoppingBag }
-          : status === 'picked_up'
-            ? { status: 'delivered', label: 'Delivered', icon: PackageCheck }
-            : null
+        : status === 'picked_up'
+          ? { status: 'delivered', label: 'Delivered', icon: PackageCheck }
+          : null
 
   return (
     <div className="flex items-center justify-end gap-1">
@@ -247,6 +271,17 @@ function NextActions({
         >
           <next.icon data-icon="inline-start" />
           {pending ? '…' : next.label}
+        </Button>
+      ) : null}
+      {status === 'preparing' ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={onHandoff}
+        >
+          <ShoppingBag data-icon="inline-start" />
+          Handed to rider
         </Button>
       ) : null}
       {status === 'placed' || status === 'accepted' || status === 'preparing' ? (

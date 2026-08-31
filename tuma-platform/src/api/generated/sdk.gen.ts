@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdvanceStoreOrderData, AdvanceStoreOrderErrors, AdvanceStoreOrderResponses, CancelStoreOrderData, CancelStoreOrderErrors, CancelStoreOrderResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckoutData, CheckoutErrors, CheckoutResponses, CreateMerchantData, CreateMerchantErrors, CreateMerchantResponses, CreateOwnStoreData, CreateOwnStoreErrors, CreateOwnStoreResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateStoreProductData, CreateStoreProductErrors, CreateStoreProductResponses, DeleteCustomerData, DeleteCustomerErrors, DeleteCustomerResponses, DeleteMerchantData, DeleteMerchantErrors, DeleteMerchantResponses, DeleteOwnStoreData, DeleteOwnStoreErrors, DeleteOwnStoreResponses, DeleteProductData, DeleteProductErrors, DeleteProductImageData, DeleteProductImageErrors, DeleteProductImageResponses, DeleteProductResponses, DeleteStoreBannerData, DeleteStoreBannerErrors, DeleteStoreBannerResponses, DeleteStoreProductData, DeleteStoreProductErrors, DeleteStoreProductResponses, GetFileData, GetFileErrors, GetFileResponses, GetMerchantData, GetMerchantErrors, GetMerchantResponses, GetMerchantStoreOrderData, GetMerchantStoreOrderErrors, GetMerchantStoreOrderResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetOwnStoreData, GetOwnStoreErrors, GetOwnStoreResponses, GetStoreData, GetStoreErrors, GetStoreResponses, HealthCheckData, HealthCheckResponses, ListCustomersData, ListCustomersErrors, ListCustomersResponses, ListMerchantOrdersData, ListMerchantOrdersErrors, ListMerchantOrdersResponses, ListMerchantsData, ListMerchantsErrors, ListMerchantsResponses, ListOrdersData, ListOrdersErrors, ListOrdersResponses, ListOwnStoresData, ListOwnStoresErrors, ListOwnStoresResponses, ListProductImagesData, ListProductImagesErrors, ListProductImagesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStoreProductsData, ListStoreProductsErrors, ListStoreProductsResponses, ListStoresData, ListStoresErrors, ListStoresResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MeData, MeErrors, MeResponses, OpenapiJsonData, OpenapiJsonResponses, OtpRequestData, OtpRequestErrors, OtpRequestResponses, OtpVerifyData, OtpVerifyErrors, OtpVerifyResponses, SearchData, SearchErrors, SearchResponses, SetProductCoverData, SetProductCoverErrors, SetProductCoverResponses, SummaryData, SummaryErrors, SummaryResponses, UpdateCustomerData, UpdateCustomerErrors, UpdateCustomerResponses, UpdateMeData, UpdateMeErrors, UpdateMerchantData, UpdateMerchantErrors, UpdateMerchantResponses, UpdateMeResponses, UpdateOwnStoreData, UpdateOwnStoreErrors, UpdateOwnStoreResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses, UpdateStoreProductData, UpdateStoreProductErrors, UpdateStoreProductResponses, UploadProductImageData, UploadProductImageErrors, UploadProductImageResponses, UploadStoreBannerData, UploadStoreBannerErrors, UploadStoreBannerResponses } from './types.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderErrors, AdvanceStoreOrderResponses, CancelStoreOrderData, CancelStoreOrderErrors, CancelStoreOrderResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckoutData, CheckoutErrors, CheckoutResponses, CreateMerchantData, CreateMerchantErrors, CreateMerchantResponses, CreateOwnStoreData, CreateOwnStoreErrors, CreateOwnStoreResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateRiderData, CreateRiderErrors, CreateRiderResponses, CreateStoreProductData, CreateStoreProductErrors, CreateStoreProductResponses, DeleteCustomerData, DeleteCustomerErrors, DeleteCustomerResponses, DeleteMerchantData, DeleteMerchantErrors, DeleteMerchantResponses, DeleteOwnStoreData, DeleteOwnStoreErrors, DeleteOwnStoreResponses, DeleteProductData, DeleteProductErrors, DeleteProductImageData, DeleteProductImageErrors, DeleteProductImageResponses, DeleteProductResponses, DeleteRiderData, DeleteRiderErrors, DeleteRiderResponses, DeleteStoreBannerData, DeleteStoreBannerErrors, DeleteStoreBannerResponses, DeleteStoreProductData, DeleteStoreProductErrors, DeleteStoreProductResponses, GetFileData, GetFileErrors, GetFileResponses, GetMerchantData, GetMerchantErrors, GetMerchantResponses, GetMerchantStoreOrderData, GetMerchantStoreOrderErrors, GetMerchantStoreOrderResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetOwnStoreData, GetOwnStoreErrors, GetOwnStoreResponses, GetStoreData, GetStoreErrors, GetStoreResponses, HandoffStoreOrderData, HandoffStoreOrderErrors, HandoffStoreOrderResponses, HealthCheckData, HealthCheckResponses, ListCustomersData, ListCustomersErrors, ListCustomersResponses, ListMerchantOrdersData, ListMerchantOrdersErrors, ListMerchantOrdersResponses, ListMerchantsData, ListMerchantsErrors, ListMerchantsResponses, ListOrdersData, ListOrdersErrors, ListOrdersResponses, ListOwnStoresData, ListOwnStoresErrors, ListOwnStoresResponses, ListProductImagesData, ListProductImagesErrors, ListProductImagesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListRiderDeliveriesData, ListRiderDeliveriesErrors, ListRiderDeliveriesResponses, ListRidersData, ListRidersErrors, ListRidersResponses, ListStoreProductsData, ListStoreProductsErrors, ListStoreProductsResponses, ListStoresData, ListStoresErrors, ListStoresResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MarkDeliveredData, MarkDeliveredErrors, MarkDeliveredResponses, MeData, MeErrors, MeResponses, OpenapiJsonData, OpenapiJsonResponses, OrderTrackingData, OrderTrackingErrors, OrderTrackingResponses, OtpRequestData, OtpRequestErrors, OtpRequestResponses, OtpVerifyData, OtpVerifyErrors, OtpVerifyResponses, PushLocationData, PushLocationErrors, PushLocationResponses, SearchData, SearchErrors, SearchResponses, SetProductCoverData, SetProductCoverErrors, SetProductCoverResponses, SummaryData, SummaryErrors, SummaryResponses, UpdateCustomerData, UpdateCustomerErrors, UpdateCustomerResponses, UpdateMeData, UpdateMeErrors, UpdateMerchantData, UpdateMerchantErrors, UpdateMerchantResponses, UpdateMeResponses, UpdateOwnStoreData, UpdateOwnStoreErrors, UpdateOwnStoreResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses, UpdateRiderData, UpdateRiderErrors, UpdateRiderResponses, UpdateStoreProductData, UpdateStoreProductErrors, UpdateStoreProductResponses, UploadProductImageData, UploadProductImageErrors, UploadProductImageResponses, UploadStoreBannerData, UploadStoreBannerErrors, UploadStoreBannerResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -73,6 +73,34 @@ export const updateMerchant = <ThrowOnError extends boolean = false>(options: Op
     }
 });
 
+export const listRiders = <ThrowOnError extends boolean = false>(options?: Options<ListRidersData, ThrowOnError>): RequestResult<ListRidersResponses, ListRidersErrors, ThrowOnError> => (options?.client ?? client).get<ListRidersResponses, ListRidersErrors, ThrowOnError>({ url: '/v1/admin/riders', ...options });
+
+export const createRider = <ThrowOnError extends boolean = false>(options: Options<CreateRiderData, ThrowOnError>): RequestResult<CreateRiderResponses, CreateRiderErrors, ThrowOnError> => (options.client ?? client).post<CreateRiderResponses, CreateRiderErrors, ThrowOnError>({
+    url: '/v1/admin/riders',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Hard-delete a rider's account (the profile cascades) — the remedy for a
+ * typo'd phone at creation. Blocked with a typed 409 when any delivery
+ * ever referenced the rider: assignment history is operationally real,
+ * deactivation is the tool for a rider who stops riding.
+ */
+export const deleteRider = <ThrowOnError extends boolean = false>(options: Options<DeleteRiderData, ThrowOnError>): RequestResult<DeleteRiderResponses, DeleteRiderErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRiderResponses, DeleteRiderErrors, ThrowOnError>({ url: '/v1/admin/riders/{id}', ...options });
+
+export const updateRider = <ThrowOnError extends boolean = false>(options: Options<UpdateRiderData, ThrowOnError>): RequestResult<UpdateRiderResponses, UpdateRiderErrors, ThrowOnError> => (options.client ?? client).patch<UpdateRiderResponses, UpdateRiderErrors, ThrowOnError>({
+    url: '/v1/admin/riders/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
 /**
  * Platform-wide counts for the admin dashboard.
  */
@@ -120,6 +148,36 @@ export const otpVerify = <ThrowOnError extends boolean = false>(options: Options
  */
 export const changePassword = <ThrowOnError extends boolean = false>(options: Options<ChangePasswordData, ThrowOnError>): RequestResult<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError> => (options.client ?? client).post<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError>({
     url: '/v1/auth/password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The rider's active work list — one card per delivery still out for
+ * delivery: the store to collect from, the destination, and the customer
+ * to call when close (the Kigali protocol — the data already flows).
+ */
+export const listRiderDeliveries = <ThrowOnError extends boolean = false>(options?: Options<ListRiderDeliveriesData, ThrowOnError>): RequestResult<ListRiderDeliveriesResponses, ListRiderDeliveriesErrors, ThrowOnError> => (options?.client ?? client).get<ListRiderDeliveriesResponses, ListRiderDeliveriesErrors, ThrowOnError>({ url: '/v1/deliveries', ...options });
+
+/**
+ * The rider's Delivered action: food handed over + cash received, one
+ * real event. Advances the store order and settles that delivery's
+ * payment allocation (the group's payment becomes collected when every
+ * allocation is settled — the tracking doc's cash state).
+ */
+export const markDelivered = <ThrowOnError extends boolean = false>(options: Options<MarkDeliveredData, ThrowOnError>): RequestResult<MarkDeliveredResponses, MarkDeliveredErrors, ThrowOnError> => (options.client ?? client).post<MarkDeliveredResponses, MarkDeliveredErrors, ThrowOnError>({ url: '/v1/deliveries/{id}/delivered', ...options });
+
+/**
+ * The rider's phone checking in (~every 5s while delivering). The
+ * ≥25m/15s GPS-noise rule lives in the domain — a throttled push answers
+ * the same 204 as a recorded one, so the client cannot tell and need not
+ * care.
+ */
+export const pushLocation = <ThrowOnError extends boolean = false>(options: Options<PushLocationData, ThrowOnError>): RequestResult<PushLocationResponses, PushLocationErrors, ThrowOnError> => (options.client ?? client).post<PushLocationResponses, PushLocationErrors, ThrowOnError>({
+    url: '/v1/deliveries/{id}/location',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -209,6 +267,15 @@ export const getMerchantStoreOrder = <ThrowOnError extends boolean = false>(opti
  */
 export const advanceStoreOrder = <ThrowOnError extends boolean = false>(options: Options<AdvanceStoreOrderData, ThrowOnError>): RequestResult<AdvanceStoreOrderResponses, AdvanceStoreOrderErrors, ThrowOnError> => (options.client ?? client).patch<AdvanceStoreOrderResponses, AdvanceStoreOrderErrors, ThrowOnError>({
     url: '/v1/merchant/store-orders/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const handoffStoreOrder = <ThrowOnError extends boolean = false>(options: Options<HandoffStoreOrderData, ThrowOnError>): RequestResult<HandoffStoreOrderResponses, HandoffStoreOrderErrors, ThrowOnError> => (options.client ?? client).post<HandoffStoreOrderResponses, HandoffStoreOrderErrors, ThrowOnError>({
+    url: '/v1/merchant/store-orders/{id}/handoff',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -312,6 +379,14 @@ export const cancelStoreOrder = <ThrowOnError extends boolean = false>(options: 
         ...options.headers
     }
 });
+
+/**
+ * The customer's tracking snapshot for one order group: one delivery
+ * entry per store order (each its own story), the real last positions,
+ * the cached route, the ETA target, and the freshness marker the next
+ * poll echoes back as `since`. 204 when nothing changed since.
+ */
+export const orderTracking = <ThrowOnError extends boolean = false>(options: Options<OrderTrackingData, ThrowOnError>): RequestResult<OrderTrackingResponses, OrderTrackingErrors, ThrowOnError> => (options.client ?? client).get<OrderTrackingResponses, OrderTrackingErrors, ThrowOnError>({ url: '/v1/orders/{id}/tracking', ...options });
 
 export const search = <ThrowOnError extends boolean = false>(options?: Options<SearchData, ThrowOnError>): RequestResult<SearchResponses, SearchErrors, ThrowOnError> => (options?.client ?? client).get<SearchResponses, SearchErrors, ThrowOnError>({ url: '/v1/search', ...options });
 

@@ -344,6 +344,171 @@
         }
       }
     },
+    "/v1/admin/riders": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "list_riders",
+        "responses": {
+          "200": {
+            "description": "All riders, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RiderAdminResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "create_rider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRiderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Rider created with its OTP account and unique rider number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderAdminResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Phone already taken"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/admin/riders/{id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Hard-delete a rider's account (the profile cascades) — the remedy for a\ntypo'd phone at creation. Blocked with a typed 409 when any delivery\never referenced the rider: assignment history is operationally real,\ndeactivation is the tool for a rider who stops riding.",
+        "operationId": "delete_rider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rider id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Rider deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No rider with that id"
+          },
+          "409": {
+            "description": "Rider has delivery history — deactivate instead"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "operationId": "update_rider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rider id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRiderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated rider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderAdminResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty name"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No rider with that id"
+          },
+          "409": {
+            "description": "Phone already taken"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
     "/v1/admin/summary": {
       "get": {
         "tags": [
@@ -515,6 +680,132 @@
           },
           "422": {
             "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/v1/deliveries": {
+      "get": {
+        "tags": [
+          "deliveries"
+        ],
+        "summary": "The rider's active work list — one card per delivery still out for\ndelivery: the store to collect from, the destination, and the customer\nto call when close (the Kigali protocol — the data already flows).",
+        "operationId": "list_rider_deliveries",
+        "responses": {
+          "200": {
+            "description": "This rider's deliveries that are out for delivery, newest handoff first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RiderDeliveryResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a rider"
+          }
+        }
+      }
+    },
+    "/v1/deliveries/{id}/delivered": {
+      "post": {
+        "tags": [
+          "deliveries"
+        ],
+        "summary": "The rider's Delivered action: food handed over + cash received, one\nreal event. Advances the store order and settles that delivery's\npayment allocation (the group's payment becomes collected when every\nallocation is settled — the tracking doc's cash state).",
+        "operationId": "mark_delivered",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Delivery id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The delivered store order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveredResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The delivery is not in a deliverable state"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a rider"
+          },
+          "404": {
+            "description": "Not one of this rider's deliveries"
+          }
+        }
+      }
+    },
+    "/v1/deliveries/{id}/location": {
+      "post": {
+        "tags": [
+          "deliveries"
+        ],
+        "summary": "The rider's phone checking in (~every 5s while delivering). The\n≥25m/15s GPS-noise rule lives in the domain — a throttled push answers\nthe same 204 as a recorded one, so the client cannot tell and need not\ncare.",
+        "operationId": "push_location",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Delivery id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Position accepted (recorded or throttled — same answer)"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a rider"
+          },
+          "404": {
+            "description": "Not one of this rider's deliveries"
+          },
+          "409": {
+            "description": "The delivery is not out for delivery"
+          },
+          "422": {
+            "description": "Invalid coordinates"
           }
         }
       }
@@ -1096,6 +1387,60 @@
           },
           "404": {
             "description": "Not one of this operator's orders"
+          }
+        }
+      }
+    },
+    "/v1/merchant/store-orders/{id}/handoff": {
+      "post": {
+        "tags": [
+          "merchant"
+        ],
+        "operationId": "handoff_store_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Store order id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Rider assigned, order handed over (picked_up)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MerchantStoreOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The order is not in a handable state (preparing, or re-assign while picked_up)"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "No merchant membership"
+          },
+          "404": {
+            "description": "Not one of this operator's orders, or no active rider with that number"
           }
         }
       }
@@ -1773,6 +2118,61 @@
         }
       }
     },
+    "/v1/orders/{id}/tracking": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "The customer's tracking snapshot for one order group: one delivery\nentry per store order (each its own story), the real last positions,\nthe cached route, the ETA target, and the freshness marker the next\npoll echoes back as `since`. 204 when nothing changed since.",
+        "operationId": "order_tracking",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Order group id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "RFC-3339 timestamp; 204 when the group has nothing newer",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tracking snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackingResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Nothing changed since `since`"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a customer"
+          },
+          "404": {
+            "description": "Another customer's order — indistinguishable from a missing one"
+          }
+        }
+      }
+    },
     "/v1/search": {
       "get": {
         "tags": [
@@ -2178,6 +2578,22 @@
           }
         }
       },
+      "CreateRiderInput": {
+        "type": "object",
+        "description": "Create a Tuma rider: an OTP account (phone only — the rider signs in\nwith the exact customer flow) plus the rider profile with its unique\nrider number, in one transaction. The number is generated server-side;\nthe merchant will ask the rider for it at handoff.",
+        "required": [
+          "name",
+          "phone"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
       "CreateStoreInput": {
         "type": "object",
         "required": [
@@ -2334,6 +2750,120 @@
           }
         }
       },
+      "DeliveredResponse": {
+        "type": "object",
+        "required": [
+          "store_order_id",
+          "status",
+          "delivered_at"
+        ],
+        "properties": {
+          "delivered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_order_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DeliveryTrackingResponse": {
+        "type": "object",
+        "required": [
+          "store_order_id",
+          "store_name",
+          "status",
+          "trail"
+        ],
+        "properties": {
+          "eta_target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Server-provided target the client decays against."
+          },
+          "handoff_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_location_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "route_polyline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The road route cached at handoff, or null when no routing backend\nis configured — never invented geometry."
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The overdue customer's \"call the store\" action (D5 surfaces it)."
+          },
+          "store_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "store_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "store_order_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The per-store card key — the client joins it to the group detail's\nstore orders."
+          },
+          "trail": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailResponse"
+            },
+            "description": "The recent real positions (tail), oldest first."
+          }
+        }
+      },
       "GroupSummaryResponse": {
         "type": "object",
         "required": [
@@ -2373,6 +2903,20 @@
           }
         }
       },
+      "HandoffInput": {
+        "type": "object",
+        "description": "The fulfillment sheet's \"Handed to rider\" action (tracking doc §5): the\nmerchant types the rider's unique number, the server validates an\nactive rider, assigns the delivery, and advances the order to\n`picked_up`. Runs again while the delivery isn't delivered (the\nwrong-number remedy); after `delivered` the assignment is frozen.\nForeign store orders are a plain 404, like every merchant route.",
+        "required": [
+          "rider_number"
+        ],
+        "properties": {
+          "rider_number": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The rider number the store asked for — the whole assignment\ninterface; there is no directory picker."
+          }
+        }
+      },
       "ImageUpload": {
         "type": "object",
         "description": "The multipart schema in the OpenAPI contract — hey-api generates a\nFormData request type from it.",
@@ -2385,6 +2929,23 @@
             "format": "binary",
             "description": "The image file (JPEG, PNG, or WebP; at most 5 MB).",
             "contentEncoding": "binary"
+          }
+        }
+      },
+      "LocationInput": {
+        "type": "object",
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "properties": {
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -2456,6 +3017,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "rider": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RiderProfileResponse",
+                "description": "The rider profile — present only on rider accounts. A rider has no\ncustomer profile; rider mode is their surface."
+              }
             ]
           }
         }
@@ -3110,6 +3682,184 @@
           }
         }
       },
+      "RiderAdminResponse": {
+        "type": "object",
+        "description": "A rider as the admin sees them.",
+        "required": [
+          "id",
+          "rider_number",
+          "name",
+          "phone",
+          "is_active",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "`false` = not assignable at handoff (the rider can still sign in)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "rider_number": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RiderDeliveryResponse": {
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "store_order_id",
+          "store_name",
+          "destination_address",
+          "status"
+        ],
+        "properties": {
+          "customer_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customer_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivery_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destination_address": {
+            "type": "string"
+          },
+          "destination_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "destination_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "eta_target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "handoff_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "last_location_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "route_polyline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "store_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "store_lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "store_lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "store_order_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RiderProfileResponse": {
+        "type": "object",
+        "description": "The rider profile as the account itself sees it: identity plus the\nnumber the merchant asks for at handoff. The phone lives at the account\nlevel (the OTP anchor); assignability (`is_active`) matters to the\nrider's own screen too.",
+        "required": [
+          "id",
+          "rider_number",
+          "name",
+          "is_active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rider_number": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SearchResponse": {
         "type": "object",
         "required": [
@@ -3370,6 +4120,61 @@
           }
         }
       },
+      "TrackingResponse": {
+        "type": "object",
+        "required": [
+          "group_id",
+          "group_status",
+          "payment_status",
+          "changed_at",
+          "deliveries"
+        ],
+        "properties": {
+          "changed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Echo this back as `since` on the next poll."
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryTrackingResponse"
+            }
+          },
+          "group_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "group_status": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string"
+          }
+        }
+      },
+      "TrailResponse": {
+        "type": "object",
+        "required": [
+          "lat",
+          "lng",
+          "recorded_at"
+        ],
+        "properties": {
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "UpdateCustomerInput": {
         "type": "object",
         "description": "Admin edits to a customer account. Provided fields overwrite, an empty\nname clears it, absent fields keep their value. Phone stays editable\nbecause a typo'd number during OTP signup is exactly the kind of thing\nan admin corrects; a taken phone is the typed 409.",
@@ -3451,6 +4256,30 @@
             ]
           },
           "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateRiderInput": {
+        "type": "object",
+        "description": "Admin edits to a rider. Provided fields overwrite, absent fields keep\ntheir value. A phone edit changes the OTP anchor (the account) and the\nrider's display phone together; a taken phone is the typed 409. An\nempty name is a 400 — rider names are NOT NULL, there is nothing to\nclear to.",
+        "properties": {
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
             "type": [
               "string",
               "null"

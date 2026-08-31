@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listStoreProducts, listStores, login, logout, me, openapiJson, type Options, otpRequest, otpVerify, search, setProductCover, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
-import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, SearchData, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
+import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createRider, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteRider, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, handoffStoreOrder, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listRiderDeliveries, listRiders, listStoreProducts, listStores, login, logout, markDelivered, me, openapiJson, type Options, orderTracking, otpRequest, otpVerify, pushLocation, search, setProductCover, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateRider, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateRiderData, CreateRiderResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteRiderData, DeleteRiderResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HandoffStoreOrderData, HandoffStoreOrderResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListRiderDeliveriesData, ListRiderDeliveriesResponse, ListRidersData, ListRidersResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MarkDeliveredData, MarkDeliveredResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OrderTrackingData, OrderTrackingResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, PushLocationData, PushLocationResponse, SearchData, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateRiderData, UpdateRiderResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -185,6 +185,69 @@ export const updateMerchantMutation = (options?: Partial<Options<UpdateMerchantD
     return mutationOptions;
 };
 
+export const listRidersQueryKey = (options?: Options<ListRidersData>) => createQueryKey('listRiders', options);
+
+export const listRidersOptions = (options?: Options<ListRidersData>) => queryOptions<ListRidersResponse, DefaultError, ListRidersResponse, ReturnType<typeof listRidersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listRiders({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listRidersQueryKey(options)
+});
+
+export const createRiderMutation = (options?: Partial<Options<CreateRiderData>>): UseMutationOptions<CreateRiderResponse, DefaultError, Options<CreateRiderData>> => {
+    const mutationOptions: UseMutationOptions<CreateRiderResponse, DefaultError, Options<CreateRiderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createRider({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Hard-delete a rider's account (the profile cascades) — the remedy for a
+ * typo'd phone at creation. Blocked with a typed 409 when any delivery
+ * ever referenced the rider: assignment history is operationally real,
+ * deactivation is the tool for a rider who stops riding.
+ */
+export const deleteRiderMutation = (options?: Partial<Options<DeleteRiderData>>): UseMutationOptions<DeleteRiderResponse, DefaultError, Options<DeleteRiderData>> => {
+    const mutationOptions: UseMutationOptions<DeleteRiderResponse, DefaultError, Options<DeleteRiderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteRider({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const updateRiderMutation = (options?: Partial<Options<UpdateRiderData>>): UseMutationOptions<UpdateRiderResponse, DefaultError, Options<UpdateRiderData>> => {
+    const mutationOptions: UseMutationOptions<UpdateRiderResponse, DefaultError, Options<UpdateRiderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateRider({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const summaryQueryKey = (options?: Options<SummaryData>) => createQueryKey('summary', options);
 
 /**
@@ -274,6 +337,66 @@ export const changePasswordMutation = (options?: Partial<Options<ChangePasswordD
     const mutationOptions: UseMutationOptions<ChangePasswordResponse, DefaultError, Options<ChangePasswordData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await changePassword({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listRiderDeliveriesQueryKey = (options?: Options<ListRiderDeliveriesData>) => createQueryKey('listRiderDeliveries', options);
+
+/**
+ * The rider's active work list — one card per delivery still out for
+ * delivery: the store to collect from, the destination, and the customer
+ * to call when close (the Kigali protocol — the data already flows).
+ */
+export const listRiderDeliveriesOptions = (options?: Options<ListRiderDeliveriesData>) => queryOptions<ListRiderDeliveriesResponse, DefaultError, ListRiderDeliveriesResponse, ReturnType<typeof listRiderDeliveriesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listRiderDeliveries({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listRiderDeliveriesQueryKey(options)
+});
+
+/**
+ * The rider's Delivered action: food handed over + cash received, one
+ * real event. Advances the store order and settles that delivery's
+ * payment allocation (the group's payment becomes collected when every
+ * allocation is settled — the tracking doc's cash state).
+ */
+export const markDeliveredMutation = (options?: Partial<Options<MarkDeliveredData>>): UseMutationOptions<MarkDeliveredResponse, DefaultError, Options<MarkDeliveredData>> => {
+    const mutationOptions: UseMutationOptions<MarkDeliveredResponse, DefaultError, Options<MarkDeliveredData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await markDelivered({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * The rider's phone checking in (~every 5s while delivering). The
+ * ≥25m/15s GPS-noise rule lives in the domain — a throttled push answers
+ * the same 204 as a recorded one, so the client cannot tell and need not
+ * care.
+ */
+export const pushLocationMutation = (options?: Partial<Options<PushLocationData>>): UseMutationOptions<PushLocationResponse, DefaultError, Options<PushLocationData>> => {
+    const mutationOptions: UseMutationOptions<PushLocationResponse, DefaultError, Options<PushLocationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pushLocation({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -567,6 +690,20 @@ export const advanceStoreOrderMutation = (options?: Partial<Options<AdvanceStore
     return mutationOptions;
 };
 
+export const handoffStoreOrderMutation = (options?: Partial<Options<HandoffStoreOrderData>>): UseMutationOptions<HandoffStoreOrderResponse, DefaultError, Options<HandoffStoreOrderData>> => {
+    const mutationOptions: UseMutationOptions<HandoffStoreOrderResponse, DefaultError, Options<HandoffStoreOrderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await handoffStoreOrder({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listStoreProductsQueryKey = (options?: Options<ListStoreProductsData>) => createQueryKey('listStoreProducts', options);
 
 export const listStoreProductsOptions = (options?: Options<ListStoreProductsData>) => queryOptions<ListStoreProductsResponse, DefaultError, ListStoreProductsResponse, ReturnType<typeof listStoreProductsQueryKey>>({
@@ -838,6 +975,27 @@ export const cancelStoreOrderMutation = (options?: Partial<Options<CancelStoreOr
     };
     return mutationOptions;
 };
+
+export const orderTrackingQueryKey = (options: Options<OrderTrackingData>) => createQueryKey('orderTracking', options);
+
+/**
+ * The customer's tracking snapshot for one order group: one delivery
+ * entry per store order (each its own story), the real last positions,
+ * the cached route, the ETA target, and the freshness marker the next
+ * poll echoes back as `since`. 204 when nothing changed since.
+ */
+export const orderTrackingOptions = (options: Options<OrderTrackingData>) => queryOptions<OrderTrackingResponse, DefaultError, OrderTrackingResponse, ReturnType<typeof orderTrackingQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await orderTracking({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: orderTrackingQueryKey(options)
+});
 
 export const searchQueryKey = (options?: Options<SearchData>) => createQueryKey('search', options);
 

@@ -1,4 +1,5 @@
-import { ExternalLink, Phone, UserRound } from 'lucide-react'
+import { useState } from 'react'
+import { Phone, UserRound } from 'lucide-react'
 
 import type { MerchantStoreOrderResponse } from '@/api/generated'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { HandoffDialog } from '@/features/merchant/components/handoff-dialog'
+import { DeliveryPinCard } from '@/features/merchant/components/delivery-pin-card'
 import {
   useAdvanceStoreOrder,
 } from '@/features/merchant/hooks/use-advance-store-order'
@@ -36,11 +39,19 @@ export function OrderDetailDialog({
 }) {
   const detail = useMerchantStoreOrder(open && order ? order.id : '')
   const advance = useAdvanceStoreOrder()
+  const [handoffOpen, setHandoffOpen] = useState(false)
+  const [reassign, setReassign] = useState(false)
 
   const pendingId = advance.isPending
     ? (advance.variables?.path?.id ?? null)
     : null
   const pending = pendingId === order?.id
+
+  // The nested handoff dialog closes back into this one.
+  const openHandoff = (asReassign: boolean) => {
+    setReassign(asReassign)
+    setHandoffOpen(true)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,18 +106,10 @@ export function OrderDetailDialog({
                   </p>
                 )}
                 <p className="mt-2 text-sm">{detail.data.address_text}</p>
-                {detail.data.address_lat != null &&
-                detail.data.address_lng != null ? (
-                  <a
-                    href={`https://www.openstreetmap.org/?mlat=${detail.data.address_lat}&mlon=${detail.data.address_lng}#map=17/${detail.data.address_lat}/${detail.data.address_lng}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="size-3" aria-hidden />
-                    Open the delivery pin on the map
-                  </a>
-                ) : null}
+                <DeliveryPinCard
+                  lat={detail.data.address_lat}
+                  lng={detail.data.address_lng}
+                />
               </section>
 
               {/* What to prepare. */}
@@ -159,11 +162,23 @@ export function OrderDetailDialog({
                       body: { status },
                     })
                   }
+                  onHandoff={() => openHandoff(false)}
+                  onReassign={() => openHandoff(true)}
                 />
               </div>
             </div>
           </>
         ) : null}
+        {/* Nested on purpose: the handoff returns to this sheet. */}
+        <HandoffDialog
+          order={detail.data ? order : null}
+          open={handoffOpen}
+          onOpenChange={(o) => {
+            setHandoffOpen(o)
+            if (!o) setReassign(false)
+          }}
+          reassign={reassign}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -199,21 +214,26 @@ function NextActions({
   status,
   pending,
   onAdvance,
+  onHandoff,
+  onReassign,
 }: {
   status: string
   pending: boolean
   onAdvance: (status: string) => void
+  onHandoff: () => void
+  onReassign: () => void
 }) {
+  // preparing's next step is the handoff dialog (the rider's number is
+  // required — the server refuses a bare picked_up advance). While the
+  // delivery is out, the operator can re-assign via the same action.
   const next =
     status === 'placed'
       ? { status: 'accepted', label: 'Accept' }
       : status === 'accepted'
         ? { status: 'preparing', label: 'Start preparing' }
-        : status === 'preparing'
-          ? { status: 'picked_up', label: 'Handed to rider' }
-          : status === 'picked_up'
-            ? { status: 'delivered', label: 'Delivered' }
-            : null
+        : status === 'picked_up'
+          ? { status: 'delivered', label: 'Delivered' }
+          : null
 
   return (
     <>
@@ -224,6 +244,21 @@ function NextActions({
           onClick={() => onAdvance(next.status)}
         >
           {pending ? 'Saving…' : next.label}
+        </Button>
+      ) : null}
+      {status === 'preparing' ? (
+        <Button size="sm" disabled={pending} onClick={onHandoff}>
+          Handed to rider
+        </Button>
+      ) : null}
+      {status === 'picked_up' ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={onReassign}
+        >
+          Re-assign rider
         </Button>
       ) : null}
       {status === 'placed' || status === 'accepted' || status === 'preparing' ? (

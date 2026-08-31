@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { LayoutDashboard, Store, Users } from 'lucide-react'
+import { Bike, LayoutDashboard, Store, Users } from 'lucide-react'
 import { requireWing } from '../../lib/session'
 import { WingShell } from '../../components/wing-shell'
 
@@ -14,6 +14,7 @@ const nav = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/merchants', label: 'Merchants', icon: Store },
   { to: '/admin/customers', label: 'Customers', icon: Users },
+  { to: '/admin/riders', label: 'Riders', icon: Bike },
 ]
 
 function AdminWing() {

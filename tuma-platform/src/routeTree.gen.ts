@@ -16,6 +16,7 @@ import { Route as MerchantRouteRouteImport } from './routes/merchant/route'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminRidersRouteImport } from './routes/admin/riders'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
 import { Route as MerchantCatalogRouteImport } from './routes/merchant/catalog'
@@ -61,6 +62,11 @@ const AdminCustomersRoute = AdminCustomersRouteImport.update({
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminRidersRoute = AdminRidersRouteImport.update({
+  id: '/riders',
+  path: '/riders',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/merchant/catalog': typeof MerchantCatalogRoute
   '/merchant/dashboard': typeof MerchantDashboardRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/customers'
     | '/admin/dashboard'
+    | '/admin/riders'
     | '/admin/settings'
     | '/merchant/catalog'
     | '/merchant/dashboard'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/customers'
     | '/admin/dashboard'
+    | '/admin/riders'
     | '/admin/settings'
     | '/merchant/catalog'
     | '/merchant/dashboard'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/customers'
     | '/admin/dashboard'
+    | '/admin/riders'
     | '/admin/settings'
     | '/merchant/catalog'
     | '/merchant/dashboard'
@@ -296,6 +308,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/admin/dashboard'
       preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/riders': {
+      id: '/admin/riders'
+      path: '/riders'
+      fullPath: '/admin/riders'
+      preLoaderRoute: typeof AdminRidersRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/settings': {
@@ -381,6 +400,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteRouteChildren {
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminRidersRoute: typeof AdminRidersRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminMerchantsMerchantIdRoute: typeof AdminMerchantsMerchantIdRoute
@@ -390,6 +410,7 @@ interface AdminRouteRouteChildren {
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminCustomersRoute: AdminCustomersRoute,
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminRidersRoute: AdminRidersRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminMerchantsMerchantIdRoute: AdminMerchantsMerchantIdRoute,

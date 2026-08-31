@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import type { CustomerAdminResponse } from '@/api/generated'
 import { CountryPhoneInput } from '@/components/country-phone-input'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,71 +12,56 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { useUpdateCustomer } from '@/features/admin/hooks/use-update-customer'
+import { useCreateRider } from '@/features/admin/hooks/use-create-rider'
 import {
   DEFAULT_PHONE_COUNTRY,
   joinE164,
   nationalDigitsProblem,
-  splitE164,
   type PhoneCountry,
 } from '@/lib/phone-countries'
 
 /**
- * "Edit customer" dialog: name + phone. Phone is a customer's identity —
- * editing it is how an admin fixes a typo'd number from OTP signup (the
- * server rejects a phone another account already holds with a 409). The
- * phone is entered country-picker first and always submitted in E.164.
- * PATCH semantics: only changed fields are sent; an emptied name clears
- * it. Closes on success; stays open on failure with values intact.
+ * "Add rider" dialog — onboards a Tuma driver: the OTP account (phone
+ * only, no password — they sign in in the app with the customer OTP flow)
+ * plus the rider profile, whose unique number is generated server-side.
+ * The phone is entered country-picker first (the web twin of the mobile
+ * phone screen) and always submitted in E.164. The mutation (toast + list
+ * invalidation) lives in use-create-rider; this component owns the field
+ * state and closes itself on success. On failure the dialog stays open
+ * with the values intact so the admin can fix the input and resubmit.
  */
-export function EditCustomerDialog({
-  customer,
+export function CreateRiderDialog({
   open,
   onOpenChange,
 }: {
-  customer: CustomerAdminResponse | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const updateCustomer = useUpdateCustomer()
+  const createRider = useCreateRider()
   const [name, setName] = useState('')
   const [country, setCountry] = useState<PhoneCountry>(DEFAULT_PHONE_COUNTRY)
   const [national, setNational] = useState('')
   const [phoneError, setPhoneError] = useState<string | null>(null)
 
-  // Seed the form from the customer each time the dialog opens — the
-  // stored E.164 splits back into country + digits.
+  // Fresh form every time the dialog opens.
   useEffect(() => {
-    if (open && customer) {
-      setName(customer.name ?? '')
-      const split = splitE164(customer.phone)
-      setCountry(split.country)
-      setNational(split.national)
+    if (open) {
+      setName('')
+      setCountry(DEFAULT_PHONE_COUNTRY)
+      setNational('')
       setPhoneError(null)
     }
-  }, [open, customer])
-
-  if (!customer) return null
-
-  const nameChanged = name.trim() !== (customer.name ?? '')
-  const phoneChanged = joinE164(country.dialCode, national) !== (customer.phone ?? '')
-  const dirty = nameChanged || phoneChanged
+  }, [open])
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dirty) return
-    if (phoneChanged) {
-      const problem = nationalDigitsProblem(country, national)
-      if (problem) {
-        setPhoneError(problem)
-        return
-      }
+    const problem = nationalDigitsProblem(country, national)
+    if (problem) {
+      setPhoneError(problem)
+      return
     }
-    const body: Record<string, string> = {}
-    if (nameChanged) body.name = name.trim()
-    if (phoneChanged) body.phone = joinE164(country.dialCode, national)
-    updateCustomer.mutate(
-      { path: { id: customer.user_id }, body },
+    createRider.mutate(
+      { body: { name: name.trim(), phone: joinE164(country.dialCode, national) } },
       { onSuccess: () => onOpenChange(false) },
     )
   }
@@ -86,28 +70,30 @@ export function EditCustomerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit customer</DialogTitle>
+          <DialogTitle>Add rider</DialogTitle>
           <DialogDescription>
-            Update the account&apos;s identity. Clearing the name removes it.
+            Creates the rider&apos;s account and their unique rider number.
+            They sign in in the app with their phone and the OTP code.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="edit-customer-name">Name</FieldLabel>
+              <FieldLabel htmlFor="rider-name">Name</FieldLabel>
               <Input
-                id="edit-customer-name"
+                id="rider-name"
                 autoComplete="off"
+                required
                 maxLength={100}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Aline"
+                placeholder="Jean Bosco"
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-customer-phone">Phone</FieldLabel>
+              <FieldLabel htmlFor="rider-phone">Phone</FieldLabel>
               <CountryPhoneInput
-                id="edit-customer-phone"
+                id="rider-phone"
                 country={country}
                 onCountryChange={(picked) => {
                   setCountry(picked)
@@ -125,7 +111,8 @@ export function EditCustomerDialog({
                 </FieldDescription>
               ) : (
                 <FieldDescription>
-                  The number they verify with in the app.
+                  Pick the country, then the number — the rider verifies
+                  with it in the app.
                 </FieldDescription>
               )}
             </Field>
@@ -134,15 +121,12 @@ export function EditCustomerDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={updateCustomer.isPending}
+                disabled={createRider.isPending}
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={!dirty || updateCustomer.isPending}
-              >
-                {updateCustomer.isPending ? 'Saving…' : 'Save changes'}
+              <Button type="submit" disabled={createRider.isPending}>
+                {createRider.isPending ? 'Creating…' : 'Create rider'}
               </Button>
             </DialogFooter>
           </FieldGroup>

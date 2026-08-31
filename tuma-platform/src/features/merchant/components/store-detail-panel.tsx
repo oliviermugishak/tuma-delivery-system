@@ -40,7 +40,7 @@ import { BannerCard } from '@/features/merchant/components/store-banner-card'
 import { useOwnStore } from '@/features/merchant/hooks/use-store'
 import { useUpdateStore } from '@/features/merchant/hooks/use-update-store'
 import { cn } from '@/lib/utils'
-import { formatDate, formatRwf, initials } from '@/lib/format'
+import { formatDate, formatRwf } from '@/lib/format'
 
 /**
  * One store's management page: identity and facts at the top, the

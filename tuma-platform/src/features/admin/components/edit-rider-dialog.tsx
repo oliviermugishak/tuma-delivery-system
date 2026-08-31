@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import type { CustomerAdminResponse } from '@/api/generated'
+import type { RiderAdminResponse } from '@/api/generated'
 import { CountryPhoneInput } from '@/components/country-phone-input'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { useUpdateCustomer } from '@/features/admin/hooks/use-update-customer'
+import { useUpdateRider } from '@/features/admin/hooks/use-update-rider'
 import {
   DEFAULT_PHONE_COUNTRY,
   joinE164,
@@ -23,61 +23,60 @@ import {
 } from '@/lib/phone-countries'
 
 /**
- * "Edit customer" dialog: name + phone. Phone is a customer's identity —
- * editing it is how an admin fixes a typo'd number from OTP signup (the
+ * "Edit rider" dialog: name + phone. The phone is the rider's OTP anchor —
+ * editing it is how an admin fixes a typo'd number from creation (the
  * server rejects a phone another account already holds with a 409). The
- * phone is entered country-picker first and always submitted in E.164.
- * PATCH semantics: only changed fields are sent; an emptied name clears
- * it. Closes on success; stays open on failure with values intact.
+ * phone is entered country-picker first and always submitted in E.164;
+ * only changed fields are sent; the name is required (riders have no
+ * clear-to-null — the server 400s an empty one). Closes on success; stays
+ * open on failure with values intact.
  */
-export function EditCustomerDialog({
-  customer,
+export function EditRiderDialog({
+  rider,
   open,
   onOpenChange,
 }: {
-  customer: CustomerAdminResponse | null
+  rider: RiderAdminResponse | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const updateCustomer = useUpdateCustomer()
+  const updateRider = useUpdateRider()
   const [name, setName] = useState('')
   const [country, setCountry] = useState<PhoneCountry>(DEFAULT_PHONE_COUNTRY)
   const [national, setNational] = useState('')
   const [phoneError, setPhoneError] = useState<string | null>(null)
 
-  // Seed the form from the customer each time the dialog opens — the
-  // stored E.164 splits back into country + digits.
+  // Seed the form from the rider each time the dialog opens — the stored
+  // E.164 splits back into country + digits.
   useEffect(() => {
-    if (open && customer) {
-      setName(customer.name ?? '')
-      const split = splitE164(customer.phone)
+    if (open && rider) {
+      setName(rider.name)
+      const split = splitE164(rider.phone)
       setCountry(split.country)
       setNational(split.national)
       setPhoneError(null)
     }
-  }, [open, customer])
+  }, [open, rider])
 
-  if (!customer) return null
+  if (!rider) return null
 
-  const nameChanged = name.trim() !== (customer.name ?? '')
-  const phoneChanged = joinE164(country.dialCode, national) !== (customer.phone ?? '')
+  const nameChanged = name.trim() !== rider.name
+  const phoneChanged = joinE164(country.dialCode, national) !== rider.phone
   const dirty = nameChanged || phoneChanged
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dirty) return
-    if (phoneChanged) {
-      const problem = nationalDigitsProblem(country, national)
-      if (problem) {
-        setPhoneError(problem)
-        return
-      }
+    if (!dirty || !name.trim()) return
+    const problem = nationalDigitsProblem(country, national)
+    if (problem) {
+      setPhoneError(problem)
+      return
     }
     const body: Record<string, string> = {}
     if (nameChanged) body.name = name.trim()
     if (phoneChanged) body.phone = joinE164(country.dialCode, national)
-    updateCustomer.mutate(
-      { path: { id: customer.user_id }, body },
+    updateRider.mutate(
+      { path: { id: rider.id }, body },
       { onSuccess: () => onOpenChange(false) },
     )
   }
@@ -86,28 +85,29 @@ export function EditCustomerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit customer</DialogTitle>
+          <DialogTitle>Edit rider</DialogTitle>
           <DialogDescription>
-            Update the account&apos;s identity. Clearing the name removes it.
+            Update the rider&apos;s identity. The rider number never changes.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="edit-customer-name">Name</FieldLabel>
+              <FieldLabel htmlFor="edit-rider-name">Name</FieldLabel>
               <Input
-                id="edit-customer-name"
+                id="edit-rider-name"
                 autoComplete="off"
+                required
                 maxLength={100}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Aline"
+                placeholder="Jean Bosco"
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-customer-phone">Phone</FieldLabel>
+              <FieldLabel htmlFor="edit-rider-phone">Phone</FieldLabel>
               <CountryPhoneInput
-                id="edit-customer-phone"
+                id="edit-rider-phone"
                 country={country}
                 onCountryChange={(picked) => {
                   setCountry(picked)
@@ -134,15 +134,15 @@ export function EditCustomerDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={updateCustomer.isPending}
+                disabled={updateRider.isPending}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={!dirty || updateCustomer.isPending}
+                disabled={!dirty || !name.trim() || updateRider.isPending}
               >
-                {updateCustomer.isPending ? 'Saving…' : 'Save changes'}
+                {updateRider.isPending ? 'Saving…' : 'Save changes'}
               </Button>
             </DialogFooter>
           </FieldGroup>
