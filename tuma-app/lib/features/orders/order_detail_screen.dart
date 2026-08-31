@@ -6,17 +6,24 @@ import 'package:go_router/go_router.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
+import 'package:tuma_app/core/api/models/tracking.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
+import 'package:tuma_app/features/tracking/map_world_card.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 
 /// Order group detail — the one purchase the customer placed, rendered as
 /// one section per fulfilling store. Each store has its own status
 /// timeline and can be cancelled independently while it's still on the
 /// premises. While anything is still in flight the screen polls the
-/// server every few seconds (V1's honest realtime: pull + gentle polling,
-/// no simulation) and stops the moment the group settles.
+/// tracking endpoint every few seconds, echoing `changed_at` back as
+/// `since`: the server answers 204 when nothing moved and the screen does
+/// nothing at all — no rebuild, no work (battery is the contract). When a
+/// snapshot does land, its statuses merge over the group detail (the
+/// header chip and payment line follow `group_status`; each store section
+/// follows its own delivery status), and a picked-up delivery's section
+/// becomes the map world. Polling stops the moment the group settles.
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({super.key, required this.orderId});
 
@@ -26,25 +33,59 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-/// How often the in-flight group re-fetches its state.
-const _pollInterval = Duration(seconds: 5);
+/// How often the in-flight group re-fetches while everything is Live.
+/// The truth ladder decays this (15s lagging, 60s ended) — see
+/// [_OrderDetailScreenState._pollInterval].
+const _livePollInterval = Duration(seconds: 5);
 
 class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     with WidgetsBindingObserver {
   OrderGroup? _order;
+  GroupTracking? _tracking;
   String? _error;
   Timer? _pollTimer;
+
+  /// The freshest group status: tracking's when a snapshot has landed,
+  /// the group detail's before that.
+  String get _effectiveGroupStatus {
+    final order = _order;
+    if (order == null) return '';
+    return _tracking?.groupStatus ?? order.status;
+  }
+
+  bool get _effectiveInFlight =>
+      _effectiveGroupStatus == 'in_progress' ||
+      _effectiveGroupStatus == 'partially_fulfilled';
+
+  /// Effective payment state — cash flips to collected on delivery, and
+  /// the money line must show that without a full refetch.
+  String get _effectivePaymentStatus {
+    final order = _order;
+    if (order == null) return '';
+    return _tracking?.paymentStatus ?? order.paymentStatus;
+  }
 
   Future<void> _load() async {
     setState(() {
       _error = null;
       _order = null;
+      _tracking = null;
     });
     try {
-      final order = await ref.read(orderApiProvider).getGroup(widget.orderId);
+      final api = ref.read(orderApiProvider);
+      final order = await api.getGroup(widget.orderId);
       if (!mounted) return;
       setState(() => _order = order);
-      _syncPolling(order);
+      // The tracking snapshot is additive: the detail renders with the
+      // group's own statuses if it fails, and the poll retries.
+      try {
+        final tracking = await api.trackGroup(widget.orderId);
+        if (!mounted || tracking == null) return;
+        setState(() => _tracking = tracking);
+      } on Object {
+        // Tracking is optional at first paint; the poll recovers it.
+      }
+      _syncPolling();
     } on ApiNotFound {
       if (!mounted) return;
       setState(() => _error = 'not_found');
@@ -56,23 +97,66 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
   }
 
   /// Poll only while the purchase is alive; a settled group is a fact,
-  /// not a stream.
-  void _syncPolling(OrderGroup order) {
-    if (order.isInFlight) {
-      _pollTimer ??= Timer.periodic(_pollInterval, (_) => unawaited(_refresh()));
-    } else {
+  /// not a stream. The cadence follows the truth ladder (tracking doc
+  /// §2): 5s while Live, 15s once lagging, 60s deep past the ETA — a
+  /// restart only happens when the honest interval actually changed.
+  void _syncPolling() {
+    if (!_effectiveInFlight) {
       _pollTimer?.cancel();
       _pollTimer = null;
+      _activeInterval = null;
+      return;
+    }
+    final interval = _pollInterval;
+    if (_pollTimer == null) {
+      _activeInterval = interval;
+      _pollTimer = Timer.periodic(interval, (_) => unawaited(_refresh()));
+    } else if (_activeInterval != interval) {
+      _pollTimer!.cancel();
+      _activeInterval = interval;
+      _pollTimer = Timer.periodic(interval, (_) => unawaited(_refresh()));
     }
   }
 
-  /// A quiet re-fetch: no loading spinner, just the freshest state.
+  /// The interval currently programmed into the timer (null = none).
+  Duration? _activeInterval;
+
+  /// The ladder's poll cadence: the slowest-moving delivery on the group
+  /// decides — any lagging delivery drops the group to 15s, any ended
+  /// delivery to 60s. Fresh-and-on-time keeps the 5s live poll.
+  Duration get _pollInterval {
+    final tracking = _tracking;
+    if (tracking == null) return _livePollInterval;
+    var interval = _livePollInterval;
+    for (final delivery in tracking.deliveries) {
+      if (delivery.status != 'picked_up') continue;
+      final overdue = delivery.overdueBy;
+      final age = delivery.signalAgeMinutes;
+      if (overdue != null && overdue >= const Duration(hours: 24)) {
+        return const Duration(minutes: 1);
+      }
+      if (age != null && age >= 5 ||
+          overdue != null && overdue >= const Duration(minutes: 15)) {
+        interval = const Duration(seconds: 15);
+      }
+    }
+    return interval;
+  }
+
+  /// A quiet re-fetch: echo the last `changed_at` as `since`. A 204 means
+  /// nothing moved — the screen does nothing at all (the battery win is
+  /// the point). A snapshot merges its statuses over the detail; items and
+  /// totals never change after placement, so the group detail is fetched
+  /// once and only statuses are tracked.
   Future<void> _refresh() async {
     try {
-      final order = await ref.read(orderApiProvider).getGroup(widget.orderId);
+      final tracking = await ref
+          .read(orderApiProvider)
+          .trackGroup(widget.orderId, since: _tracking?.changedAt);
       if (!mounted) return;
-      setState(() => _order = order);
-      _syncPolling(order);
+      if (tracking == null) return; // 204 — nothing moved, no rebuild.
+      setState(() => _tracking = tracking);
+      _syncPolling();
     } on Object {
       // A failed poll keeps the last good state; the next tick retries.
     }
@@ -107,7 +191,23 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       await ref
           .read(orderApiProvider)
           .cancelStoreOrder(widget.orderId, order.id);
-      await _refresh();
+      // A cancel changed real state: refetch the detail (items don't
+      // change, but the group may have settled) and freshen tracking.
+      final api = ref.read(orderApiProvider);
+      final fresh = await api.getGroup(widget.orderId);
+      if (!mounted) return;
+      setState(() {
+        _order = fresh;
+        _tracking = null;
+      });
+      try {
+        final tracking = await api.trackGroup(widget.orderId);
+        if (!mounted || tracking == null) return;
+        setState(() => _tracking = tracking);
+      } on Object {
+        // The poll recovers it.
+      }
+      _syncPolling();
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -172,10 +272,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       _pollTimer?.cancel();
       _pollTimer = null;
     } else if (state == AppLifecycleState.resumed) {
-      final order = _order;
-      if (order != null && order.isInFlight) {
+      if (_effectiveInFlight) {
         unawaited(_refresh());
-        _syncPolling(order);
+        _syncPolling();
       }
     }
   }
@@ -287,10 +386,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                   children: [
                     Row(
                       children: [
-                        _GroupStatusChip(status: order.status),
+                        _GroupStatusChip(status: _effectiveGroupStatus),
                         const SizedBox(width: 8),
-                        if (order.isInFlight)
-                          const _LiveBadge(),
+                        if (_effectiveInFlight) const _LiveBadge(),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -304,9 +402,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      order.paymentStatus == 'pending'
+                      _effectivePaymentStatus == 'pending'
                           ? 'Cash on delivery — pay ${formatRwf(order.grandTotal)} when it arrives.'
-                          : 'Payment: ${order.paymentStatus} · ${formatRwf(order.grandTotal)}',
+                          : 'Payment: $_effectivePaymentStatus · ${formatRwf(order.grandTotal)}',
                       style: textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),
@@ -315,12 +413,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                 ),
               ),
             ),
-            // One section per store: identity, timeline, items, totals.
+            // One section per store: identity, world (map when moving,
+            // timeline otherwise), items, totals.
             for (final storeOrder in order.storeOrders) ...[
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
               SliverToBoxAdapter(
                 child: _StoreOrderSection(
                   storeOrder: storeOrder,
+                  tracking: _tracking?.forStoreOrder(storeOrder.id),
+                  destinationLat: order.addressLat,
+                  destinationLng: order.addressLng,
                   onCancel: () => unawaited(_cancelStoreOrder(storeOrder)),
                 ),
               ),
@@ -384,7 +486,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
             ],
             // Wayfinding: a settled purchase always offers the way back to
             // shopping — nobody ends on a dead screen.
-            if (!order.isInFlight) ...[
+            if (!_effectiveInFlight) ...[
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
               SliverToBoxAdapter(
                 child: Padding(
@@ -409,7 +511,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
                 child: Text(
-                  order.isInFlight
+                  _effectiveInFlight
                       ? 'This screen updates itself — or pull to refresh now.'
                       : 'Pull to refresh any time.',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -518,22 +620,46 @@ class _LiveBadge extends StatelessWidget {
   }
 }
 
-/// One store's slice: header, status timeline, items, money, and the
-/// cancel affordance while cancelling is still possible.
+/// One store's slice: header, world (the map card takes over the moment
+/// the delivery is picked_up — the timeline collapses to the slim strip;
+/// waiting and settled states keep the quiet timeline), items, money, and
+/// the cancel affordance while cancelling is still possible.
 class _StoreOrderSection extends StatelessWidget {
-  const _StoreOrderSection({required this.storeOrder, required this.onCancel});
+  const _StoreOrderSection({
+    required this.storeOrder,
+    required this.onCancel,
+    this.tracking,
+    this.destinationLat,
+    this.destinationLng,
+  });
 
   final StoreOrder storeOrder;
   final VoidCallback onCancel;
+  final DeliveryTracking? tracking;
+  final double? destinationLat;
+  final double? destinationLng;
 
   bool get _cancellable =>
       storeOrder.status == 'placed' ||
       storeOrder.status == 'accepted' ||
       storeOrder.status == 'preparing';
 
+  /// The section's effective status: tracking's when a snapshot covers
+  /// this delivery (statuses only move forward on the server), the store
+  /// order's own otherwise.
+  String get _status => tracking?.status ?? storeOrder.status;
+
+  String _clockTime(DateTime time) {
+    final local = time.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final moving = _status == 'picked_up';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -558,11 +684,44 @@ class _StoreOrderSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                _StoreStatusChip(status: storeOrder.status),
+                _StoreStatusChip(status: _status),
               ],
             ),
             const SizedBox(height: 12),
-            _StatusTimeline(status: storeOrder.status),
+            // The world gate (doc §1): moving → the map card leads and
+            // the slim strip replaces the timeline; waiting/settled → the
+            // quiet timeline.
+            if (moving) ...[
+              if (tracking != null)
+                MapWorldCard(
+                  tracking: tracking!,
+                  destinationLat: destinationLat,
+                  destinationLng: destinationLng,
+                ),
+              const SizedBox(height: 10),
+              const SlimProgressStrip(),
+            ] else ...[
+              // The settled polish (doc §5): a delivered delivery shows
+              // the moment it happened — the delivery's last write.
+              if (_status == 'delivered' && tracking != null) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.verified_rounded,
+                        size: 18, color: AppColors.success),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Delivered · ${_clockTime(tracking!.updatedAt)}',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              _StatusTimeline(status: _status),
+            ],
             const SizedBox(height: 12),
             ...storeOrder.items.map(
               (item) => Padding(

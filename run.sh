@@ -23,6 +23,17 @@ EOF
 
 cmd_mobile() {
   cd "$ROOT_DIR/tuma-app"
+  # The Android Maps key rides the environment into Gradle (manifest
+  # placeholder) — tuma-app/.env is gitignored, never committed.
+  if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+  fi
+  if [ -z "${MAPS_API_KEY:-}" ]; then
+    echo "note: MAPS_API_KEY is not set (tuma-app/.env) — map surfaces will fail to render tiles"
+  fi
   exec flutter run "$@"
 }
 

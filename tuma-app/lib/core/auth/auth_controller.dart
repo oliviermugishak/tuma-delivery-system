@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/auth_api.dart';
 import 'package:tuma_app/core/api/models/authenticated_user.dart';
+import 'package:tuma_app/core/api/rider_api.dart';
 import 'package:tuma_app/core/api/store_api.dart';
 import 'package:tuma_app/core/api/order_api.dart';
 import 'package:tuma_app/core/auth/token_storage.dart';
@@ -48,6 +49,10 @@ final storeApiProvider = Provider<StoreApi>(
 
 final orderApiProvider = Provider<OrderApi>(
   (ref) => OrderApi(ref.read(apiClientProvider)),
+);
+
+final riderApiProvider = Provider<RiderApi>(
+  (ref) => RiderApi(ref.read(apiClientProvider)),
 );
 
 /// What we know about the current session.

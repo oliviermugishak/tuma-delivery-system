@@ -8,6 +8,7 @@ class AuthenticatedUser {
     this.email,
     this.customer,
     this.admin,
+    this.rider,
     this.merchantMemberships = const [],
   });
 
@@ -16,6 +17,7 @@ class AuthenticatedUser {
   final String? email;
   final ProfileInfo? customer;
   final ProfileInfo? admin;
+  final RiderInfo? rider;
   final List<MerchantMembership> merchantMemberships;
 
   factory AuthenticatedUser.fromJson(Map<String, dynamic> json) =>
@@ -26,6 +28,7 @@ class AuthenticatedUser {
         customer: (json['customer'] as Map<String, dynamic>?)
             ?.let(ProfileInfo.fromJson),
         admin: (json['admin'] as Map<String, dynamic>?)?.let(ProfileInfo.fromJson),
+        rider: (json['rider'] as Map<String, dynamic>?)?.let(RiderInfo.fromJson),
         merchantMemberships: (json['merchant_memberships'] as List? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(MerchantMembership.fromJson)
@@ -34,16 +37,18 @@ class AuthenticatedUser {
 
   bool get isCustomer => customer != null;
   bool get isAdmin => admin != null;
+  bool get isRider => rider != null;
   bool get isMerchantOperator => merchantMemberships.isNotEmpty;
 
   /// The display name across profiles — the customer's name, else the
-  /// admin's. Operators manage businesses, not personal profiles.
+  /// admin's, else the rider's (rider names are admin-set and always
+  /// present; rider mode is the rider's surface, never the name screen).
   String? get displayName {
     final customerName = customer?.name;
     if (customerName != null && customerName.isNotEmpty) return customerName;
     final adminName = admin?.name;
     if (adminName != null && adminName.isNotEmpty) return adminName;
-    return null;
+    return rider?.name;
   }
 }
 
@@ -61,6 +66,30 @@ class ProfileInfo {
   factory ProfileInfo.fromJson(Map<String, dynamic> json) => ProfileInfo(
         id: json['id'] as String,
         name: json['name'] as String?,
+      );
+}
+
+/// A rider profile: Tuma's own driver, with the unique number the merchant
+/// asks for at handoff. `isActive` is assignability — an inactive rider can
+/// still sign in and see rider mode, they just can't be assigned.
+class RiderInfo {
+  RiderInfo({
+    required this.id,
+    required this.riderNumber,
+    required this.name,
+    required this.isActive,
+  });
+
+  final String id;
+  final int riderNumber;
+  final String name;
+  final bool isActive;
+
+  factory RiderInfo.fromJson(Map<String, dynamic> json) => RiderInfo(
+        id: json['id'] as String,
+        riderNumber: (json['rider_number'] as num).toInt(),
+        name: json['name'] as String,
+        isActive: json['is_active'] as bool? ?? true,
       );
 }
 

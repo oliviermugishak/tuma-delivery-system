@@ -11,6 +11,7 @@ import 'package:tuma_app/features/cart/checkout_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/orders/order_detail_screen.dart';
 import 'package:tuma_app/features/profile/location_screen.dart';
+import 'package:tuma_app/features/rider/rider_screen.dart';
 import 'package:tuma_app/features/store/store_screen.dart';
 
 /// Build a fresh router. A factory so tests and hot-restarts never reuse a
@@ -35,6 +36,13 @@ GoRouter buildRouter() => GoRouter(
             if (snapshot is SessionLoading) return null;
             final onAuthFlow = sub.startsWith('/auth');
             if (snapshot is SessionUser) {
+              // Rider mode is the rider's surface: they start (and stay)
+              // there, and a customer never sees it.
+              final user = snapshot.user;
+              if (user.isRider) {
+                return sub == '/rider' ? null : '/rider';
+              }
+              if (sub == '/rider') return '/home';
               return onAuthFlow || sub == '/' ? '/home' : null;
             }
             // Anonymous: the auth flow is the only place to be.
@@ -74,6 +82,7 @@ GoRouter buildRouter() => GoRouter(
       path: '/profile/location',
       builder: (_, _) => const DeliveryLocationScreen(),
     ),
+    GoRoute(path: '/rider', builder: (_, _) => const RiderScreen()),
       ],
     );
 

@@ -1,8 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// The Maps key rides the environment (run.sh mobile sources tuma-app/.env,
+// gitignored) into the manifest placeholder — never committed, per the
+// tracking doc §4 "three restricted keys" setup.
+val mapsApiKey: String = System.getenv("MAPS_API_KEY") ?: ""
 
 android {
     namespace = "com.tuma.tuma_app"
@@ -27,6 +34,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {

@@ -11,16 +11,21 @@ dependencies:
     sdk: flutter
 
   # State, navigation, typography. Every further dependency must earn its
-  # place with the slice that needs it (see AGENTS.md).
-  flutter_map: ^8.0.0
+  # place with the slice that needs it (see AGENTS.md). google_maps_flutter
+  # is D3's: the tracking map world + the pin pickers (Google everywhere,
+  # flutter_map/latlong2 retired). url_launcher + wakelock_plus are D4's:
+  # the rider kiosk's tel:/Navigate deep-links and the doc's "screen-on on
+  # the bike mount" while Start delivering is on.
   flutter_riverpod: ^3.4.2
   flutter_secure_storage: ^9.2.2
   geolocator: ^14.0.0
   go_router: ^18.0.0
   google_fonts: ^8.2.1
+  google_maps_flutter: ^2.13.1
   http: ^1.2.2
-  latlong2: ^0.9.1
   shared_preferences: ^2.3.0
+  url_launcher: ^6.3.0
+  wakelock_plus: ^1.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,6 @@
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
+import 'package:tuma_app/core/api/models/tracking.dart';
 
 /// Typed wrapper around the customer-facing order endpoints. Hand-written
 /// per the "no codegen for mobile" rule (see AGENTS.md).
@@ -7,6 +8,19 @@ class OrderApi {
   OrderApi(this._client);
 
   final ApiClient _client;
+
+  /// The tracking snapshot for one group (the customer map world's data).
+  /// Returns **null on 204** — the client sent `since` and nothing changed
+  /// server-side: keep rendering, spend nothing. A fresh snapshot (or a
+  /// first poll without `since`) returns the full [GroupTracking].
+  Future<GroupTracking?> trackGroup(String groupId, {DateTime? since}) async {
+    final response = await _client.get('/orders/$groupId/tracking', query: {
+      if (since != null)
+        'since': since.toUtc().toIso8601String(),
+    });
+    if (response == null) return null;
+    return GroupTracking.fromJson(response as Map<String, dynamic>);
+  }
 
   /// Place the checkout: one call, one order group — even when the cart
   /// spans many stores; the server splits it per store. A retried request

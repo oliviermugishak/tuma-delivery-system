@@ -7,6 +7,12 @@
         android:label="tuma_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Slice D3: the tracking map world (google_maps_flutter reads
+             this). The value is a Gradle placeholder fed by MAPS_API_KEY
+             from tuma-app/.env — the key is never committed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,6 +50,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Slice D4: the rider kiosk's "Call" action (tel: deep-link). -->
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
         </intent>
     </queries>
 </manifest>

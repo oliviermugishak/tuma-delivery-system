@@ -11,6 +11,7 @@ import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/home/app_shell.dart' show shellTabProvider;
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/features/location/delivery_pin_map.dart';
 
@@ -110,16 +111,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         idempotencyKey: _idempotencyKey ??= _newIdempotencyKey(),
         items: lines,
       );
-      final group = await ref.read(orderApiProvider).checkout(request);
+      await ref.read(orderApiProvider).checkout(request);
       if (!mounted) return;
       // The checkout is server-side truth now — clear the cart and the
       // one-shot key with it.
       _idempotencyKey = null;
       await ref.read(cartProvider.notifier).clear();
       if (!mounted) return;
-      // push, not go: the shell stays beneath the detail screen, so the
-      // customer has a way back instead of being stranded.
-      await context.push('/orders/${group.id}');
+      // Never pop here: the dead checkout under this screen is exactly the
+      // strand. The order detail is reached from the Orders list (with the
+      // app bar), so back goes to history — not to an emptied checkout.
+      ref.read(shellTabProvider.notifier).select(2);
+      context.go('/home');
     } on ApiBadRequest catch (e) {
       if (!mounted) return;
       setState(() {
@@ -166,8 +169,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
+                // Just-fit, not the global full-width stretch — a centered
+                // nudge, not a banner. Back to the cart tab in the shell,
+                // not pop(): dead history here is how the strand happens.
                 FilledButton(
-                  onPressed: () => context.pop(),
+                  onPressed: () {
+                    ref.read(shellTabProvider.notifier).select(3);
+                    context.go('/home');
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                  ),
                   child: const Text('Back to cart'),
                 ),
               ],

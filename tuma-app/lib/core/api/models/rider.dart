@@ -1,0 +1,99 @@
+import 'package:flutter/foundation.dart';
+
+/// One active delivery on the rider's work list (GET /v1/deliveries) —
+/// the kiosk's job card. Everything the run needs rides along: where it
+/// is, where it goes, who receives it (name + `tel:`), the cached road
+/// route, and the server's ETA target. Positions the rider pushes come
+/// back only as this list refreshes; the rider's own marker is drawn
+/// from device GPS, never from the server.
+@immutable
+class RiderDelivery {
+  const RiderDelivery({
+    required this.deliveryId,
+    required this.storeOrderId,
+    required this.storeName,
+    this.storeAddress,
+    this.storeLat,
+    this.storeLng,
+    required this.destinationAddress,
+    this.destinationLat,
+    this.destinationLng,
+    this.customerName,
+    this.customerPhone,
+    required this.status,
+    this.handoffAt,
+    this.routePolyline,
+    this.etaTarget,
+    this.lastLat,
+    this.lastLng,
+    this.lastLocationAt,
+  });
+
+  final String deliveryId;
+  final String storeOrderId;
+  final String storeName;
+  final String? storeAddress;
+  final double? storeLat;
+  final double? storeLng;
+  final String destinationAddress;
+  final double? destinationLat;
+  final double? destinationLng;
+  final String? customerName;
+  final String? customerPhone;
+  final String status;
+  final DateTime? handoffAt;
+  final String? routePolyline;
+  final DateTime? etaTarget;
+  final double? lastLat;
+  final double? lastLng;
+  final DateTime? lastLocationAt;
+
+  factory RiderDelivery.fromJson(Map<String, dynamic> json) => RiderDelivery(
+        deliveryId: json['delivery_id'] as String,
+        storeOrderId: json['store_order_id'] as String,
+        storeName: json['store_name'] as String,
+        storeAddress: json['store_address'] as String?,
+        storeLat: (json['store_lat'] as num?)?.toDouble(),
+        storeLng: (json['store_lng'] as num?)?.toDouble(),
+        destinationAddress: json['destination_address'] as String,
+        destinationLat: (json['destination_lat'] as num?)?.toDouble(),
+        destinationLng: (json['destination_lng'] as num?)?.toDouble(),
+        customerName: json['customer_name'] as String?,
+        customerPhone: json['customer_phone'] as String?,
+        status: json['status'] as String,
+        handoffAt: json['handoff_at'] is String
+            ? DateTime.parse(json['handoff_at'] as String)
+            : null,
+        routePolyline: json['route_polyline'] as String?,
+        etaTarget: json['eta_target'] is String
+            ? DateTime.parse(json['eta_target'] as String)
+            : null,
+        lastLat: (json['last_lat'] as num?)?.toDouble(),
+        lastLng: (json['last_lng'] as num?)?.toDouble(),
+        lastLocationAt: json['last_location_at'] is String
+            ? DateTime.parse(json['last_location_at'] as String)
+            : null,
+      );
+}
+
+/// The server's answer to the rider's Delivered action
+/// (POST /v1/deliveries/{id}/delivered) — the settled event.
+@immutable
+class DeliveredResult {
+  const DeliveredResult({
+    required this.storeOrderId,
+    required this.status,
+    required this.deliveredAt,
+  });
+
+  final String storeOrderId;
+  final String status;
+  final DateTime deliveredAt;
+
+  factory DeliveredResult.fromJson(Map<String, dynamic> json) =>
+      DeliveredResult(
+        storeOrderId: json['store_order_id'] as String,
+        status: json['status'] as String,
+        deliveredAt: DateTime.parse(json['delivered_at'] as String),
+      );
+}
