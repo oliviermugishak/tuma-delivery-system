@@ -10,9 +10,12 @@
 //! seconds, like the rider screen will push.
 //!
 //! Usage:
-//!   cargo run --bin simulate_delivery                    # oldest picked_up delivery
-//!   cargo run --bin simulate_delivery --deliver          # ... and mark it delivered
-//!   cargo run --bin simulate_delivery --store-order <id> # a specific run
+//!   cargo run --bin simulate_delivery                          # newest handoff
+//!   cargo run --bin simulate_delivery --deliver                # ... and mark it delivered
+//!   cargo run --bin simulate_delivery --rider 2                # a specific rider's newest run
+//!   cargo run --bin simulate_delivery --order 10               # a specific order number
+//!   cargo run --bin simulate_delivery --list                   # just show what's out there
+//!   cargo run --bin simulate_delivery --rider 2 --order 10 --deliver
 
 use anyhow::bail;
 use sqlx::postgres::PgPoolOptions;
@@ -22,14 +25,24 @@ use tuma_server::config::get_configuration;
 async fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let mut store_order: Option<uuid::Uuid> = None;
+    let mut order_number: Option<i64> = None;
+    let mut rider_number: Option<i64> = None;
     let mut deliver = false;
+    let mut list = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--store-order" => {
                 store_order = Some(args.next().expect("--store-order needs an id").parse()?);
             }
+            "--order" => {
+                order_number = Some(args.next().expect("--order needs a number").parse()?);
+            }
+            "--rider" => {
+                rider_number = Some(args.next().expect("--rider needs a number").parse()?);
+            }
             "--deliver" => deliver = true,
-            other => bail!("unknown argument {other} (use --store-order <id> and/or --deliver)"),
+            "--list" => list = true,
+            other => bail!("unknown argument {other} (use --rider <n>, --order <n>, --store-order <id>, --deliver, --list)"),
         }
     }
 
@@ -40,12 +53,40 @@ async fn main() -> anyhow::Result<()> {
         .connect_with(config.database_with_db())
         .await?;
 
-    // The run to simulate: the oldest delivery that is out for delivery
-    // with a known destination (the pin is expected-but-optional), or the
-    // caller's pick. A cached route_polyline means the walk follows the
-    // real road (decoded below) instead of the straight line. The
-    // delivery stores the rider PROFILE id — the phone lives one join
-    // away, through commerce.riders to accounts.users.
+    if list {
+        let rows = sqlx::query_as::<_, (uuid::Uuid, i64, i64, String, Option<String>)>(
+            r#"
+            SELECT so.id, so.number, r.rider_number, s.name, d.route_polyline
+            FROM commerce.deliveries d
+            JOIN commerce.store_orders so ON so.id = d.store_order_id
+            JOIN marketplace.stores s ON s.id = so.store_id
+            JOIN commerce.riders r ON r.id = d.rider_id
+            WHERE so.status = 'picked_up'
+            ORDER BY d.handoff_at DESC
+            "#,
+        )
+        .fetch_all(&pool)
+        .await?;
+        if rows.is_empty() {
+            println!("nothing out for delivery — hand an order off first");
+            return Ok(());
+        }
+        println!("out for delivery now:");
+        for (id, number, rider, store, polyline) in rows {
+            println!(
+                "  order #{number} · rider #{rider} · {store} · route: {} · store_order_id {id}",
+                if polyline.is_some() { "cached" } else { "none" },
+            );
+        }
+        return Ok(());
+    }
+
+    // The run to simulate: the newest handoff by default, narrowed by
+    // --rider (a specific rider's run) and/or --order (a specific order
+    // number). A cached route_polyline means the walk follows the real
+    // road (decoded below) instead of the straight line. The delivery
+    // stores the rider PROFILE id — the phone lives one join away,
+    // through commerce.riders to accounts.users.
     let run = sqlx::query_as::<_, (uuid::Uuid, String, f64, f64, Option<String>)>(
         r#"
         SELECT d.id, u.phone, s.lat, s.lng, d.route_polyline
@@ -60,11 +101,15 @@ async fn main() -> anyhow::Result<()> {
           AND s.lat IS NOT NULL AND s.lng IS NOT NULL
           AND og.address_lat IS NOT NULL AND og.address_lng IS NOT NULL
           AND ($1::uuid IS NULL OR so.id = $1)
+          AND ($2::bigint IS NULL OR so.number = $2)
+          AND ($3::bigint IS NULL OR r.rider_number = $3)
         ORDER BY d.handoff_at DESC
         LIMIT 1
         "#,
     )
     .bind(store_order)
+    .bind(order_number)
+    .bind(rider_number)
     .fetch_optional(&pool)
     .await?;
     let Some((delivery_id, rider_phone, from_lat, from_lng, cached_polyline)) = run else {
