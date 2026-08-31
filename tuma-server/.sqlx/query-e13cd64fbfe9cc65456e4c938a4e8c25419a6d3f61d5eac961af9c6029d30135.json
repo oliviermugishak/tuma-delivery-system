@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT delivery_id, lat, lng, recorded_at\n            FROM commerce.delivery_locations\n            WHERE delivery_id = ANY($1)\n            ORDER BY recorded_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "delivery_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.delivery_locations",
+            "name": "delivery_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.delivery_locations",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.delivery_locations",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "recorded_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.delivery_locations",
+            "name": "recorded_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e13cd64fbfe9cc65456e4c938a4e8c25419a6d3f61d5eac961af9c6029d30135"
+}

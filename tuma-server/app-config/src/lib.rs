@@ -14,6 +14,8 @@ pub struct Config {
     pub auth: AuthConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub routing: RoutingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -121,6 +123,41 @@ impl Default for S3StorageConfig {
 
 fn default_s3_region() -> String {
     "auto".into()
+}
+
+// ---------------------------------------------------------------------------
+// Road routing (build order #4, slice D2) — Google Directions, called by OUR
+// server (the key never reaches a client), cached on the delivery at
+// handoff. Until a key is configured the `none` backend answers honestly:
+// no route — callers fall back to their own estimates. The backend swap is
+// config, never code (the storage pattern).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RoutingBackend {
+    #[default]
+    None,
+    Google,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoutingConfig {
+    #[serde(default)]
+    pub backend: RoutingBackend,
+    /// The Directions API key — server-only, configured when the map
+    /// slices land. Absent/empty is valid while backend is `none`.
+    #[serde(default)]
+    pub api_key: Option<SecretString>,
+}
+
+impl Default for RoutingConfig {
+    fn default() -> Self {
+        Self {
+            backend: RoutingBackend::None,
+            api_key: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

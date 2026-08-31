@@ -19,6 +19,9 @@ pub struct MeResponse {
     pub created_at: OffsetDateTime,
     pub customer: Option<ProfileResponse>,
     pub admin: Option<ProfileResponse>,
+    /// The rider profile — present only on rider accounts. A rider has no
+    /// customer profile; rider mode is their surface.
+    pub rider: Option<RiderProfileResponse>,
     pub merchant_memberships: Vec<MembershipResponse>,
 }
 
@@ -26,6 +29,18 @@ pub struct MeResponse {
 pub struct ProfileResponse {
     pub id: Uuid,
     pub name: Option<String>,
+}
+
+/// The rider profile as the account itself sees it: identity plus the
+/// number the merchant asks for at handoff. The phone lives at the account
+/// level (the OTP anchor); assignability (`is_active`) matters to the
+/// rider's own screen too.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RiderProfileResponse {
+    pub id: Uuid,
+    pub rider_number: i64,
+    pub name: String,
+    pub is_active: bool,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -62,6 +77,15 @@ impl MeResponse {
                 id: admin.id,
                 name: admin.name.clone(),
             }),
+            rider: authorization
+                .rider
+                .as_ref()
+                .map(|rider| RiderProfileResponse {
+                    id: rider.id,
+                    rider_number: rider.rider_number,
+                    name: rider.name.clone(),
+                    is_active: rider.is_active,
+                }),
             merchant_memberships: authorization
                 .memberships
                 .iter()

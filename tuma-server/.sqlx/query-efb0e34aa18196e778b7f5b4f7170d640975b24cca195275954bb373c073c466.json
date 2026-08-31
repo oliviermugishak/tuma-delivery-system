@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.deliveries\n        SET rider_id = $2, handoff_at = now(), route_polyline = $3, eta_target = $4\n        WHERE store_order_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "efb0e34aa18196e778b7f5b4f7170d640975b24cca195275954bb373c073c466"
+}

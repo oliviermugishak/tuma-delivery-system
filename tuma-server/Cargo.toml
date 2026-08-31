@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-config", "accounts", "commerce", "marketplace", "storage"]
+members = ["app-config", "accounts", "commerce", "marketplace", "routing", "storage"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,6 +17,7 @@ app-config = { path = "app-config" }
 commerce = { path = "commerce" }
 marketplace = { path = "marketplace" }
 storage = { path = "storage" }
+routing = { path = "routing" }
 axum = { version = "0.8.9", features = ["macros", "multipart"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 config = "0.15.25"
@@ -37,6 +38,8 @@ validator = { version = "0.21.0", features = ["derive"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 tower-http = { version = "0.7.0", features = ["request-id", "trace", "cors"] }
 utoipa = { version = "5", features = ["macros", "uuid", "time"] }
+# The dev simulator POSTs through the real HTTP endpoints (tracking doc §9).
+reqwest = { version = "0.13.4", features = ["json", "cookies", "multipart"] }
 
 [dependencies.sqlx]
 version = "0.9.0"
@@ -45,4 +48,3 @@ features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "tim
 [dev-dependencies]
 # PNG/JPEG encode for upload-test fixtures (storage slice).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-reqwest = { version = "0.13.4", features = ["json", "cookies", "multipart"] }

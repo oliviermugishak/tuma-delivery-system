@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.deliveries\n        SET route_polyline = COALESCE($2, route_polyline), eta_target = $3\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08134e84698c0b350f005da2f4c8e758c79952af3ff80a88e2161aabc31daa96"
+}

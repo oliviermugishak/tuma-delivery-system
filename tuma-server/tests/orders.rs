@@ -6,8 +6,8 @@
 mod common;
 
 use common::{
-    MIGRATOR, TestClient, login, seed_customer, seed_merchant, seed_store_manager, spawn_app,
-    token_for,
+    MIGRATOR, TestClient, login, seed_customer, seed_merchant, seed_rider, seed_store_manager,
+    spawn_app, token_for,
 };
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -849,12 +849,48 @@ async fn the_six_status_machine_is_enforced(pool: sqlx::PgPool) {
     assert_eq!(advance("teleported").await.status(), 400);
     // Placed → delivered skips three states.
     assert_eq!(advance("delivered").await.status(), 400);
-    // The happy path: accepted → preparing → picked_up → delivered.
-    for status in ["accepted", "preparing", "picked_up", "delivered"] {
+    // The happy path: accepted → preparing, then the handoff's pickup.
+    for status in ["accepted", "preparing"] {
         let response = advance(status).await;
         assert_eq!(response.status(), 200, "advance to {status}");
         assert_eq!(response.json::<Value>().await.unwrap()["status"], status);
     }
+    // picked_up is NOT a bare advance: without a rider attached the
+    // delivery would be stranded — the handoff action (the rider's
+    // number) is the only door in.
+    let response = advance("picked_up").await;
+    assert_eq!(response.status(), 400, "bare pickup rejected");
+    assert!(
+        response.json::<Value>().await.unwrap()["message"]
+            .as_str()
+            .unwrap()
+            .contains("rider")
+    );
+    // The real handoff: rider number in, picked_up out.
+    let rider = seed_rider(&app.pool, "Jean", "+250780000002").await;
+    let response = aline
+        .client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{order_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200, "handoff picks the order up");
+    assert_eq!(
+        response.json::<Value>().await.unwrap()["status"],
+        "picked_up"
+    );
+    // The merchant still advances the delivery's end: picked_up →
+    // delivered (the same ledger event as the rider's own Delivered).
+    let response = advance("delivered").await;
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.json::<Value>().await.unwrap()["status"],
+        "delivered"
+    );
     // A terminal state accepts no moves.
     assert_eq!(advance("delivered").await.status(), 400);
     assert_eq!(advance("cancelled").await.status(), 400);

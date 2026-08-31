@@ -320,6 +320,8 @@ pub enum TransitionError {
         from: &'static str,
         to: &'static str,
     },
+    #[error("a rider picks the order up — use the handoff action with their rider number")]
+    HandoffRequired,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -885,6 +887,14 @@ pub async fn advance_store_order_status(
             to: next.label(),
         });
     }
+    // `picked_up` is the handoff's event, never a bare advance: the
+    // transition without a rider attached would strand the delivery —
+    // nobody could push locations or mark it delivered. The handoff
+    // endpoint (which sets rider_id, stamps handoff_at, caches the route)
+    // is the ONLY door into `picked_up`; re-assignment reuses it.
+    if next == OrderStatus::PickedUp {
+        return Err(TransitionError::HandoffRequired);
+    }
 
     let updated = sqlx::query_as!(
         StoreOrder,
@@ -900,6 +910,13 @@ pub async fn advance_store_order_status(
     )
     .fetch_one(&mut *tx)
     .await?;
+    // The cash state (tracking doc §5): delivery = payment for cash-on-
+    // delivery, whichever real actor drives the advance — the rider's
+    // Delivered action and the merchant's PATCH are the same event to the
+    // ledger. Inside this transaction so status and money move atomically.
+    if next == OrderStatus::Delivered {
+        crate::deliveries::settle_delivery_cash(&mut tx, store_order_id).await?;
+    }
     tx.commit().await?;
     Ok(updated)
 }

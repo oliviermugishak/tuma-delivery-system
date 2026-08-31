@@ -119,6 +119,38 @@ fn merchant_access(context: &UserContext) -> AppResult<crate::app::MerchantAcces
         .ok_or_else(|| AppError::Authentication("Access denied".into()))
 }
 
+/// The route cache a handoff stores on the delivery: the adapter's road
+/// route when one is available, otherwise the honest stand-in — an ETA
+/// from the locked ride speed and NO geometry. A routing-backend failure
+/// degrades to the same fallback rather than blocking the handoff; the
+/// cache re-fetches on a stray anyway (tracking doc §4).
+async fn handoff_route(
+    routing: &dyn routing::RoutingProvider,
+    from: routing::Coord,
+    to: routing::Coord,
+) -> commerce::CachedRoute {
+    let now = time::OffsetDateTime::now_utc();
+    match routing.route(from, to).await {
+        Ok(Some(route)) => commerce::CachedRoute {
+            polyline: Some(route.polyline),
+            eta_target: now + time::Duration::seconds(route.duration_secs),
+        },
+        other => {
+            if let Err(error) = other {
+                tracing::warn!(
+                    error = %error,
+                    "routing backend failed at handoff — falling back to the ride-speed estimate"
+                );
+            }
+            let distance = marketplace::geo::haversine_m(from.lat, from.lng, to.lat, to.lng);
+            commerce::CachedRoute {
+                polyline: None,
+                eta_target: now + time::Duration::minutes(marketplace::geo::ride_minutes(distance)),
+            }
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CheckoutInput {
     #[validate(length(min = 1, max = 300, message = "delivery address must not be empty"))]
@@ -648,12 +680,110 @@ pub async fn advance_store_order(
     }
 
     let order = orders::advance_store_order_status(&mut conn, id, next).await?;
+    // (The cash settlement lives inside the domain advance's transaction —
+    // delivery = payment, one atomic event, doc §5.)
     let row =
         orders::store_orders_for_merchant_scoped(&mut conn, merchant_id, Some(&[store_id]), 200, 0)
             .await?
             .into_iter()
             .find(|row| row.id == order.id)
             .ok_or_else(|| AppError::Internal("advanced order disappeared".into()))?;
+    Ok(Json(MerchantStoreOrderResponse {
+        id: row.id,
+        number: row.number,
+        store_id: row.store_id,
+        store_name: row.store_name,
+        status: row.status,
+        total: row.total,
+        address_text: row.address_text,
+        created_at: row.created_at,
+    }))
+}
+
+/// The fulfillment sheet's "Handed to rider" action (tracking doc §5): the
+/// merchant types the rider's unique number, the server validates an
+/// active rider, assigns the delivery, and advances the order to
+/// `picked_up`. Runs again while the delivery isn't delivered (the
+/// wrong-number remedy); after `delivered` the assignment is frozen.
+/// Foreign store orders are a plain 404, like every merchant route.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct HandoffInput {
+    /// The rider number the store asked for — the whole assignment
+    /// interface; there is no directory picker.
+    pub rider_number: i64,
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/merchant/store-orders/{id}/handoff",
+    params(("id" = Uuid, Path, description = "Store order id")),
+    request_body = HandoffInput,
+    responses(
+        (status = 200, description = "Rider assigned, order handed over (picked_up)", body = MerchantStoreOrderResponse),
+        (status = 400, description = "The order is not in a handable state (preparing, or re-assign while picked_up)"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "No merchant membership"),
+        (status = 404, description = "Not one of this operator's orders, or no active rider with that number"),
+    ),
+    tag = "merchant"
+)]
+#[tracing::instrument(name = "Hand off to rider", skip_all)]
+pub async fn handoff_store_order(
+    State(app): State<AppState>,
+    Extension(context): Extension<UserContext>,
+    Path(id): Path<Uuid>,
+    axum::Json(input): axum::Json<HandoffInput>,
+) -> AppResult<Json<MerchantStoreOrderResponse>> {
+    let access = merchant_access(&context)?;
+    let mut conn = app.db_pool.acquire().await?;
+    let (_, merchant_id, store_id) = orders::store_order_scope(&mut conn, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("order not found".into()))?;
+    if !access.can_access_store(merchant_id, store_id) {
+        return Err(AppError::NotFound("order not found".into()));
+    }
+
+    let rider = accounts::riders::active_by_number(&mut conn, input.rider_number)
+        .await?
+        .ok_or_else(|| AppError::NotFound("no active rider with that number".into()))?;
+
+    // Route cache at handoff (tracking doc §4): the destination never
+    // moves mid-delivery, so the road route is fetched once here. With no
+    // Directions key configured the adapter answers None and the honest
+    // fallback stands in: an ETA from the locked ride speed, no geometry.
+    let points = commerce::deliveries::route_context(&mut conn, id)
+        .await?
+        .filter(|points| {
+            points.store_lat.is_some()
+                && points.store_lng.is_some()
+                && points.destination_lat.is_some()
+                && points.destination_lng.is_some()
+        });
+    let cached = match points {
+        Some(points) => Some(
+            handoff_route(
+                app.routing.as_ref(),
+                routing::Coord {
+                    lat: points.store_lat.unwrap(),
+                    lng: points.store_lng.unwrap(),
+                },
+                routing::Coord {
+                    lat: points.destination_lat.unwrap(),
+                    lng: points.destination_lng.unwrap(),
+                },
+            )
+            .await,
+        ),
+        None => None,
+    };
+
+    let order = commerce::deliveries::handoff(&mut conn, id, rider.id, cached).await?;
+    let row =
+        orders::store_orders_for_merchant_scoped(&mut conn, merchant_id, Some(&[store_id]), 200, 0)
+            .await?
+            .into_iter()
+            .find(|row| row.id == order.id)
+            .ok_or_else(|| AppError::Internal("handed-over order disappeared".into()))?;
     Ok(Json(MerchantStoreOrderResponse {
         id: row.id,
         number: row.number,

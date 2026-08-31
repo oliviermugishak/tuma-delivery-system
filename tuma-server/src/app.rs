@@ -2,23 +2,27 @@ use crate::error::ApiErrorResponse;
 use crate::error::validation_errors_to_field_errors;
 use crate::middleware::{
     auth_context, csrf_origin_check, require_admin, require_customer, require_merchant,
-    required_auth,
+    require_rider, required_auth,
 };
 use crate::routes::admin::{
-    create_merchant, delete_customer, delete_merchant, get_merchant, list_customers,
-    list_merchants, summary, update_customer, update_merchant,
+    create_merchant, create_rider, delete_customer, delete_merchant, delete_rider, get_merchant,
+    list_customers, list_merchants, list_riders, summary, update_customer, update_merchant,
+    update_rider,
 };
 use crate::routes::auth::{change_password, login, logout, otp_request, otp_verify};
 use crate::routes::catalog::{
     create_product, create_store_product, delete_product, delete_store_product, list_products,
     list_store_products, update_product, update_store_product,
 };
+use crate::routes::deliveries::{
+    list_rider_deliveries, mark_delivered, order_tracking, push_location,
+};
 use crate::routes::health_check;
 use crate::routes::me::{me, update_me};
 use crate::routes::openapi_json;
 use crate::routes::orders::{
-    advance_store_order, checkout, get_merchant_store_order, get_order, list_merchant_orders,
-    list_orders,
+    advance_store_order, checkout, get_merchant_store_order, get_order, handoff_store_order,
+    list_merchant_orders, list_orders,
 };
 use crate::routes::search::search;
 use crate::routes::storage::{
@@ -59,6 +63,9 @@ pub struct AppState {
     /// Object storage (slice U1): images. Backend is config — local disk
     /// in dev, in-memory in tests, S3-compatible R2 in production.
     pub storage: Arc<storage::StorageService>,
+    /// Road routing (slice D2): the Directions adapter behind config —
+    /// `NoRouting` until a key is configured, the honest no-route answer.
+    pub routing: Arc<dyn routing::RoutingProvider>,
 }
 
 impl AppState {
@@ -69,6 +76,7 @@ impl AppState {
         dev_otp_code: Option<String>,
         cookie_secure: bool,
         storage: storage::StorageService,
+        routing: Arc<dyn routing::RoutingProvider>,
     ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
@@ -77,6 +85,7 @@ impl AppState {
             dev_otp_code,
             cookie_secure,
             storage: Arc::new(storage),
+            routing,
         }
     }
 }
@@ -228,6 +237,15 @@ impl UserContext {
             .is_some_and(|auth| auth.admin.is_some())
     }
 
+    /// The rider's own profile id — presence is the rider capability
+    /// (require_rider); assignability is `riders.is_active`, checked where
+    /// a merchant hands over new work.
+    pub fn rider_id(&self) -> Option<Uuid> {
+        self.authorization
+            .as_ref()
+            .and_then(|auth| auth.rider.as_ref().map(|rider| rider.id))
+    }
+
     /// The merchant-side surface; `None` for accounts with no memberships.
     pub fn merchant_access(&self) -> Option<MerchantAccess> {
         let memberships = &self.authorization.as_ref()?.memberships;
@@ -274,6 +292,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
             "/customers/{id}",
             patch(update_customer).delete(delete_customer),
         )
+        .route("/riders", post(create_rider).get(list_riders))
+        .route("/riders/{id}", patch(update_rider).delete(delete_rider))
         .route("/summary", get(summary))
         .layer(middleware::from_fn(require_admin));
 
@@ -306,6 +326,9 @@ pub fn build_app_with_state(state: AppState) -> Router {
             "/store-orders/{id}",
             get(get_merchant_store_order).patch(advance_store_order),
         )
+        // The "Handed to rider" action (tracking doc §5): assign by the
+        // rider's unique number — no directory picker.
+        .route("/store-orders/{id}/handoff", post(handoff_store_order))
         // Image uploads (slice U1). The default 2 MB body limit would
         // reject real photos before the 5 MB policy could answer 413, so
         // the multipart routes get a raised ceiling; the domain cap is
@@ -362,7 +385,21 @@ pub fn build_app_with_state(state: AppState) -> Router {
                     "/{id}/store-orders/{store_order_id}/cancel",
                     post(crate::routes::orders::cancel_store_order),
                 )
+                // The customer's tracking poll (tracking doc §2): 204 when
+                // nothing changed since the client's last view.
+                .route("/{id}/tracking", get(order_tracking))
                 .layer(middleware::from_fn(require_customer)),
+        )
+        // The rider audience (tracking doc §5): OTP accounts with a rider
+        // profile. Presence is the capability; assignability is checked
+        // where merchants hand over new work.
+        .nest(
+            "/deliveries",
+            Router::new()
+                .route("/", get(list_rider_deliveries))
+                .route("/{id}/location", post(push_location))
+                .route("/{id}/delivered", post(mark_delivered))
+                .layer(middleware::from_fn(require_rider)),
         )
         .merge(authenticated);
 

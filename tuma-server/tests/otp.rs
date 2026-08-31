@@ -220,7 +220,15 @@ async fn invalid_phone_numbers_fail_validation(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
     let client = TestClient::new(&app.address);
 
-    for phone in ["12345", "not-a-phone", "+250780111000123456"] {
+    // Without the country code a phone is rejected, not guessed at: two
+    // spellings of one number must never become two identities.
+    for phone in [
+        "12345",
+        "not-a-phone",
+        "0783002002",
+        "250783002002",
+        "+250780111000123456",
+    ] {
         let response = request_code(&client, phone).await;
         assert_eq!(response.status(), 422, "phone {phone} should be rejected");
     }

@@ -241,6 +241,14 @@ capability_guard!(
     |context: &UserContext| context.merchant_access().is_some(),
     "merchant operator"
 );
+// Rider presence, not assignability: `riders.is_active` decides whether a
+// merchant may hand the rider NEW deliveries — a rider mid-run delivers
+// their assignment regardless (tracking doc §5).
+capability_guard!(
+    require_rider,
+    |context: &UserContext| context.rider_id().is_some(),
+    "rider"
+);
 
 /// CSRF defense for cookie sessions: a state-changing request coming from a
 /// browser must carry an `Origin` header on the allow list

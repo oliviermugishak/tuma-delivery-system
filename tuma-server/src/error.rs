@@ -153,6 +153,9 @@ impl From<TransitionError> for AppError {
             // (e.g. placed → delivered). A bad request — the client asked
             // for something the state machine won't allow.
             TransitionError::Illegal { .. } => AppError::BadRequest(error.to_string()),
+            // picked_up belongs to the handoff action (rider number); a
+            // bare advance would create a riderless delivery.
+            TransitionError::HandoffRequired => AppError::BadRequest(error.to_string()),
             TransitionError::Database(error) => AppError::Database(error),
         }
     }
@@ -178,6 +181,37 @@ impl From<StorageError> for AppError {
                 AppError::Internal(error.to_string())
             }
             StorageError::Configuration(message) => AppError::Internal(message),
+        }
+    }
+}
+
+impl From<accounts::riders::RiderError> for AppError {
+    fn from(error: accounts::riders::RiderError) -> Self {
+        match error {
+            // Unknown and foreign rider ids are the same 404.
+            accounts::riders::RiderError::NotFound => AppError::NotFound(error.to_string()),
+            // Assignment history is operationally real: deactivate instead.
+            accounts::riders::RiderError::HasDeliveries => AppError::Conflict(error.to_string()),
+            accounts::riders::RiderError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<commerce::deliveries::DeliveryError> for AppError {
+    fn from(error: commerce::deliveries::DeliveryError) -> Self {
+        use commerce::deliveries::DeliveryError;
+        match error {
+            // Anti-probe: a foreign delivery is indistinguishable from a
+            // missing one.
+            DeliveryError::NotFound => AppError::NotFound(error.to_string()),
+            // The delivery exists but is not moving — pushing positions to
+            // a delivery that is not out for delivery is a conflict, not a
+            // lie.
+            DeliveryError::NotOutForDelivery => AppError::Conflict(error.to_string()),
+            // The six-state machine refusing a skip is the client asking
+            // for something impossible.
+            DeliveryError::Illegal { .. } => AppError::BadRequest(error.to_string()),
+            DeliveryError::Database(error) => AppError::Database(error),
         }
     }
 }

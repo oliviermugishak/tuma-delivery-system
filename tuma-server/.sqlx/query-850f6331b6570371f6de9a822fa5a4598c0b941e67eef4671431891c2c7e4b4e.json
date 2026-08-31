@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.deliveries\n        SET last_lat = $2, last_lng = $3, last_location_at = $4\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "850f6331b6570371f6de9a822fa5a4598c0b941e67eef4671431891c2c7e4b4e"
+}

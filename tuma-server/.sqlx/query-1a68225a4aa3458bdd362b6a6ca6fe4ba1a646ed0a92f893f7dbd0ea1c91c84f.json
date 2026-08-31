@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO commerce.delivery_locations (delivery_id, lat, lng)\n        VALUES ($1, $2, $3)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1a68225a4aa3458bdd362b6a6ca6fe4ba1a646ed0a92f893f7dbd0ea1c91c84f"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.payment_allocations\n        SET status = $2\n        WHERE store_order_id = $1 AND status = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "commerce.allocation_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "settled",
+                "refunded"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.allocation_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "settled",
+                "refunded"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac836b30e2e5736dd83dec0877bf5eea8663090a6d8edd32977bb2181d477524"
+}

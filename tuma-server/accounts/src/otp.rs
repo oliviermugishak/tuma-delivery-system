@@ -6,6 +6,7 @@
 
 use crate::customers;
 use crate::manager::{AccountManager, CreateAccountError};
+use crate::riders;
 use crate::users::{self, Account};
 use rand::RngExt;
 use sha2::{Digest, Sha256};
@@ -100,12 +101,18 @@ pub async fn request(
 #[derive(Debug, Clone)]
 pub struct OtpSignIn {
     pub account: Account,
-    pub customer: customers::Customer,
+    /// The customer profile for a customer sign-in. `None` when the account
+    /// is a rider — riders get no customer profile; rider mode is their
+    /// surface (the admin created the account with a name already).
+    pub customer: Option<customers::Customer>,
+    pub rider: Option<riders::Rider>,
 }
 
 /// Verify `code` for `phone`. On success the code is consumed and the
-/// account + customer profile are fetched-or-created. If `name` is given
-/// and the profile has none yet, it is set.
+/// account is fetched-or-created. Customer accounts get their customer
+/// profile ensured (register and login are one flow) — unless the account
+/// is a rider, whose profile already exists and who gets no customer one.
+/// If `name` is given and the customer profile has none yet, it is set.
 pub async fn verify(
     accounts: &AccountManager,
     conn: &mut PgConnection,
@@ -161,6 +168,18 @@ pub async fn verify(
             })?,
     };
 
+    // Role-routing: an admin-created rider account signs in with the same
+    // OTP flow but already carries its rider profile — no customer profile
+    // is ensured for it, so require_customer correctly 403s and the app
+    // routes it to rider mode.
+    if let Some(rider) = riders::by_user_id(conn, account.id).await? {
+        return Ok(OtpSignIn {
+            account,
+            customer: None,
+            rider: Some(rider),
+        });
+    }
+
     let mut customer = customers::ensure_for_user(conn, account.id).await?;
 
     // A returning customer who never gave a name can still provide one.
@@ -170,5 +189,9 @@ pub async fn verify(
         customer = customers::set_name(conn, account.id, name).await?;
     }
 
-    Ok(OtpSignIn { account, customer })
+    Ok(OtpSignIn {
+        account,
+        customer: Some(customer),
+        rider: None,
+    })
 }

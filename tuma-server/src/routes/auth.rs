@@ -13,14 +13,20 @@ use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
-/// Loose E.164-ish check: 9–15 digits with an optional leading `+`.
-/// Strict per-country normalization is a later slice.
+/// E.164 or nothing: every phone in the system carries its country code —
+/// `+` followed by 9–15 digits (`+250783002002`). Local formats (`07…`,
+/// bare digits) are rejected rather than guessed at, so two spellings of
+/// one number can never become two identities. Clients submit the full
+/// number: the mobile prepends the dial code; the platform forms require
+/// it. Trimming is the only processing anywhere.
 pub(crate) fn validate_phone(phone: &str) -> Result<(), ValidationError> {
-    let digits = phone.strip_prefix('+').unwrap_or(phone);
-    let valid = (9..=15).contains(&digits.len()) && digits.chars().all(|c| c.is_ascii_digit());
+    let valid = phone.strip_prefix('+').is_some_and(|digits| {
+        (9..=15).contains(&digits.len()) && digits.chars().all(|c| c.is_ascii_digit())
+    });
     valid.then_some(()).ok_or_else(|| {
-        ValidationError::new("invalid_phone")
-            .with_message("expected 9-15 digits with an optional leading +".into())
+        ValidationError::new("invalid_phone").with_message(
+            "include the country code — the full international number, e.g. +250783002002".into(),
+        )
     })
 }
 

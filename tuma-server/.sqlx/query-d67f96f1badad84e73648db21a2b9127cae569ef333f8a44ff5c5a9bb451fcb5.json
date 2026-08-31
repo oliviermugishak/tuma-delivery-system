@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT d.last_lat, d.last_lng, d.last_location_at, d.route_polyline,\n               so.status AS \"status: OrderStatus\"\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        WHERE d.id = $1 AND d.rider_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.deliveries",
+            "name": "last_lat"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "last_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.deliveries",
+            "name": "last_lng"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_location_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.deliveries",
+            "name": "last_location_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "route_polyline",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.deliveries",
+            "name": "route_polyline"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status: OrderStatus",
+        "type_info": {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d67f96f1badad84e73648db21a2b9127cae569ef333f8a44ff5c5a9bb451fcb5"
+}

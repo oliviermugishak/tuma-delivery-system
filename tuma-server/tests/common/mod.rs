@@ -78,6 +78,7 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
         config.auth.dev_otp_code.clone(),
         config.application.cookie_secure,
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
+        routing::build_service(&config.routing).expect("Failed to build the routing backend"),
     );
     let app = build_app_with_state(state);
 
@@ -109,6 +110,26 @@ pub async fn seed_customer(pool: &PgPool, phone: &str) -> CustomerSeed {
         .await
         .expect("failed to seed customer profile");
     CustomerSeed { account, customer }
+}
+
+/// A rider: OTP account + rider profile (the admin-endpoint shape, seeded
+/// directly). Returns the account id for token minting and the profile
+/// with its generated rider number.
+pub struct RiderSeed {
+    pub account: accounts::Account,
+    pub rider: accounts::riders::Rider,
+}
+
+pub async fn seed_rider(pool: &PgPool, name: &str, phone: &str) -> RiderSeed {
+    let mut conn = pool.acquire().await.expect("failed to acquire connection");
+    let account = accounts::AccountManager::new(1)
+        .create_phone_account(&mut conn, phone)
+        .await
+        .expect("failed to seed rider account");
+    let rider = accounts::riders::create(&mut conn, account.id, name, phone)
+        .await
+        .expect("failed to seed rider profile");
+    RiderSeed { account, rider }
 }
 
 /// A platform admin: account + admin profile, known password "Password123".

@@ -2554,6 +2554,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -2602,6 +2603,21 @@ dependencies = [
  "serde_derive",
  "typeid",
  "unicode-ident",
+]
+
+[[package]]
+name = "routing"
+version = "0.1.0"
+dependencies = [
+ "app-config",
+ "async-trait",
+ "reqwest 0.13.4",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3780,6 +3796,7 @@ dependencies = [
  "image",
  "marketplace",
  "reqwest 0.13.4",
+ "routing",
  "secrecy",
  "serde",
  "serde-aux",

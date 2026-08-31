@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT s.lat AS store_lat, s.lng AS store_lng,\n               og.address_lat AS destination_lat, og.address_lng AS destination_lng\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE d.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "store_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "store_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "destination_lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lat"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "destination_lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.order_groups",
+            "name": "address_lng"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "cd22d68c8ff551d341b3e865dcf3084c9ed2728c54742dbbf6d0e07113be9bb7"
+}

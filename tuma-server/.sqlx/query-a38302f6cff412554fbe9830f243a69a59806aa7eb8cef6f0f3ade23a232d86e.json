@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM accounts.users u\n        USING commerce.riders r\n        WHERE u.id = r.account_id AND r.account_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a38302f6cff412554fbe9830f243a69a59806aa7eb8cef6f0f3ade23a232d86e"
+}

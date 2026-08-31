@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod catalog;
+pub mod deliveries;
 pub mod files;
 pub mod me;
 pub mod orders;

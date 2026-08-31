@@ -1,12 +1,14 @@
 //! Admin-only endpoints: the platform control plane. Admins provision
 //! merchant BUSINESSES (each with an owner account + membership), manage
-//! customer accounts, and read platform-wide facts. Authorization is the
-//! admins profile row, resolved fresh per request by the guard.
+//! customer accounts, manage Tuma's riders, and read platform-wide facts.
+//! Authorization is the admins profile row, resolved fresh per request by
+//! the guard.
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
 use crate::routes::auth::validate_phone;
 use accounts::customers;
 use accounts::merchants::{self, Merchant, MerchantStatus};
+use accounts::riders::{self, Rider, RiderError};
 use accounts::users;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -248,7 +250,9 @@ pub struct UpdateMerchantInput {
     pub name: Option<String>,
     #[validate(email(message = "business_email must be a valid address"))]
     pub business_email: Option<String>,
-    #[validate(length(max = 20, message = "business_phone must be at most 20 characters"))]
+    // Contact, not identity — but still one phone dialect: E.164 with the
+    // country code, same as every other number in the system.
+    #[validate(custom(function = "validate_phone"))]
     pub business_phone: Option<String>,
     #[schema(value_type = String)]
     pub status: Option<MerchantStatus>,
@@ -544,4 +548,206 @@ pub async fn delete_customer(
         return Err(AppError::NotFound("customer not found".into()));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// A rider as the admin sees them.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RiderAdminResponse {
+    pub id: Uuid,
+    pub rider_number: i64,
+    pub name: String,
+    pub phone: String,
+    /// `false` = not assignable at handoff (the rider can still sign in).
+    pub is_active: bool,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+}
+
+impl From<Rider> for RiderAdminResponse {
+    fn from(rider: Rider) -> Self {
+        Self {
+            id: rider.id,
+            rider_number: rider.rider_number,
+            name: rider.name,
+            phone: rider.phone,
+            is_active: rider.is_active,
+            created_at: rider.created_at,
+        }
+    }
+}
+
+/// Create a Tuma rider: an OTP account (phone only — the rider signs in
+/// with the exact customer flow) plus the rider profile with its unique
+/// rider number, in one transaction. The number is generated server-side;
+/// the merchant will ask the rider for it at handoff.
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
+pub struct CreateRiderInput {
+    #[validate(length(min = 1, max = 100, message = "name must be 1-100 characters"))]
+    pub name: String,
+    #[validate(custom(function = "validate_phone"))]
+    pub phone: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/admin/riders",
+    request_body = CreateRiderInput,
+    responses(
+        (status = 201, description = "Rider created with its OTP account and unique rider number", body = RiderAdminResponse),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not an admin"),
+        (status = 409, description = "Phone already taken"),
+        (status = 422, description = "Invalid input"),
+    ),
+    tag = "admin"
+)]
+#[tracing::instrument(name = "Create rider", skip_all)]
+pub async fn create_rider(
+    State(app): State<AppState>,
+    Extension(_context): Extension<UserContext>,
+    ValidatedJson(input): ValidatedJson<CreateRiderInput>,
+) -> AppResult<(StatusCode, Json<RiderAdminResponse>)> {
+    let name = input.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name must not be empty".into()));
+    }
+    let phone = input.phone.trim().to_string();
+
+    let mut conn = app.db_pool.acquire().await?;
+    let mut tx = conn.begin().await?;
+    let account = app.accounts.create_phone_account(&mut tx, &phone).await?;
+    let rider = riders::create(&mut tx, account.id, &name, &phone).await?;
+    tx.commit().await?;
+
+    Ok((StatusCode::CREATED, Json(RiderAdminResponse::from(rider))))
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/admin/riders",
+    responses(
+        (status = 200, description = "All riders, oldest first", body = Vec<RiderAdminResponse>),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not an admin"),
+    ),
+    tag = "admin"
+)]
+#[tracing::instrument(name = "List riders")]
+pub async fn list_riders(
+    State(app): State<AppState>,
+    Extension(_context): Extension<UserContext>,
+) -> AppResult<Json<Vec<RiderAdminResponse>>> {
+    let mut conn = app.db_pool.acquire().await?;
+    let riders = riders::list(&mut conn).await?;
+    Ok(Json(
+        riders.into_iter().map(RiderAdminResponse::from).collect(),
+    ))
+}
+
+/// Admin edits to a rider. Provided fields overwrite, absent fields keep
+/// their value. A phone edit changes the OTP anchor (the account) and the
+/// rider's display phone together; a taken phone is the typed 409. An
+/// empty name is a 400 — rider names are NOT NULL, there is nothing to
+/// clear to.
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
+pub struct UpdateRiderInput {
+    #[validate(length(max = 100, message = "name must be at most 100 characters"))]
+    pub name: Option<String>,
+    #[validate(custom(function = "validate_phone"))]
+    pub phone: Option<String>,
+    pub is_active: Option<bool>,
+}
+
+#[utoipa::path(
+    patch,
+    path = "/v1/admin/riders/{id}",
+    params(("id" = Uuid, Path, description = "Rider id")),
+    request_body = UpdateRiderInput,
+    responses(
+        (status = 200, description = "The updated rider", body = RiderAdminResponse),
+        (status = 400, description = "Empty name"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not an admin"),
+        (status = 404, description = "No rider with that id"),
+        (status = 409, description = "Phone already taken"),
+        (status = 422, description = "Invalid input"),
+    ),
+    tag = "admin"
+)]
+#[tracing::instrument(name = "Update rider", skip_all)]
+pub async fn update_rider(
+    State(app): State<AppState>,
+    Extension(_context): Extension<UserContext>,
+    Path(id): Path<Uuid>,
+    ValidatedJson(input): ValidatedJson<UpdateRiderInput>,
+) -> AppResult<Json<RiderAdminResponse>> {
+    let mut conn = app.db_pool.acquire().await?;
+    let current = riders::by_id(&mut conn, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("rider not found".into()))?;
+
+    let name = match input.name {
+        Some(name) => {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest("name must not be empty".into()));
+            }
+            trimmed.to_string()
+        }
+        None => current.name.clone(),
+    };
+    let phone = match input.phone {
+        Some(phone) => phone.trim().to_string(),
+        None => current.phone.clone(),
+    };
+    let is_active = input.is_active.unwrap_or(current.is_active);
+
+    let mut tx = conn.begin().await?;
+    if phone != current.phone {
+        users::update_phone(&mut tx, current.account_id, &phone).await?;
+    }
+    let updated = riders::update(&mut tx, id, &name, &phone, is_active)
+        .await?
+        .ok_or_else(|| AppError::NotFound("rider not found".into()))?;
+    tx.commit().await?;
+    Ok(Json(RiderAdminResponse::from(updated)))
+}
+
+/// Hard-delete a rider's account (the profile cascades) — the remedy for a
+/// typo'd phone at creation. Blocked with a typed 409 when any delivery
+/// ever referenced the rider: assignment history is operationally real,
+/// deactivation is the tool for a rider who stops riding.
+#[utoipa::path(
+    delete,
+    path = "/v1/admin/riders/{id}",
+    params(("id" = Uuid, Path, description = "Rider id")),
+    responses(
+        (status = 204, description = "Rider deleted"),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not an admin"),
+        (status = 404, description = "No rider with that id"),
+        (status = 409, description = "Rider has delivery history — deactivate instead"),
+    ),
+    tag = "admin"
+)]
+#[tracing::instrument(name = "Delete rider", skip_all)]
+pub async fn delete_rider(
+    State(app): State<AppState>,
+    Extension(_context): Extension<UserContext>,
+    Path(id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    let mut conn = app.db_pool.acquire().await?;
+    // Scope to rider ids: any other identity is the same 404.
+    let rider = riders::by_id(&mut conn, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("rider not found".into()))?;
+    match riders::delete_account(&mut conn, rider.account_id).await? {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        // 0 rows: the account vanished mid-request — same answer as missing.
+        Ok(false) => Err(AppError::NotFound("rider not found".into())),
+        Err(RiderError::HasDeliveries) => Err(AppError::Conflict(
+            "this rider has delivery history — deactivate instead".into(),
+        )),
+        Err(other) => Err(other.into()),
+    }
 }

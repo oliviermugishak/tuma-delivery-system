@@ -16,8 +16,13 @@
 //!   store, created and committed atomically.
 //! - One payment per checkout, explicitly allocated per store order.
 
+pub mod deliveries;
 pub mod orders;
 
+pub use deliveries::{
+    ActiveDelivery, BREADCRUMB_MIN_DISTANCE_M, BREADCRUMB_MIN_INTERVAL_SECS, CachedRoute,
+    DeliveryError, DeliveryTracking, GroupTracking, PushOutcome, TrailPoint, haversine_m,
+};
 pub use orders::{
     AllocationStatus, CancelError, CheckoutCreated, CheckoutError, GroupDetail, GroupStatus,
     MerchantStoreOrderRow, NewCheckout, NewCheckoutItem, OrderGroup, OrderItem, OrderStatus,

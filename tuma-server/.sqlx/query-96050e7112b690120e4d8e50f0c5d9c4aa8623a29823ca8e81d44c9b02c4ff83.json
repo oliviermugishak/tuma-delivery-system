@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.payments p\n        SET status = $2\n        WHERE p.status = $3\n          AND p.id = (\n            SELECT a.payment_id FROM commerce.payment_allocations a\n            WHERE a.store_order_id = $1\n          )\n          AND NOT EXISTS (\n            SELECT 1 FROM commerce.payment_allocations a2\n            WHERE a2.payment_id = p.id AND a2.status = $4\n          )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "commerce.payment_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "collected",
+                "refunded"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.payment_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "collected",
+                "refunded"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.allocation_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "settled",
+                "refunded"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96050e7112b690120e4d8e50f0c5d9c4aa8623a29823ca8e81d44c9b02c4ff83"
+}
