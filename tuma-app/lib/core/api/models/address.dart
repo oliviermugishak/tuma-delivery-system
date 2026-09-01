@@ -8,6 +8,8 @@ class Address {
     required this.label,
     required this.addressText,
     required this.isDefault,
+    required this.kind,
+    this.note,
     this.lat,
     this.lng,
   });
@@ -18,6 +20,11 @@ class Address {
   final double? lat;
   final double? lng;
   final bool isDefault;
+  /// Home / work / other — the save screen's label chips.
+  final String kind;
+  /// The rider note that travels with this address ("blue gate, ring the
+  /// bell") — checkout pre-fills the order's rider note from it.
+  final String? note;
 
   factory Address.fromJson(Map<String, dynamic> json) => Address(
         id: json['id'] as String,
@@ -26,6 +33,8 @@ class Address {
         lat: (json['lat'] as num?)?.toDouble(),
         lng: (json['lng'] as num?)?.toDouble(),
         isDefault: json['is_default'] as bool? ?? false,
+        kind: json['kind'] as String? ?? 'other',
+        note: json['note'] as String?,
       );
 
   Map<String, dynamic> toCreateJson() => {
@@ -34,5 +43,7 @@ class Address {
         'lat': lat,
         'lng': lng,
         'is_default': isDefault,
+        'kind': kind,
+        if (note != null) 'note': note,
       };
 }

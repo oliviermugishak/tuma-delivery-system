@@ -30,6 +30,10 @@ pub struct AddressResponse {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub is_default: bool,
+    /// Home / work / other.
+    pub kind: String,
+    /// The rider note that travels with the address.
+    pub note: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: time::OffsetDateTime,
 }
@@ -42,6 +46,8 @@ fn address_response(address: Address) -> AddressResponse {
         lat: address.lat,
         lng: address.lng,
         is_default: address.is_default,
+        kind: address.kind,
+        note: address.note,
         created_at: address.created_at,
     }
 }
@@ -56,6 +62,14 @@ pub struct CreateAddressInput {
     pub lng: Option<f64>,
     #[serde(default)]
     pub is_default: bool,
+    /// Home / work / other — the save screen's label chips.
+    #[validate(length(max = 20, message = "kind must be at most 20 characters"))]
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// The rider note — rides to the rider's Delivering card.
+    #[validate(length(max = 140, message = "note must be at most 140 characters"))]
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
@@ -67,6 +81,10 @@ pub struct UpdateAddressInput {
     pub lat: Option<Option<f64>>,
     pub lng: Option<Option<f64>>,
     pub is_default: Option<bool>,
+    #[validate(length(max = 20, message = "kind must be at most 20 characters"))]
+    pub kind: Option<String>,
+    #[validate(length(max = 140, message = "note must be at most 140 characters"))]
+    pub note: Option<String>,
 }
 
 #[utoipa::path(
@@ -115,11 +133,15 @@ pub async fn create_address(
     let address = addresses::create(
         &mut conn,
         user_id,
-        &input.label,
-        &input.address_text,
-        input.lat,
-        input.lng,
-        input.is_default,
+        addresses::NewAddress {
+            label: &input.label,
+            address_text: &input.address_text,
+            lat: input.lat,
+            lng: input.lng,
+            is_default: input.is_default,
+            kind: input.kind.as_deref().unwrap_or("other"),
+            note: input.note.as_deref(),
+        },
     )
     .await
     .map_err(|error| match error {
@@ -158,11 +180,15 @@ pub async fn update_address(
         &mut conn,
         user_id,
         id,
-        input.label.as_deref(),
-        input.address_text.as_deref(),
-        input.lat,
-        input.lng,
-        input.is_default,
+        addresses::AddressPatch {
+            label: input.label.as_deref(),
+            address_text: input.address_text.as_deref(),
+            lat: input.lat,
+            lng: input.lng,
+            is_default: input.is_default,
+            kind: input.kind.as_deref(),
+            note: input.note.as_deref(),
+        },
     )
     .await
     .map_err(|error| match error {

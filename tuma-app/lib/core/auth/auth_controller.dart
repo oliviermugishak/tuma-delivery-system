@@ -7,6 +7,7 @@ import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/auth_api.dart';
 import 'package:tuma_app/core/api/models/authenticated_user.dart';
 import 'package:tuma_app/core/api/address_api.dart';
+import 'package:tuma_app/core/api/geo_api.dart';
 import 'package:tuma_app/core/api/rider_api.dart';
 import 'package:tuma_app/core/api/store_api.dart';
 import 'package:tuma_app/core/api/order_api.dart';
@@ -73,6 +74,10 @@ final orderApiProvider = Provider<OrderApi>(
 
 final riderApiProvider = Provider<RiderApi>(
   (ref) => RiderApi(ref.read(apiClientProvider)),
+);
+
+final geoApiProvider = Provider<GeoApi>(
+  (ref) => GeoApi(ref.read(apiClientProvider)),
 );
 
 final addressApiProvider = Provider<AddressApi>(

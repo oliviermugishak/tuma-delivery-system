@@ -327,6 +327,23 @@ ApiClient _apiClient({
           : {..._menuItem, 'images': menuImages};
       return _json({'store': _store, 'products': [item]}, 200);
     }
+    if (method == 'GET' && path.endsWith('/addresses')) {
+      // The saved-address book: one pinned default (the production shape
+      // checkout assumes — location is a first-class, required choice).
+      return _json([
+        {
+          'id': 'addr-1',
+          'label': 'Home',
+          'address_text': 'KK 40 Street, Kigali',
+          'lat': -1.9449,
+          'lng': 30.0619,
+          'is_default': true,
+          'kind': 'home',
+          'note': 'Gate on the left side',
+          'created_at': '2026-08-30T08:00:00Z',
+        },
+      ], 200);
+    }
     if (path.endsWith('/me')) {
       if (method == 'PATCH') {
         // The profile edit echoes the submitted name back, the way the
@@ -577,19 +594,17 @@ void main() {
     await tester.tap(find.text('Cart'));
     await _settle(tester);
 
-    // Both buckets render under their own headers, with the split hint.
+    // Both buckets render under their own headers. The redesigned cart
+    // states the split at checkout time (one CTA carrying the total).
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.text("Bruce's Grill"), findsOneWidget);
-    expect(
-      find.textContaining('separate deliveries'),
-      findsOneWidget,
-    );
-    expect(find.text('Checkout all 2 stores'), findsOneWidget);
+    expect(find.textContaining('Checkout ·'), findsOneWidget);
 
-    // Grand total = 7,000 + 4,000 items + 1,500 + 1,000 delivery.
+    // Grand total = 7,000 + 4,000 items + 1,500 + 1,000 delivery. The
+    // total shows twice: the summary block and the pinned CTA.
     expect(find.textContaining('11,000'), findsOneWidget); // subtotal
     expect(find.textContaining('2,500'), findsOneWidget); // delivery (all)
-    expect(find.textContaining('13,500'), findsOneWidget); // total
+    expect(find.textContaining('13,500'), findsNWidgets(2)); // total + CTA
     expect(tester.takeException(), isNull);
   });
 
@@ -617,16 +632,11 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Checkout'), findsOneWidget);
-    // The fallback address field sits right under the deliver-to section
-    // — visible without scrolling. The persisted pin carries the
-    // coordinates; the field carries the human-readable address.
-    await tester.enterText(
-      find.ancestor(
-        of: find.text('Street, building, landmark…'),
-        matching: find.byType(TextField),
-      ),
-      'KN 4 Ave, Kigali',
-    );
+    // The saved address card (the required, first-class location) shows
+    // the pinned default — no free-text field anymore. The note travels
+    // from the address into the rider-note field.
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+    expect(find.textContaining('Gate on the left side'), findsOneWidget);
     // Drag to the payment section and the CTA.
     await tester.drag(find.byType(ListView).last, const Offset(0, -600));
     await _settle(tester);
@@ -723,16 +733,9 @@ void main() {
     await _settle(tester);
     await tester.tap(find.textContaining('Checkout ·'));
     await _settle(tester);
-    // The v2 checkout: the address field is the fallback (no saved
-    // addresses in this stub) — the only TextField with this hint. The
-    // note field sits below it, so target by hint.
-    await tester.enterText(
-      find.ancestor(
-        of: find.text('Street, building, landmark…'),
-        matching: find.byType(TextField),
-      ),
-      'KN 4 Ave, Kigali',
-    );
+    // The saved address (pinned -1.9449, 30.0619) drives the request —
+    // location is chosen, never typed.
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
     await tester.tap(find.textContaining('Place order'));
     await _settle(tester);
 

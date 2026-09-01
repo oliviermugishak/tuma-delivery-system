@@ -190,6 +190,7 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::None,
                 api_key: None,
+                geo_api_key: None,
             })
             .is_ok()
         );
@@ -199,6 +200,7 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: None,
+                geo_api_key: None,
             })
             .is_err()
         );
@@ -206,6 +208,7 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: Some(secrecy::SecretString::new("AIza-test".into())),
+                geo_api_key: None,
             })
             .is_ok()
         );

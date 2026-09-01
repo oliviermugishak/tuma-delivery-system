@@ -24,6 +24,25 @@ class AddressApi {
     return Address.fromJson(response as Map<String, dynamic>);
   }
 
-  /// The address book API grows (update/delete) when a screen needs them;
-  /// checkout + profile-location only read and create today.
+  /// Patch an existing address with the full editable surface (the
+  /// location screen's edit mode). The note rides along — an explicit
+  /// null clears it under the server's provided-overwrites semantics.
+  Future<Address> update(Address address) async {
+    final response = await _client.patch(
+      '/addresses/${address.id}',
+      body: {
+        'label': address.label,
+        'address_text': address.addressText,
+        'lat': address.lat,
+        'lng': address.lng,
+        'is_default': address.isDefault,
+        'kind': address.kind,
+        'note': address.note,
+      },
+    );
+    return Address.fromJson(response as Map<String, dynamic>);
+  }
+
+  /// The address book API grows (delete) when a screen needs it;
+  /// checkout + profile-location read, create, and edit today.
 }

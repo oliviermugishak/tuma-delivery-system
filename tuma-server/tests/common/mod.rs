@@ -79,6 +79,7 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
         config.application.cookie_secure,
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
+        tuma_server::app::GoogleKeys::default(),
     );
     let app = build_app_with_state(state);
 

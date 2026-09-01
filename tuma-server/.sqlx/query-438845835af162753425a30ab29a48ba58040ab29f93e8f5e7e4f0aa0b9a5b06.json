@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, user_id, label, address_text, lat, lng, is_default,\n               created_at, updated_at\n        FROM commerce.addresses\n        WHERE id = $1 AND user_id = $2\n        ",
+  "query": "\n        SELECT id, user_id, label, address_text, lat, lng, is_default,\n               kind, note, created_at, updated_at\n        FROM commerce.addresses\n        WHERE id = $1 AND user_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,28 @@
       },
       {
         "ordinal": 7,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +114,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -118,8 +140,10 @@
       true,
       false,
       false,
+      true,
+      false,
       false
     ]
   },
-  "hash": "fac43159237e0d6e181943424792db7bb5afbca87468508fe62744f3c40ae7b3"
+  "hash": "438845835af162753425a30ab29a48ba58040ab29f93e8f5e7e4f0aa0b9a5b06"
 }

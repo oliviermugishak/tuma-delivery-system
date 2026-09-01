@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgPoolOptions;
 use tuma_server::app::AppState;
@@ -42,6 +43,15 @@ async fn main() {
         config.application.cookie_secure,
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
+        tuma_server::app::GoogleKeys {
+            directions: None,
+            geocoding: config
+                .routing
+                .geo_api_key
+                .as_ref()
+                .map(|key| key.expose_secret().to_owned())
+                .filter(|key| !key.is_empty()),
+        },
     );
     let app = build_app_with_state(app_state);
     let address = format!("{}:{}", config.application.host, config.application.port);

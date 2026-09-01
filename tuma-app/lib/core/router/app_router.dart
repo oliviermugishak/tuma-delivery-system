@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:tuma_app/core/api/models/address.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/features/auth/name_screen.dart';
 import 'package:tuma_app/features/auth/otp_screen.dart';
@@ -94,7 +95,8 @@ GoRouter buildRouter() => GoRouter(
     ),
     GoRoute(
       path: '/profile/location',
-      builder: (_, _) => const DeliveryLocationScreen(),
+      builder: (_, state) =>
+          DeliveryLocationScreen(edit: state.extra as Address?),
     ),
     GoRoute(path: '/rider', builder: (_, _) => const RiderScreen()),
       ],

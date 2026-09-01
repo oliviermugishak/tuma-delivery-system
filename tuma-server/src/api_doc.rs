@@ -46,6 +46,8 @@ use utoipa::OpenApi;
         crate::routes::catalog::list_store_products,
         crate::routes::catalog::update_store_product,
         crate::routes::catalog::delete_store_product,
+        crate::routes::geo::reverse_geocode,
+        crate::routes::geo::search_geocode,
         crate::routes::addresses::list_addresses,
         crate::routes::addresses::create_address,
         crate::routes::addresses::update_address,

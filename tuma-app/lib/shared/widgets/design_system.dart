@@ -97,6 +97,10 @@ class _PulsingDotState extends State<PulsingDot>
 
   @override
   Widget build(BuildContext context) {
+    // The OUTER box is fixed at the ring's full size — the ring animates
+    // INSIDE it. Letting the box grow with the ring made every parent
+    // (the live-order card, the stepper) breathe and shove content below.
+    final box = widget.size + 18;
     final dot = Container(
       width: widget.size,
       height: widget.size,
@@ -106,23 +110,24 @@ class _PulsingDotState extends State<PulsingDot>
       ),
     );
     final controller = _controller;
-    if (!widget.pulsing || controller == null) return dot;
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value;
-        // The ring expands to ~2.2× the dot while fading out — the spec's
-        // `box-shadow 0 0 0 9px` loop.
-        final ringSize = widget.size + 18 * t;
-        return SizedBox(
-          width: ringSize,
-          height: ringSize,
-          child: Stack(
+    if (!widget.pulsing || controller == null) {
+      return SizedBox(width: box, height: box, child: Center(child: dot));
+    }
+    return SizedBox(
+      width: box,
+      height: box,
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final t = controller.value;
+          // The ring expands to ~2.2× the dot while fading out — the
+          // spec's `box-shadow 0 0 0 9px` loop, layout-stable.
+          return Stack(
             alignment: Alignment.center,
             children: [
               Container(
-                width: ringSize,
-                height: ringSize,
+                width: box,
+                height: box,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
@@ -133,9 +138,9 @@ class _PulsingDotState extends State<PulsingDot>
               ),
               dot,
             ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

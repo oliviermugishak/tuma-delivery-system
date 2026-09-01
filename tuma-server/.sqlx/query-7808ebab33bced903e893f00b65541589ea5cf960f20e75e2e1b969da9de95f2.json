@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce.addresses\n        SET label = $3, address_text = $4, lat = $5, lng = $6, is_default = $7\n        WHERE id = $1 AND user_id = $2\n        RETURNING id, user_id, label, address_text, lat, lng, is_default,\n                  created_at, updated_at\n        ",
+  "query": "\n        SELECT id, user_id, label, address_text, lat, lng, is_default,\n               kind, note, created_at, updated_at\n        FROM commerce.addresses\n        WHERE user_id = $1\n        ORDER BY is_default DESC, created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,28 @@
       },
       {
         "ordinal": 7,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +114,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -105,13 +127,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Text",
-        "Float8",
-        "Float8",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -123,8 +139,10 @@
       true,
       false,
       false,
+      true,
+      false,
       false
     ]
   },
-  "hash": "aab9108c84508bca6e21cab0f59eb697f3904ecec44729c1bb7fef784b461e01"
+  "hash": "7808ebab33bced903e893f00b65541589ea5cf960f20e75e2e1b969da9de95f2"
 }

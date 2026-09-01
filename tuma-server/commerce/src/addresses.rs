@@ -17,6 +17,10 @@ pub struct Address {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub is_default: bool,
+    /// Home / work / other — the save screen's label chips.
+    pub kind: String,
+    /// The rider note that travels with the address.
+    pub note: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -42,7 +46,7 @@ pub async fn list_for_user(
         Address,
         r#"
         SELECT id, user_id, label, address_text, lat, lng, is_default,
-               created_at, updated_at
+               kind, note, created_at, updated_at
         FROM commerce.addresses
         WHERE user_id = $1
         ORDER BY is_default DESC, created_at DESC
@@ -62,7 +66,7 @@ pub async fn by_id(
         Address,
         r#"
         SELECT id, user_id, label, address_text, lat, lng, is_default,
-               created_at, updated_at
+               kind, note, created_at, updated_at
         FROM commerce.addresses
         WHERE id = $1 AND user_id = $2
         "#,
@@ -76,15 +80,26 @@ pub async fn by_id(
 /// Create an address; the first one a user saves becomes the default
 /// automatically. The `default` flag on the input is honored for
 /// subsequent ones — and demotes whatever held the crown.
+/// The editable surface of a new address.
+pub struct NewAddress<'a> {
+    pub label: &'a str,
+    pub address_text: &'a str,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+    pub is_default: bool,
+    pub kind: &'a str,
+    pub note: Option<&'a str>,
+}
+
 pub async fn create(
     conn: &mut PgConnection,
     user_id: Uuid,
-    label: &str,
-    address_text: &str,
-    lat: Option<f64>,
-    lng: Option<f64>,
-    is_default: bool,
+    input: NewAddress<'_>,
 ) -> Result<Address, AddressError> {
+    let label = input.label;
+    let address_text = input.address_text;
+    let is_default = input.is_default;
+    let kind = input.kind;
     let label = label.trim();
     let address_text = address_text.trim();
     if label.is_empty() {
@@ -116,17 +131,19 @@ pub async fn create(
         Address,
         r#"
         INSERT INTO commerce.addresses
-            (user_id, label, address_text, lat, lng, is_default)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (user_id, label, address_text, lat, lng, is_default, kind, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, user_id, label, address_text, lat, lng, is_default,
-                  created_at, updated_at
+                  kind, note, created_at, updated_at
         "#,
         user_id,
         label,
         address_text,
-        lat,
-        lng,
+        input.lat,
+        input.lng,
         is_default || force_default,
+        kind,
+        input.note,
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -136,30 +153,45 @@ pub async fn create(
 
 /// Replace label/address/coordinates, with the provided-overwrites,
 /// absent-keeps semantics every edit endpoint shares.
+/// The editable patch for one address: provided overwrites, absent keeps.
+pub struct AddressPatch<'a> {
+    pub label: Option<&'a str>,
+    pub address_text: Option<&'a str>,
+    pub lat: Option<Option<f64>>,
+    pub lng: Option<Option<f64>>,
+    pub is_default: Option<bool>,
+    pub kind: Option<&'a str>,
+    pub note: Option<&'a str>,
+}
+
 pub async fn update(
     conn: &mut PgConnection,
     user_id: Uuid,
     id: Uuid,
-    label: Option<&str>,
-    address_text: Option<&str>,
-    lat: Option<Option<f64>>,
-    lng: Option<Option<f64>>,
-    is_default: Option<bool>,
+    patch: AddressPatch<'_>,
 ) -> Result<Address, AddressError> {
     let current = by_id(conn, user_id, id)
         .await?
         .ok_or(AddressError::NotFound)?;
-    let label = label.map(str::trim).unwrap_or(&current.label);
+    let label = patch.label.map(str::trim).unwrap_or(&current.label);
     if label.is_empty() {
         return Err(AddressError::EmptyLabel);
     }
-    let address_text = address_text.map(str::trim).unwrap_or(&current.address_text);
+    let address_text = patch
+        .address_text
+        .map(str::trim)
+        .unwrap_or(&current.address_text);
     if address_text.is_empty() {
         return Err(AddressError::EmptyAddress);
     }
-    let lat = lat.unwrap_or(current.lat);
-    let lng = lng.unwrap_or(current.lng);
-    let make_default = is_default.unwrap_or(false);
+    let lat = patch.lat.unwrap_or(current.lat);
+    let lng = patch.lng.unwrap_or(current.lng);
+    let kind = patch
+        .kind
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .unwrap_or(&current.kind);
+    let make_default = patch.is_default.unwrap_or(false);
 
     let mut tx = conn.begin().await?;
     if make_default && !current.is_default {
@@ -177,10 +209,11 @@ pub async fn update(
         Address,
         r#"
         UPDATE commerce.addresses
-        SET label = $3, address_text = $4, lat = $5, lng = $6, is_default = $7
+        SET label = $3, address_text = $4, lat = $5, lng = $6, is_default = $7,
+            kind = $8, note = $9
         WHERE id = $1 AND user_id = $2
         RETURNING id, user_id, label, address_text, lat, lng, is_default,
-                  created_at, updated_at
+                  kind, note, created_at, updated_at
         "#,
         id,
         user_id,
@@ -189,6 +222,8 @@ pub async fn update(
         lat,
         lng,
         make_default || current.is_default,
+        kind,
+        patch.note,
     )
     .fetch_one(&mut *tx)
     .await?;

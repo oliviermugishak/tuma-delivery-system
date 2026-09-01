@@ -50,6 +50,15 @@ use validator::Validate;
 
 pub type AppResult<T> = Result<T, AppError>;
 
+/// The server-side Google Maps-platform keys. `None`/empty = that
+/// capability degrades honestly (no route, no geocode) — never a
+/// client-side key.
+#[derive(Debug, Clone, Default)]
+pub struct GoogleKeys {
+    pub directions: Option<String>,
+    pub geocoding: Option<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db_pool: Arc<PgPool>,
@@ -66,6 +75,9 @@ pub struct AppState {
     /// Road routing (slice D2): the Directions adapter behind config —
     /// `NoRouting` until a key is configured, the honest no-route answer.
     pub routing: Arc<dyn routing::RoutingProvider>,
+    /// The Google Maps-platform keys (server-side only): Directions via
+    /// the routing adapter, Geocoding via the location screen's proxy.
+    pub google_keys: GoogleKeys,
 }
 
 impl AppState {
@@ -77,6 +89,7 @@ impl AppState {
         cookie_secure: bool,
         storage: storage::StorageService,
         routing: Arc<dyn routing::RoutingProvider>,
+        google_keys: GoogleKeys,
     ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
@@ -86,6 +99,7 @@ impl AppState {
             cookie_secure,
             storage: Arc::new(storage),
             routing,
+            google_keys,
         }
     }
 }
@@ -365,9 +379,11 @@ pub fn build_app_with_state(state: AppState) -> Router {
 
     // Saved delivery addresses — checkout is saved-address-first, and the
     // profile's "Delivery locations" manages the list.
-    let addresses = Router::new()
-        .nest("/addresses", crate::routes::addresses::router())
-        .layer(middleware::from_fn(require_customer));
+    let addresses = crate::routes::addresses::router().layer(middleware::from_fn(require_customer));
+
+    // The geocoding proxy — the location screen's search + reverse. The
+    // Google key stays server-side.
+    let geo = crate::routes::geo::router().layer(middleware::from_fn(require_customer));
 
     // Business routes live under /api/v1, namespaced by audience
     // (/auth, /me, /admin, /merchant, /stores). The OpenAPI contract is
@@ -382,7 +398,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .nest("/merchant", merchant)
         .nest("/stores", stores)
         .nest("/search", discovery)
-        .nest("/addresses", addresses)
+        .merge(addresses)
+        .merge(geo)
         .nest(
             "/orders",
             Router::new()
@@ -467,6 +484,8 @@ pub enum AppError {
     UnsupportedMediaType(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("Upstream unavailable: {0}")]
+    BadGateway(String),
     #[error("Internal server error")]
     Internal(String),
 }
@@ -500,6 +519,7 @@ impl IntoResponse for AppError {
                 msg,
                 None,
             ),
+            AppError::BadGateway(msg) => (StatusCode::BAD_GATEWAY, "bad_gateway", msg, None),
             AppError::Database(e) => {
                 tracing::debug!("Database error: {}", e);
                 (

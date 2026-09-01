@@ -75,14 +75,96 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         final selected = _selectedAddress;
         if (selected != null) {
           _addressController.text = selected.addressText;
+          // The rider note travels with the address — pre-fill it so the
+          // rider always sees the gate detail (P8's loop closed).
+          final note = selected.note;
+          if (_noteController.text.isEmpty && note != null) {
+            _noteController.text = note;
+          }
           _pin = selected.lat != null && selected.lng != null
               ? CustomerLocation(lat: selected.lat!, lng: selected.lng!)
               : _pin;
         }
       });
     } on ApiError {
-      // The manual address field remains the honest fallback.
+      // The location is simply not chosen yet — checkout requires it.
     }
+  }
+
+  /// Pick among saved addresses (>1): a bottom sheet of the book, plus
+  /// the editor for a new pin. Returns the chosen address, or null when
+  /// the sheet was dismissed.
+  Future<Address?> _pickAddress(List<Address> saved) {
+    final textTheme = Theme.of(context).textTheme;
+    return showModalBottomSheet<Address>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: MicroLabel('Deliver to'),
+            ),
+            for (final address in saved) ...[
+              InkWell(
+                onTap: () => Navigator.of(sheetContext).pop(address),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        switch (address.kind) {
+                          'home' => Icons.home_rounded,
+                          'work' => Icons.work_rounded,
+                          _ => Icons.place_rounded,
+                        },
+                        size: 20,
+                        color: address.id == _selectedAddress?.id
+                            ? AppColors.primary
+                            : AppColors.onSurfaceMuted,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              address.addressText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.bd(textTheme)
+                                  .copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              address.label,
+                              style: AppTheme.sub(textTheme),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (address.id == _selectedAddress?.id)
+                        const Icon(Icons.check_rounded,
+                            size: 18, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1, indent: 20, color: AppColors.surfaceBorder),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _initPin() async {
@@ -91,8 +173,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _pin = persisted);
   }
 
-
-  @override
   @override
   void dispose() {
     _addressController.dispose();
@@ -119,9 +199,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _placeOrder() async {
-    if (_addressController.text.trim().isEmpty) {
+    if (_selectedAddress == null) {
       setState(() {
-        _error = 'Please enter a delivery address.';
+        _error =
+            'Choose a delivery location — tap the card above and drop the pin.';
         _errorIsFormLevel = true;
       });
       return;
@@ -307,8 +388,46 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.surfaceBorder),
               ),
-              child: _selectedAddress != null
-                  ? Row(
+              child: _selectedAddress == null
+                  ? InkWell(
+                      onTap: () => unawaited(() async {
+                        await context.push('/profile/location');
+                        if (mounted) await _loadAddresses();
+                      }()),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.location_searching_rounded,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Choose your delivery location',
+                                  style: AppTheme.bd(textTheme).copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Required — pick on the map or use your GPS.',
+                                  style: AppTheme.sub(textTheme),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              size: 20, color: AppColors.onSurfaceMuted),
+                        ],
+                      ),
+                    )
+                  : Row(
                       children: [
                         const Icon(Icons.location_on_rounded,
                             size: 20, color: AppColors.primary),
@@ -335,23 +454,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () =>
-                              unawaited(context.push('/profile/location')),
+                          onPressed: () => unawaited(() async {
+                            final saved = _savedAddresses ?? const [];
+                            if (saved.length > 1) {
+                              final picked = await _pickAddress(saved);
+                              if (!mounted) return;
+                              if (picked == null) return;
+                              setState(() => _selectedAddress = picked);
+                            } else {
+                              await context.push(
+                                '/profile/location',
+                                extra: _selectedAddress,
+                              );
+                            }
+                            if (mounted) await _loadAddresses();
+                          }()),
                           child: const Text('Change'),
                         ),
                       ],
-                    )
-                  : TextField(
-                      controller: _addressController,
-                      style: AppTheme.bd(textTheme),
-                      decoration: const InputDecoration(
-                        hintText: 'Street, building, landmark…',
-                        prefixIcon: Icon(
-                          Icons.location_on_rounded,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                      ),
                     ),
             ),
           ),

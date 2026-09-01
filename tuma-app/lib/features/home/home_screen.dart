@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
+import 'package:tuma_app/core/api/models/address.dart';
 import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
@@ -36,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// The customer's most recent in-flight purchase — the live order
   /// card's data. Loaded alongside the feed; null when nothing moves.
   List<GroupSummary>? _activeOrders;
+  List<Address>? _addresses;
   bool _showLocationHint = false;
   String? _category;
 
@@ -87,6 +89,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         api.listStores(lat: located?.lat, lng: located?.lng),
         ref.read(orderApiProvider).listGroups(limit: 10),
       ]);
+      List<Address>? addresses;
+      try {
+        addresses = await ref.read(addressApiProvider).list();
+      } on ApiError {
+        // The bar falls back to the invitation (P2).
+      }
       if (!mounted) return;
       final stores = results[0] as List<Store>;
       final groups = results[1] as List<GroupSummary>;
@@ -98,6 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 group.status == 'partially_fulfilled')
               group,
         ];
+        _addresses = addresses;
         _showLocationHint = located == null;
         if (_category != null && !_categories(stores).contains(_category)) {
           _category = null;
@@ -140,6 +149,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       SessionUser s => s.user,
       _ => null,
     };
+    final deliverTo = _deliverToLine();
     final textTheme = Theme.of(context).textTheme;
     final stores = _stores;
     final filtered = stores == null ? null : _filtered(stores);
@@ -147,7 +157,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final activeOrders = _activeOrders;
     // P15's tint system keys off the deliver-to bar's location: the
     // persisted pin is the address line; the hint hides it (P2).
-    final deliverTo = _deliverToLine();
 
     return Scaffold(
       body: SafeArea(
@@ -179,7 +188,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 12),
                       // The deliver-to bar: where this session's orders
                       // will go. Tapping opens the profile locations.
-                      _DeliverToBar(line: deliverTo),
+                      _DeliverToBar(
+                        line: deliverTo,
+                        onTap: () async {
+                          await context.push('/profile/location');
+                          if (mounted) unawaited(_refresh());
+                        },
+                      ),
                       // The live order card claims the highest-value slot
                       // when a delivery is moving (P11, P17).
                       if (activeOrders != null && activeOrders.isNotEmpty) ...[
@@ -285,13 +300,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// place-line, or "Set your delivery location" when unknown. The saved
   /// address book replaces this line's data source when the profile
   /// slice lands; the bar itself stays.
+  /// The deliver-to line: the DEFAULT SAVED ADDRESS (the address book
+  /// is the source of truth), else the persisted pin as a short
+  /// place-line, else the invitation. Never the display name — a name
+  /// is not a place (P2's sibling: don't render a fact you don't have).
   String _deliverToLine() {
-    final session = ref.read(sessionProvider).asData?.value;
-    final user = switch (session) {
-      SessionUser s => s.user,
-      _ => null,
-    };
-    return user?.displayName ?? 'Set your delivery location';
+    final addresses = _addresses;
+    if (addresses != null && addresses.isNotEmpty) {
+      final def = addresses.where((a) => a.isDefault).toList();
+      return (def.isNotEmpty ? def.first : addresses.first).addressText;
+    }
+    return 'Set your delivery location';
   }
 }
 
@@ -315,9 +334,10 @@ const double _cardSpacing = 12;
 /// "Deliver to · Kk 40 Street, Kigali" — the context bar (P3: it states
 /// the outcome, not the mechanism).
 class _DeliverToBar extends StatelessWidget {
-  const _DeliverToBar({required this.line});
+  const _DeliverToBar({required this.line, this.onTap});
 
   final String line;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -328,10 +348,13 @@ class _DeliverToBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.location_on_rounded,
-              size: 20, color: AppColors.primary),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
+            const Icon(Icons.location_on_rounded,
+                size: 20, color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -349,9 +372,10 @@ class _DeliverToBar extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.expand_more_rounded,
-              size: 20, color: AppColors.onSurfaceMuted),
-        ],
+            const Icon(Icons.expand_more_rounded,
+                size: 20, color: AppColors.onSurfaceMuted),
+          ],
+        ),
       ),
     );
   }

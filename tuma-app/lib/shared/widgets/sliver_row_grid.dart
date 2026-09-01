@@ -36,11 +36,17 @@ class SliverRowGrid extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = start; i < end; i++)
+                for (var i = start; i < end; i++) ...[
+                  // The gap lives BETWEEN the cells — the row reserves
+                  // (columns-1) gaps in cellWidth's math, but a Row stacks
+                  // children edge-to-edge, so without this the cards
+                  // touch and the reserved space dangles at row's end.
+                  if (i > start) SizedBox(width: spacing),
                   SizedBox(
                     width: cellWidth,
                     child: itemBuilder(context, i),
                   ),
+                ],
               ],
             ),
           );

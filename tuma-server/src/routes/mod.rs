@@ -4,6 +4,7 @@ pub mod auth;
 pub mod catalog;
 pub mod deliveries;
 pub mod files;
+pub mod geo;
 pub mod me;
 pub mod orders;
 pub mod search;

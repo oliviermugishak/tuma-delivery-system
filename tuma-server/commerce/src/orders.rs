@@ -571,13 +571,12 @@ pub async fn create_checkout(
         if error
             .as_database_error()
             .is_some_and(|db| db.code().as_deref() == Some("23505"))
+            && let Some(key) = checkout.idempotency_key.as_deref()
         {
-            if let Some(key) = checkout.idempotency_key.as_deref() {
-                return CheckoutError::IdempotencyRace {
-                    user_id,
-                    key: key.to_string(),
-                };
-            }
+            return CheckoutError::IdempotencyRace {
+                user_id,
+                key: key.to_string(),
+            };
         }
         CheckoutError::Database(error)
     })?;
