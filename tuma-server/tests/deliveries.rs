@@ -899,3 +899,105 @@ async fn rider_history_lists_completed_stops(pool: PgPool) {
         0
     );
 }
+
+// Review P02: a cancelled slice must never block the group's payment.
+// Before the fix the cancelled store order's allocation stayed `pending`
+// forever, so the surviving delivery's settlement could never complete
+// the group's cash state.
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_cancelled_sibling_does_not_block_the_group_payment(pool: PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let chantal = customer_session(&app, "+250780000012").await;
+    let rider = rider_session(&app, "Jean", "+250780000002").await;
+    let rider_token = token_for(&app, rider.account.id, 3600);
+
+    // Two stores: one goes out with the rider, one gets cancelled.
+    let store_a = create_store(&aline, "Aline Remera").await;
+    let store_b = create_store(&aline, "Aline Kiyovu").await;
+    let rice = create_product(&aline, "Rice").await;
+    let beans = create_product(&aline, "Beans").await;
+    let rice_sp = attach(&aline, store_a, rice, 5000).await;
+    let beans_sp = attach(&aline, store_b, beans, 3500).await;
+    set_open(&app.pool, store_a, true).await;
+    set_open(&app.pool, store_b, true).await;
+
+    let group: Value = checkout(
+        &chantal.0,
+        &chantal.1,
+        "KG 7 Ave, Remera",
+        json!([
+            { "store_product_id": rice_sp, "quantity": 1 },
+            { "store_product_id": beans_sp, "quantity": 1 },
+        ]),
+    )
+    .await;
+    let group_id = group["id"].as_str().unwrap().to_string();
+    let orders = group["store_orders"].as_array().unwrap();
+    assert_eq!(orders.len(), 2);
+    let order_a = orders
+        .iter()
+        .find(|o| o["store_id"].as_str().unwrap() == store_a.to_string())
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let order_b = orders
+        .iter()
+        .find(|o| o["store_id"].as_str().unwrap() == store_b.to_string())
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Cancel the B slice while it is still on the premises, then run A
+    // through the full delivery: preparing → handoff → delivered.
+    let response = chantal
+        .0
+        .post_json(
+            &format!("/v1/orders/{group_id}/store-orders/{order_b}/cancel"),
+            json!({}),
+        )
+        .bearer_auth(&chantal.1)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    for status in ["accepted", "preparing"] {
+        let response = aline
+            .client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{order_a}"),
+                json!({ "status": status }),
+            )
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+    }
+    let response = handoff(&aline, &order_a, rider.rider.rider_number).await;
+    assert_eq!(response.status(), 200);
+    let delivery_id = delivery_of(&app.pool, &order_a).await;
+    let response = chantal
+        .0
+        .post(&format!("/v1/deliveries/{delivery_id}/delivered"))
+        .bearer_auth(&rider_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // A settled + B refunded ⇒ NOTHING pending ⇒ the group payment is
+    // `collected` — the ledger completes despite the cancelled sibling.
+    let (payment,): (String,) = sqlx::query_as(
+        "SELECT status::text FROM commerce.payments WHERE order_group_id = $1",
+    )
+    .bind(Uuid::parse_str(&group_id).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(payment, "collected", "a cancelled sibling must not strand the group's cash state");
+}

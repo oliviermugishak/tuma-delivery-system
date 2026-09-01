@@ -205,16 +205,26 @@ pub async fn handoff(
 
     match current.status {
         OrderStatus::Preparing => {
-            sqlx::query!(
+            // Compare-and-swap: the read above and this write are one tx,
+            // but a concurrent customer cancel could still have flipped
+            // the row — 0 rows means the handoff loses, not last-write-wins.
+            let swapped = sqlx::query!(
                 r#"
                 UPDATE commerce.store_orders SET status = $2
-                WHERE id = $1
+                WHERE id = $1 AND status = $3
                 "#,
                 store_order_id,
                 OrderStatus::PickedUp as OrderStatus,
+                OrderStatus::Preparing as OrderStatus,
             )
             .execute(&mut *tx)
             .await?;
+            if swapped.rows_affected() == 0 {
+                return Err(DeliveryError::Illegal {
+                    from: OrderStatus::Preparing.label(),
+                    to: OrderStatus::PickedUp.label(),
+                });
+            }
         }
         OrderStatus::PickedUp => {}
         other => {
@@ -457,16 +467,25 @@ pub async fn mark_delivered(
         });
     }
 
-    sqlx::query!(
+    // Compare-and-swap: a concurrent cancel must not be overwritten to
+    // delivered by the rider's confirm — 0 rows loses the race.
+    let swapped = sqlx::query!(
         r#"
         UPDATE commerce.store_orders SET status = $2
-        WHERE id = $1
+        WHERE id = $1 AND status = $3
         "#,
         row.store_order_id,
         OrderStatus::Delivered as OrderStatus,
+        OrderStatus::PickedUp as OrderStatus,
     )
     .execute(&mut *tx)
     .await?;
+    if swapped.rows_affected() == 0 {
+        return Err(DeliveryError::Illegal {
+            from: row.status.label(),
+            to: OrderStatus::Delivered.label(),
+        });
+    }
     settle_delivery_cash(&mut tx, row.store_order_id).await?;
 
     let order = sqlx::query_as!(
