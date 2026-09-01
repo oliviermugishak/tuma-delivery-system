@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce.store_orders SET status = $2\n        WHERE id = $1\n        RETURNING id, order_group_id, merchant_id, store_id, number,\n                  status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n                  created_at, updated_at\n        ",
+  "query": "\n        UPDATE commerce.store_orders SET status = $2\n        WHERE id = $1 AND status = $3\n        RETURNING id, order_group_id, merchant_id, store_id, number,\n                  status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -156,6 +156,21 @@
               ]
             }
           }
+        },
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
         }
       ]
     },
@@ -173,5 +188,5 @@
       false
     ]
   },
-  "hash": "fb86ee0ecfbffa57cd8ccadc347936af5ccfa2fb405c8845995ebebfd3d7dd74"
+  "hash": "05588d2fd91e23d29a17f3f077a4f949522d2dc82eeda4057145a7a9efb9f361"
 }

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.payments SET status = 'refunded'\n        WHERE order_group_id = $1 AND status = 'pending'\n          AND NOT EXISTS (\n              SELECT 1 FROM commerce.payment_allocations\n              WHERE order_group_id = $1 AND status = 'pending'\n          )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f05458ff4b9c88c30eb74af998e0ceb05b00dfc761a6ae6f58ecc9f8aac43841"
+}

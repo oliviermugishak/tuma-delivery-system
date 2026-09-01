@@ -120,21 +120,43 @@ pub async fn verify(
     code: &str,
     name: Option<&str>,
 ) -> Result<OtpSignIn, VerifyError> {
-    let row = sqlx::query!(
+    // The validation and the attempt burn are ONE statement: two parallel
+    // verifies used to read the same `attempts` count and both pass the
+    // cap (a soft cap under brute force). Now Postgres serializes the
+    // row update — every attempt, right or wrong, counts exactly once.
+    let matched = sqlx::query!(
         r#"
-        SELECT code_hash, expires_at, attempts FROM accounts.auth_otps
-        WHERE phone = $1
+        UPDATE accounts.auth_otps
+        SET attempts = attempts + 1
+        WHERE phone = $1 AND code_hash = $2
+          AND expires_at > now() AND attempts < $3
+        RETURNING phone
         "#,
         phone,
+        hash_code(code),
+        MAX_ATTEMPTS,
     )
     .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(VerifyError::InvalidCode)?;
+    .await?;
 
-    let expired = row.expires_at < OffsetDateTime::now_utc();
-    if expired || row.attempts >= MAX_ATTEMPTS || row.code_hash != hash_code(code) {
-        if !expired {
-            // Burn an attempt even on a dead code; errors stay generic.
+    if matched.is_none() {
+        // Attribute the failure for the burn rule: an expired code burned
+        // nothing (it's dead anyway); a wrong code or a capped-out phone
+        // burns one more attempt — bounded at MAX + the burns that fit.
+        let row = sqlx::query!(
+            r#"
+            SELECT expires_at, attempts FROM accounts.auth_otps
+            WHERE phone = $1
+            "#,
+            phone,
+        )
+        .fetch_optional(&mut *conn)
+        .await?;
+        if let Some(row) = row
+            && row.expires_at >= OffsetDateTime::now_utc()
+            && row.attempts < MAX_ATTEMPTS
+        {
+            // Wrong code, still under the cap — burn it.
             sqlx::query!(
                 r#"
                 UPDATE accounts.auth_otps SET attempts = attempts + 1

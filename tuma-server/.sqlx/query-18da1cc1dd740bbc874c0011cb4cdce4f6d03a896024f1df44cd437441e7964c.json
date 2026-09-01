@@ -1,21 +1,10 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT code_hash, expires_at, attempts FROM accounts.auth_otps\n        WHERE phone = $1\n        ",
+  "query": "\n            SELECT expires_at, attempts FROM accounts.auth_otps\n            WHERE phone = $1\n            ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "code_hash",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "accounts.auth_otps",
-            "name": "code_hash"
-          }
-        }
-      },
-      {
-        "ordinal": 1,
         "name": "expires_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -26,7 +15,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 1,
         "name": "attempts",
         "type_info": "Int4",
         "origin": {
@@ -44,9 +33,8 @@
     },
     "nullable": [
       false,
-      false,
       false
     ]
   },
-  "hash": "0f11570170de76f6fe9ab4d45c8d78dfe561da0e1dc16dd3544fe5364f55525d"
+  "hash": "18da1cc1dd740bbc874c0011cb4cdce4f6d03a896024f1df44cd437441e7964c"
 }

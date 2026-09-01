@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE marketplace.store_products sp\n        SET stock = sp.stock + oi.quantity\n        FROM commerce.order_items oi\n        WHERE oi.store_order_id = $1 AND sp.id = oi.store_product_id\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c3972669472d55e8aa01e0630c282e039c0e4d0d1078fff1b9dbd287c362f96f"
+}

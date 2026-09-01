@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.store_orders SET status = $2\n        WHERE id = $1 AND status = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6b822c6f898178813b7c016e0eb5e1f2d09f22e6fdc3310d08bbf70238ef31ba"
+}
