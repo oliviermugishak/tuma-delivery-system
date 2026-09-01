@@ -51,6 +51,11 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   Timer? _pushTimer;
   Timer? _listTimer;
 
+  /// Guards one push tick at a time: a GPS fix can take up to 10s while
+  /// the 5s timer keeps firing — overlapping ticks would stack HTTP
+  /// pushes and setState races. A late tick is skipped, not queued.
+  bool _pushInFlight = false;
+
   /// The bike-mount wakelock, best-effort: a platform-channel failure
   /// (desktop dev, test binding) must never break the run itself — the
   /// screen just won't stay on.
@@ -85,18 +90,38 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Foreground-only pushing: backgrounded, the kiosk stops the loop and
-    // the wakelock (the screen is off anyway); resumed, delivering picks
-    // up where it was.
+    // Foreground-only, for BOTH loops: backgrounded, the push loop stops,
+    // the wakelock drops, and the work-list poll stops too (a poll with
+    // the app "closed" is exactly the background service we promised not
+    // to be). Resumed, whichever loop should run is re-programmed —
+    // through _syncPushLoop, never a bare Timer.periodic (the old leak:
+    // a resume could stack a second timer beside the running one).
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       _pushTimer?.cancel();
       _pushTimer = null;
+      _listTimer?.cancel();
+      _listTimer = null;
       if (_delivering) unawaited(_keepScreenOn(false));
-    } else if (state == AppLifecycleState.resumed && _delivering) {
-      unawaited(_pushOnce());
-      _pushTimer = Timer.periodic(_pushInterval, (_) => unawaited(_pushOnce()));
-      unawaited(_keepScreenOn(true));
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshList());
+      _listTimer ??= Timer.periodic(_listInterval, (_) => unawaited(_refreshList()));
+      if (_delivering) {
+        unawaited(_pushOnce());
+        _syncPushLoop(delivering: true);
+        unawaited(_keepScreenOn(true));
+      }
+    }
+  }
+
+  /// (Re)arms or disarms the push loop to exactly match [delivering] —
+  /// the lifecycle handler's and the toggle's single point of truth.
+  void _syncPushLoop({required bool delivering}) {
+    if (delivering) {
+      _pushTimer ??= Timer.periodic(_pushInterval, (_) => unawaited(_pushOnce()));
+    } else {
+      _pushTimer?.cancel();
+      _pushTimer = null;
     }
   }
 
@@ -146,15 +171,21 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       });
       unawaited(_keepScreenOn(true)); // screen-on on the bike mount.
       await _pushOnce();
-      _pushTimer = Timer.periodic(_pushInterval, (_) => unawaited(_pushOnce()));
-    } on Object {
+      _syncPushLoop(delivering: true);
+    } on Object catch (error) {
       if (!mounted) return;
       setState(() => _starting = false);
+      // The failure names itself: geolocator throws plain StateErrors —
+      // "location services are off" vs "permission not granted" — while
+      // network noise carries anything else.
+      final reason = error is StateError
+          ? 'GPS: ${error.message}. Enable location and try again.'
+          : 'Could not reach the server — check your connection and try again.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'Location is off or permission was denied — delivering needs your GPS.',
-            style: TextStyle(color: AppColors.onSurface),
+          content: Text(
+            reason,
+            style: const TextStyle(color: AppColors.onSurface),
           ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.surfaceAlt,
@@ -167,8 +198,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   }
 
   Future<void> _stopDelivering() async {
-    _pushTimer?.cancel();
-    _pushTimer = null;
+    _syncPushLoop(delivering: false);
     unawaited(_keepScreenOn(false));
     if (!mounted) return;
     setState(() {
@@ -178,10 +208,13 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   }
 
   /// One tick: one GPS fix, pushed to every active delivery. Failures are
-  /// quiet — the next tick retries; the status line tells the truth.
+  /// quiet — the next tick retries; the status line tells the truth. An
+  /// in-flight tick skips the next one rather than stacking HTTP pushes.
   Future<void> _pushOnce() async {
+    if (_pushInFlight) return;
     final deliveries = _deliveries;
     if (deliveries == null || deliveries.isEmpty) return;
+    _pushInFlight = true;
     try {
       final fix = await ref.read(acquireLocationProvider)();
       if (!mounted) return;
@@ -208,6 +241,8 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     } on Object {
       if (!mounted) return;
       setState(() => _pushError = true);
+    } finally {
+      _pushInFlight = false;
     }
   }
 
@@ -282,6 +317,9 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
           ),
         ),
       );
+      // A failed handover must not leave a stale card claiming a job the
+      // server may or may not have settled — re-check the real list.
+      await _refreshList();
     } finally {
       if (mounted) setState(() => _finishingId = null);
     }
@@ -314,7 +352,25 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       '&destination=${delivery.destinationLat},${delivery.destinationLng}'
       '&travelmode=driving',
     );
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Could not open Google Maps.',
+              style: TextStyle(color: AppColors.onSurface),
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.surfaceAlt,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _signOut() async {

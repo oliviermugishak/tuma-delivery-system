@@ -33,6 +33,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressController = TextEditingController();
   bool _placing = false;
   String? _error;
+
+  /// Which slot renders [_error]: the form banner (field-level, e.g. a
+  /// missing address) or the items-area banner (cart/server conflicts).
+  bool _errorIsFormLevel = false;
   /// The delivery pin from the map (or GPS). Seeds itself from the
   /// persisted customer location; every choice re-persists, so Home's
   /// distances sharpen after the first checkout too.
@@ -74,7 +78,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<void> _placeOrder() async {
     if (_addressController.text.trim().isEmpty) {
-      setState(() => _error = 'Please enter a delivery address.');
+      setState(() {
+        _error = 'Please enter a delivery address.';
+        _errorIsFormLevel = true;
+      });
       return;
     }
     setState(() {
@@ -92,6 +99,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         setState(() {
           _placing = false;
           _error = 'Your cart is empty.';
+          _errorIsFormLevel = false;
         });
         return;
       }
@@ -124,26 +132,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ref.read(shellTabProvider.notifier).select(2);
       context.go('/home');
     } on ApiBadRequest catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _placing = false;
-        _error = e.message;
-      });
+      _showPlacedError(e.message);
     } on ApiConflict catch (e) {
       // The world moved between cart and checkout: a store closed, an
       // item vanished, stock ran out. The message names the offenders.
-      if (!mounted) return;
-      setState(() {
-        _placing = false;
-        _error = e.message;
-      });
+      _showPlacedError(e.message);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _placing = false;
-        _error = 'Could not place the order. Please try again.';
-      });
+      _showPlacedError('Could not place the order. Please try again.');
     }
+  }
+
+  /// A server-rejected placement renders in the items-area banner — these
+  /// are cart conflicts, not field mistakes.
+  void _showPlacedError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _placing = false;
+      _error = message;
+      _errorIsFormLevel = false;
+    });
   }
 
   @override
@@ -350,7 +357,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               style: textTheme.bodyMedium,
             ),
           ),
-          if (_error != null && !_error!.contains('order')) ...[
+          if (_error != null && _errorIsFormLevel) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
               child: Text(
@@ -431,7 +438,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_error != null && _error!.contains('order'))
+              if (_error != null && !_errorIsFormLevel)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,9 +36,26 @@ final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 final authTokenProvider =
     NotifierProvider<AuthTokenNotifier, String?>(AuthTokenNotifier.new);
 
-/// Api client that always reads the current token from the notifier.
+/// Api client that always reads the current token from the notifier —
+/// and dies loudly on 401: an expired token clears the session (cart,
+/// pin, recents) and the router lands on auth, instead of every screen
+/// showing "You need to sign in" forever. The `dying` guard breaks the
+/// loop: signOut's own logout() call re-enters here on the stale 401.
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(tokenProvider: () => ref.read(authTokenProvider));
+  var dying = false;
+  return ApiClient(
+    tokenProvider: () => ref.read(authTokenProvider),
+    onUnauthorized: () {
+      if (dying) return;
+      dying = true;
+      unawaited(
+        ref
+            .read(sessionProvider.notifier)
+            .signOut()
+            .whenComplete(() => dying = false),
+      );
+    },
+  );
 });
 
 final authApiProvider = Provider<AuthApi>(

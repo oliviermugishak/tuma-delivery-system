@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
@@ -7,6 +8,11 @@ import 'package:tuma_app/core/theme/app_colors.dart';
 /// The image pipeline for stores and products: renders [url] when the
 /// server has one — an uploaded banner or gallery cover, served from the
 /// storage base with immutable caching — otherwise an honest icon block.
+///
+/// Downloads go through [CachedNetworkImage]: a real disk cache (every
+/// cold start used to re-download every photo over mobile data), decoded
+/// down to [memCacheWidth] so a 1600px banner costs thumbnail memory in a
+/// 56px row, a fade-in, and gapless playback for recycled rows.
 ///
 /// There is deliberately NO stock-photo fallback: a hashed photo of some
 /// other food on a store that never uploaded anything is a lie. When
@@ -22,6 +28,7 @@ class RemoteImage extends StatelessWidget {
     this.borderRadius = 16,
     this.fit = BoxFit.cover,
     this.fallbackIcon = Icons.shopping_basket_rounded,
+    this.memCacheSize,
   });
 
   final String? url;
@@ -37,25 +44,33 @@ class RemoteImage extends StatelessWidget {
   /// The honest stand-in: what this thing is, in one glyph.
   final IconData fallbackIcon;
 
+  /// The decode budget's WIDTH in physical pixels (the cached-image
+  /// `memCacheWidth`; height follows the aspect ratio). When null, a
+  /// [width] consumer is decoded at its device-pixel width; an
+  /// unconstrained consumer decodes at source size.
+  final int? memCacheSize;
+
   @override
   Widget build(BuildContext context) {
     if (url == null) {
       return _buildIconBlock();
     }
-    final image = Image.network(
-      url!,
+    final devicePixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    final decodeWidth = memCacheSize ??
+        (width != null ? (width! * devicePixelRatio).round() : null);
+    final image = CachedNetworkImage(
+      imageUrl: url!,
       width: width,
       height: height,
       fit: fit,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return Container(
-          width: width,
-          height: height,
-          color: AppColors.onSurface.withValues(alpha: 0.06),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) => _buildIconBlock(),
+      fadeInDuration: const Duration(milliseconds: 200),
+      memCacheWidth: decodeWidth,
+      placeholder: (context, url) => Container(
+        width: width,
+        height: height,
+        color: AppColors.onSurface.withValues(alpha: 0.06),
+      ),
+      errorWidget: (context, url, error) => _buildIconBlock(),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),

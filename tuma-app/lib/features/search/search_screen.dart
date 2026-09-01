@@ -13,6 +13,7 @@ import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/sliver_row_grid.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
 /// Where the customer's recent searches live, newest first, five deep.
@@ -394,34 +395,46 @@ class _ProductsTab extends StatelessWidget {
             : 'Try another name.',
       );
     }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      children: [
-        if (query.isEmpty) ...[
-          const _PopularHeader(),
-          const SizedBox(height: 12),
-        ],
-        LayoutBuilder(
-          builder: (context, constraints) {
-            // Two tiles per row on a phone, three on wide windows — the
-            // shelf is a grid, scrolling vertically.
-            final columns =
-                constraints.maxWidth < 400 ? 2 : (constraints.maxWidth ~/ 220).clamp(2, 3);
-            const spacing = 12.0;
-            final tileWidth =
-                (constraints.maxWidth - spacing * (columns - 1)) / columns;
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: [
-                for (final hit in products)
-                  SizedBox(
-                    width: tileWidth,
-                    child: _ProductTile(hit: hit, popular: query.isEmpty),
-                  ),
-              ],
-            );
-          },
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          sliver: SliverToBoxAdapter(
+            child: query.isEmpty
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      _PopularHeader(),
+                      SizedBox(height: 12),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          sliver: SliverLayoutBuilder(
+            builder: (context, constraints) {
+              // Two tiles per row on a phone, three on wide windows — the
+              // shelf is a grid, scrolling vertically. Rows build lazily
+              // (the eager Wrap resolved every tile up front).
+              final columns =
+                  constraints.crossAxisExtent < 400 ? 2 : (constraints.crossAxisExtent ~/ 220).clamp(2, 3);
+              const spacing = 12.0;
+              final tileWidth =
+                  (constraints.crossAxisExtent - spacing * (columns - 1)) / columns;
+              return SliverRowGrid(
+                itemCount: products.length,
+                columns: columns,
+                cellWidth: tileWidth,
+                spacing: spacing,
+                itemBuilder: (context, index) => _ProductTile(
+                  hit: products[index],
+                  popular: query.isEmpty,
+                ),
+              );
+            },
+          ),
         ),
       ],
     );
@@ -483,6 +496,7 @@ class _ProductTile extends StatelessWidget {
                     url: hit.imageUrl,
                     seed: hit.name,
                     borderRadius: 0,
+                    memCacheSize: 720,
                     fallbackIcon: Icons.lunch_dining_rounded,
                   ),
                 ),

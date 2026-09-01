@@ -25,6 +25,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   List<GroupSummary>? _orders;
   String? _error;
 
+  /// The full-load path (first mount): everything resets to a spinner.
+  /// Pull-to-refresh takes [_refresh] instead — new data swaps in place
+  /// and a failure keeps the last good list (a flash back to a spinner
+  /// for a refresh is jank, not honesty).
   Future<void> _load() async {
     setState(() {
       _error = null;
@@ -37,6 +41,19 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
+    }
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final orders = await ref.read(orderApiProvider).listGroups();
+      if (!mounted) return;
+      setState(() {
+        _orders = orders;
+        _error = null;
+      });
+    } on ApiError {
+      // The list on screen stays; the next pull retries.
     }
   }
 
@@ -87,7 +104,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () async => _load(),
+      onRefresh: _refresh,
       child: ListView.separated(
         padding: const EdgeInsets.only(top: 8),
         itemCount: _orders!.length,

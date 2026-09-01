@@ -11,6 +11,9 @@ import 'package:tuma_app/shared/widgets/initials_tile.dart';
 /// inline edit, rows to real destinations, sign out. Only rows backed by
 /// a real feature ship; Payment Methods, Favorites, Settings/push
 /// notifications and Support join when their slices land — no stub rows.
+/// Name editing is an INLINE section (not a dialog): it's the first of
+/// the profile fields — more editable facts join this screen later, each
+/// as its own card in this column.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -21,6 +24,15 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _signingOut = false;
 
+  // The inline name editor — owned by this State, disposed with it (the
+  // dialog version raced its exit animation: dispose ran while the route
+  // transition still held the TextField's listeners → debug asserts).
+  bool _editingName = false;
+  bool _savingName = false;
+  String? _nameError;
+  late final TextEditingController _nameController = TextEditingController();
+  String _currentName = '';
+
   Future<void> _signOut() async {
     setState(() => _signingOut = true);
     await ref.read(sessionProvider.notifier).signOut();
@@ -29,147 +41,80 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (mounted) setState(() => _signingOut = false);
   }
 
-  /// The pencil on the identity card: an edit dialog seeded with the
-  /// current name, saving through `PATCH /me`. The session updates in
-  /// place, so the greeting and this card change together, live.
-  Future<void> _editName() async {
+  void _toggleNameEdit() {
     final session = ref.read(sessionProvider).asData?.value;
     final user = switch (session) {
       SessionUser s => s.user,
       _ => null,
     };
     if (user == null) return;
-    final current = user.displayName ?? '';
-    final controller = TextEditingController(text: current);
-    var saving = false;
-    String? error;
+    setState(() {
+      _currentName = user.displayName ?? '';
+      _nameController.text = _currentName;
+      _nameError = null;
+      _editingName = !_editingName;
+    });
+  }
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
+  /// Dirty state drives the Save button — typing re-evaluates it, and a
+  /// session update from elsewhere (profile edits land here later too)
+  /// re-seeds nothing while the editor is open.
+  bool get _nameDirty =>
+      _editingName && _nameController.text.trim() != _currentName;
+
+  Future<void> _saveName() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Enter a name.');
+      return;
+    }
+    if (name == _currentName || _savingName) return;
+    setState(() {
+      _savingName = true;
+      _nameError = null;
+    });
+    try {
+      final updated = await ref.read(authApiProvider).updateName(name);
+      ref.read(sessionProvider.notifier).updateUser(updated);
+      if (!mounted) return;
+      setState(() {
+        _savingName = false;
+        _editingName = false;
+        _currentName = name;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Name updated.',
+            style: TextStyle(color: AppColors.onSurface),
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
           backgroundColor: AppColors.surfaceAlt,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
           ),
-          title: const Text('Your name'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                style: Theme.of(dialogContext).textTheme.bodyMedium,
-                decoration: InputDecoration(
-                  hintText: 'How should we call you?',
-                  hintStyle: Theme.of(dialogContext).textTheme.bodyMedium
-                      ?.copyWith(color: AppColors.onSurfaceMuted),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.surfaceBorder),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
-                      width: 1.5,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  error!,
-                  style: Theme.of(dialogContext).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.error),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.onSurfaceMuted,
-              ),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      final name = controller.text.trim();
-                      if (name.isEmpty) {
-                        setDialogState(() => error = 'Enter a name.');
-                        return;
-                      }
-                      if (name == current) {
-                        Navigator.of(dialogContext).pop();
-                        return;
-                      }
-                      setDialogState(() {
-                        saving = true;
-                        error = null;
-                      });
-                      try {
-                        final updated =
-                            await ref.read(authApiProvider).updateName(name);
-                        ref.read(sessionProvider.notifier).updateUser(updated);
-                        if (!dialogContext.mounted) return;
-                        Navigator.of(dialogContext).pop();
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text(
-                              'Name updated.',
-                              style: TextStyle(color: AppColors.onSurface),
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 1),
-                            backgroundColor: AppColors.surfaceAlt,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        );
-                      } on ApiError catch (e) {
-                        setDialogState(() {
-                          saving = false;
-                          error = e.message;
-                        });
-                      } on Object {
-                        setDialogState(() {
-                          saving = false;
-                          error = 'Could not save. Try again.';
-                        });
-                      }
-                    },
-              style: FilledButton.styleFrom(
-                disabledBackgroundColor:
-                    AppColors.onSurface.withValues(alpha: 0.15),
-              ),
-              child: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.onPrimary,
-                      ),
-                    )
-                  : const Text('Save'),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _savingName = false;
+        _nameError = e.message;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _savingName = false;
+        _nameError = 'Could not save. Try again.';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   @override
@@ -198,7 +143,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 20),
             // Identity card — who you are, with the edit affordance on
-            // the right, exactly like the founder's example.
+            // the right, exactly like the founder's example. The pencil
+            // toggles the inline editor below (no dialog).
             Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
               decoration: BoxDecoration(
@@ -235,17 +181,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Edit name',
-                    icon: const Icon(
-                      Icons.edit_rounded,
+                    tooltip: _editingName ? 'Close editor' : 'Edit name',
+                    icon: Icon(
+                      _editingName
+                          ? Icons.close_rounded
+                          : Icons.edit_rounded,
                       size: 20,
                       color: AppColors.onSurfaceMuted,
                     ),
-                    onPressed: _editName,
+                    onPressed: _toggleNameEdit,
                   ),
                 ],
               ),
             ),
+            if (_editingName) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _nameController,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) => setState(() {}),
+                      style: textTheme.bodyMedium,
+                      decoration: InputDecoration(
+                        hintText: 'How should we call you?',
+                        hintStyle: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                        counterText: '',
+                      ),
+                      maxLength: 60,
+                    ),
+                    if (_nameError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _nameError!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed:
+                              _savingName ? null : _toggleNameEdit,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.onSurfaceMuted,
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: !_nameDirty || _savingName
+                              ? null
+                              : _saveName,
+                          // The theme's FilledButton is full-width
+                          // (Size.fromHeight) — inside this Row that's
+                          // infinite width. Just-fit, like the rider
+                          // kiosk's row actions.
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            disabledBackgroundColor: AppColors.onSurface
+                                .withValues(alpha: 0.15),
+                          ),
+                          child: _savingName
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: AppColors.onPrimary,
+                                  ),
+                                )
+                              : const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             // Real destinations only, one row per feature that exists.
             _ProfileRow(

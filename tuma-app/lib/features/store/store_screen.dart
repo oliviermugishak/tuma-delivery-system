@@ -139,6 +139,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                   url: store.imageUrl,
                   seed: store.name,
                   borderRadius: 0,
+                  memCacheSize: 1080,
                   fallbackIcon: Icons.storefront_rounded,
                 ),
                 const _TopScrim(),
@@ -931,6 +932,7 @@ class _SheetGalleryState extends State<_SheetGallery> {
         child: RemoteImage(
           url: widget.product.displayImage,
           seed: widget.product.name,
+          memCacheSize: 1080,
         ),
       ),
     );
@@ -953,6 +955,7 @@ class _SheetGalleryState extends State<_SheetGallery> {
                   url: images[index],
                   seed: '${widget.product.name}:$index',
                   borderRadius: 0,
+                  memCacheSize: 1080,
                 ),
               ),
             ),

@@ -35,9 +35,13 @@ class MapWorldCard extends StatefulWidget {
 /// The truth ladder's rungs (tracking doc §2). `ended` stops the poll.
 enum _Ladder { live, lagging, ended }
 
-class _MapWorldCardState extends State<MapWorldCard> {
-  /// A 1-second ticker so the ETA decays smoothly and the ladder
-  /// re-evaluates against absolute timestamps without a network call.
+class _MapWorldCardState extends State<MapWorldCard>
+    with WidgetsBindingObserver {
+  /// The ticker re-renders the decaying ETA and re-evaluates the ladder
+  /// against absolute timestamps. It renders minutes, so 1s was 60× the
+  /// honest cost — 5s matches what the eye can see. It is
+  /// lifecycle-aware (backgrounded, it stops) and goes to sleep entirely
+  /// once the ladder reaches `ended`, where the presentation is static.
   Timer? _clock;
 
   /// The grace period past the ETA before "Taking longer than expected"
@@ -51,13 +55,28 @@ class _MapWorldCardState extends State<MapWorldCard> {
   @override
   void initState() {
     super.initState();
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+    WidgetsBinding.instance.addObserver(this);
+    _clock = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && _ladder != _Ladder.ended) setState(() {});
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _clock?.cancel();
+      _clock = null;
+    } else if (state == AppLifecycleState.resumed && _clock == null) {
+      _clock = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (mounted && _ladder != _Ladder.ended) setState(() {});
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _clock?.cancel();
     super.dispose();
   }

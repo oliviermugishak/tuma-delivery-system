@@ -12,6 +12,7 @@ import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
+import 'package:tuma_app/shared/widgets/sliver_row_grid.dart';
 
 /// Home tab: greeting, then sections — "Stores near you" first; more
 /// sections slot in below it as they earn their place. Pure browsing:
@@ -66,10 +67,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
   }
 
+  /// First mount: locate (GPS or the persisted pin), then the feed.
   Future<void> _load() async {
     setState(() => _error = null);
+    final located = await _locate();
+    await _fetchFeed(located);
+  }
+
+  /// Pull-to-refresh: refresh the FEED only. A fresh GPS fix on every
+  /// pull made the user wait on a 10s acquisition for data that didn't
+  /// need it — the persisted pin (or bare feed) already carries the
+  /// distances; the location hint owns the "try GPS again" path.
+  Future<void> _refresh() async {
+    final pin = await ref.read(customerLocationProvider.future);
+    await _fetchFeed(pin);
+  }
+
+  Future<void> _fetchFeed(CustomerLocation? located) async {
+    setState(() => _error = null);
     try {
-      final located = await _locate();
       final stores = await ref
           .read(storeApiProvider)
           .listStores(lat: located?.lat, lng: located?.lng);
@@ -132,96 +148,125 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _load,
+          onRefresh: _refresh,
           color: AppColors.primary,
           backgroundColor: AppColors.surfaceAlt,
-          child: ListView(
+          // A sliver scroll: the feed grid builds lazily (rows materialize
+          // as they scroll in) instead of the eager Wrap that built every
+          // card on mount.
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            children: [
-              Text(
-                user?.displayName != null
-                    ? 'Hi, ${user!.displayName} 👋'
-                    : 'Welcome to Tuma 👋',
-                style: textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.displayName != null
+                            ? 'Hi, ${user!.displayName} 👋'
+                            : 'Welcome to Tuma 👋',
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: AppColors.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Home is pure browse — no search field. A large input that
+                      // acts as a button misleads; the always-visible Search tab
+                      // in the bottom bar owns discovery (founder decision).
+                      if (stores != null && categories!.isNotEmpty)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _CategoryChip(
+                                label: 'All',
+                                selected: _category == null,
+                                onTap: () => setState(() => _category = null),
+                              ),
+                              for (final category in categories)
+                                _CategoryChip(
+                                  label: category,
+                                  selected: _category == category,
+                                  onTap: () =>
+                                      setState(() => _category = category),
+                                ),
+                            ],
+                          ),
+                        ),
+                      if (stores != null) ...[
+                        if (categories!.isNotEmpty) const SizedBox(height: 12),
+                        if (_showLocationHint) _LocationHint(onTap: _retryLocation),
+                        if (categories.isNotEmpty || _showLocationHint)
+                          const SizedBox(height: 22),
+                      ] else
+                        const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
-              // Home is pure browse — no search field. A large input that
-              // acts as a button misleads; the always-visible Search tab
-              // in the bottom bar owns discovery (founder decision).
-              if (stores != null) ...[
-                if (categories!.isNotEmpty) ...[
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _CategoryChip(
-                          label: 'All',
-                          selected: _category == null,
-                          onTap: () => setState(() => _category = null),
-                        ),
-                        for (final category in categories)
-                          _CategoryChip(
-                            label: category,
-                            selected: _category == category,
-                            onTap: () =>
-                                setState(() => _category = category),
-                          ),
-                      ],
+              if (stores == null && _error != null)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverToBoxAdapter(
+                    child: ErrorState(message: _error!, onRetry: _load),
+                  ),
+                )
+              else if (stores == null)
+                const SliverToBoxAdapter(child: _FeedSkeleton())
+              else if (stores.isEmpty && _category != null)
+                const SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverToBoxAdapter(child: _NoMatch()),
+                )
+              else if (stores.isEmpty)
+                const SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverToBoxAdapter(child: _EmptyState()),
+                )
+              else ...[
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverToBoxAdapter(
+                    child: Text(
+                      'Stores near you',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ],
-                if (_showLocationHint) ...[
-                  const SizedBox(height: 12),
-                  _LocationHint(onTap: _retryLocation),
-                ],
-                const SizedBox(height: 22),
-              ] else
-                const SizedBox(height: 24),
-              if (stores == null && _error != null)
-                ErrorState(message: _error!, onRetry: _load)
-              else if (stores == null)
-                const _FeedSkeleton()
-              else if (stores.isEmpty && _category != null)
-                const _NoMatch()
-              else if (stores.isEmpty)
-                const _EmptyState()
-              else ...[
-                Text(
-                  'Stores near you',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
                 ),
-                const SizedBox(height: 14),
+                const SliverToBoxAdapter(child: SizedBox(height: 14)),
                 if (filtered!.isEmpty)
-                  const _NoMatch()
+                  const SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    sliver: SliverToBoxAdapter(child: _NoMatch()),
+                  )
                 else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final metrics = _cardMetrics(constraints.maxWidth);
-                      return Wrap(
-                        spacing: _cardSpacing,
-                        runSpacing: _cardSpacing,
-                        children: [
-                          for (final store in filtered)
-                            SizedBox(
-                              width: metrics.cardWidth,
-                              child: _StoreCard(
-                                store: store,
-                                onTap: () => unawaited(
-                                  context.push('/stores/${store.id}'),
-                                ),
-                              ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    sliver: SliverLayoutBuilder(
+                      builder: (context, constraints) {
+                        final metrics = _cardMetrics(constraints.crossAxisExtent);
+                        return SliverRowGrid(
+                          itemCount: filtered.length,
+                          columns: metrics.columns,
+                          cellWidth: metrics.cardWidth,
+                          spacing: _cardSpacing,
+                          itemBuilder: (BuildContext context, int index) => _StoreCard(
+                            store: filtered[index],
+                            onTap: () => unawaited(
+                              context.push('/stores/${filtered[index].id}'),
                             ),
-                        ],
-                      );
-                    },
+                          ),
+                        );
+                      },
+                    ),
                   ),
               ],
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
           ),
         ),
@@ -288,6 +333,7 @@ class _StoreCard extends StatelessWidget {
                   url: store.imageUrl,
                   seed: store.name,
                   borderRadius: 0,
+                  memCacheSize: 1080,
                   fallbackIcon: Icons.storefront_rounded,
                 ),
               ),

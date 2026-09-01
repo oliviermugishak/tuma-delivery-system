@@ -73,7 +73,13 @@ class _NameScreenState extends ConsumerState<NameScreen> {
   Future<void> _skip() async {
     if (_submitting) return;
     setState(() => _submitting = true);
-    await _finish(widget.args.user);
+    try {
+      await _finish(widget.args.user);
+    } finally {
+      // A storage failure inside _finish must not leave the screen
+      // permanently disabled — the failure surfaces wherever it throws.
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override

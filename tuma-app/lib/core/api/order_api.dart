@@ -34,9 +34,9 @@ class OrderApi {
   /// Order groups, newest first. [limit] caps the page (1-200, default
   /// 50); [offset] pages past it.
   Future<List<GroupSummary>> listGroups({int limit = 50, int offset = 0}) async {
-    final response =
-        await _client.get('/orders?limit=$limit&offset=$offset');
-    return (response as List)
+    final response = await _client
+        .getList('/orders', query: {'limit': '$limit', 'offset': '$offset'});
+    return response
         .whereType<Map<String, dynamic>>()
         .map(GroupSummary.fromJson)
         .toList();

@@ -65,12 +65,32 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     return _tracking?.paymentStatus ?? order.paymentStatus;
   }
 
+  /// The first-load path: everything resets to a spinner. Pull-to-refresh
+  /// takes [_silentRefresh] — a failed refresh keeps the order on screen
+  /// (flashing back to a spinner, or worse wiping loaded content to an
+  /// error state, is jank, not honesty).
   Future<void> _load() async {
     setState(() {
       _error = null;
       _order = null;
       _tracking = null;
     });
+    await _fetch();
+  }
+
+  Future<void> _silentRefresh() async {
+    try {
+      final api = ref.read(orderApiProvider);
+      final order = await api.getGroup(widget.orderId);
+      if (!mounted) return;
+      setState(() => _order = order);
+      _syncPolling();
+    } on Object {
+      // The rendered order stays; the next pull retries.
+    }
+  }
+
+  Future<void> _fetch() async {
     try {
       final api = ref.read(orderApiProvider);
       final order = await api.getGroup(widget.orderId);
@@ -373,7 +393,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => _load(),
+        onRefresh: _silentRefresh,
         color: AppColors.primary,
         child: CustomScrollView(
           slivers: [
@@ -395,7 +415,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                     Text(
                       storeCount > 1
                           ? '$storeCount stores are fulfilling this order.'
-                          : '${order.storeOrders.first.storeName} is fulfilling this order.',
+                          : order.storeOrders.isNotEmpty
+                              ? '${order.storeOrders.first.storeName} is fulfilling this order.'
+                              : 'This purchase is being fulfilled.',
                       style: textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),

@@ -1365,10 +1365,12 @@ void main() {
 
     await tester.tap(find.text('Profile'));
     await _settle(tester);
-    // The pencil opens the dialog seeded with the current name.
+    // The pencil opens the INLINE editor seeded with the current name.
     await tester.tap(find.byIcon(Icons.edit_rounded));
     await _settle(tester);
     await tester.enterText(find.byType(TextField), 'Mutesi');
+    // Save is disabled until the name is actually dirty.
+    await tester.pump();
     await tester.tap(find.text('Save'));
     await _settle(tester);
 

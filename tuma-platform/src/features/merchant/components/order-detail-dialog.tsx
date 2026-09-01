@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HandoffDialog } from '@/features/merchant/components/handoff-dialog'
-import { DeliveryPinCard } from '@/features/merchant/components/delivery-pin-card'
+import { DeliveryPinCardLazy } from '@/features/merchant/components/delivery-pin-card-lazy'
 import {
   useAdvanceStoreOrder,
 } from '@/features/merchant/hooks/use-advance-store-order'
@@ -106,7 +106,7 @@ export function OrderDetailDialog({
                   </p>
                 )}
                 <p className="mt-2 text-sm">{detail.data.address_text}</p>
-                <DeliveryPinCard
+                <DeliveryPinCardLazy
                   lat={detail.data.address_lat}
                   lng={detail.data.address_lng}
                 />

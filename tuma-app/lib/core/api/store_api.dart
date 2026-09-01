@@ -17,7 +17,7 @@ class StoreApi {
   /// only — the server 403s anyone else.
   Future<List<Store>> listStores({double? lat, double? lng, String? q}) async {
     final term = q?.trim();
-    final response = await _client.get(
+    final response = await _client.getList(
       '/stores',
       query: {
         if (lat != null && lng != null) 'lat': lat.toString(),
@@ -25,7 +25,7 @@ class StoreApi {
         if (term != null && term.isNotEmpty) 'q': term,
       },
     );
-    return (response as List)
+    return response
         .whereType<Map<String, dynamic>>()
         .map(Store.fromJson)
         .toList();

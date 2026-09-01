@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -59,21 +60,61 @@ class ApiFieldError {
 /// Mutable Bearer token holder, read by the api client before each request.
 typedef TokenProvider = String? Function();
 
+/// Called once per 401 response — the session layer uses it to die loudly
+/// (clear the token, return to auth) instead of leaving every screen
+/// showing "You need to sign in" forever on an expired token.
+typedef OnUnauthorized = void Function();
+
 /// Lightweight HTTP client. Always goes through the versioned `/api/v1`
-/// prefix; tests can swap the constructor for a mock.
+/// prefix; tests can swap the constructor for a mock. Every request is
+/// bounded by a timeout — an unbounded request is how a splash screen
+/// hangs forever and how poll loops pile up against a dead socket.
 class ApiClient {
   ApiClient({
     http.Client? httpClient,
     AppConfig? config,
     required TokenProvider tokenProvider,
+    OnUnauthorized? onUnauthorized,
   })  : _http = httpClient ?? http.Client(),
         _config = config ?? AppConfig.instance,
-        // ignore: prefer_initializing_formals — public parameter, private field.
-        _tokenProvider = tokenProvider;
+        _tokenProvider = tokenProvider, // ignore: prefer_initializing_formals
+        _onUnauthorized = onUnauthorized; // ignore: prefer_initializing_formals
+
+  /// The ceiling for one request. Generous on purpose — it bounds the
+  /// disaster cases (dead network, hung socket), not normal latency.
+  static const _timeout = Duration(seconds: 15);
 
   final http.Client _http;
   final AppConfig _config;
   final TokenProvider _tokenProvider;
+  final OnUnauthorized? _onUnauthorized;
+
+  /// Parse the error envelope ONCE — the code/message/field readers used
+  /// to each jsonDecode the full body.
+  ({String? code, String? message, List<ApiFieldError>? fields})? _parseError(
+    http.Response response,
+  ) {
+    if (response.body.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final fields = decoded['details'] is List
+          ? (decoded['details'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map(ApiFieldError.fromJson)
+              .toList()
+          : null;
+      return (
+        code: decoded['error'] as String?,
+        message: decoded['message'] is String
+            ? decoded['message'] as String
+            : null,
+        fields: fields,
+      );
+    } on Object {
+      return null;
+    }
+  }
 
   Future<dynamic> get(String path, {Map<String, String>? query}) {
     return _send('GET', path, null, query: query);
@@ -89,6 +130,16 @@ class ApiClient {
   /// header and the server answers 401.
   Future<dynamic> patch(String path, {Object? body, String? token}) async {
     return _send('PATCH', path, body, token: token);
+  }
+
+  /// The decoded JSON of a successful response, or `null` when the body
+  /// is empty (204s and friends). Throws [ApiError] otherwise. Callers
+  /// that expect a JSON list should go through [getList] so contract
+  /// drift surfaces as an [ApiError], not a CastError crash.
+  Future<List<dynamic>> getList(String path, {Map<String, String>? query}) async {
+    final decoded = await _send('GET', path, null, query: query);
+    if (decoded is List) return decoded;
+    throw ApiServer('Unexpected response from $path.');
   }
 
   Future<dynamic> _send(
@@ -112,24 +163,31 @@ class ApiClient {
     try {
       switch (method) {
         case 'GET':
-          response = await _http.get(url, headers: headers);
+          response =
+              await _http.get(url, headers: headers).timeout(_timeout);
         case 'POST':
-          response = await _http.post(
-            url,
-            headers: headers,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _http
+              .post(
+                url,
+                headers: headers,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_timeout);
         case 'PATCH':
-          response = await _http.patch(
-            url,
-            headers: headers,
-            body: body == null ? null : jsonEncode(body),
-          );
+          response = await _http
+              .patch(
+                url,
+                headers: headers,
+                body: body == null ? null : jsonEncode(body),
+              )
+              .timeout(_timeout);
         default:
           throw ArgumentError('unsupported method $method');
       }
+    } on TimeoutException {
+      throw const ApiNetwork('The server took too long to answer.');
     } on Object catch (error) {
-      // Network errors, timeouts, anything outside the HTTP response path.
+      // Network errors, anything outside the HTTP response path.
       throw ApiNetwork(error.toString());
     }
     return _decode(response);
@@ -140,64 +198,36 @@ class ApiClient {
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);
     }
-    final errorCode = _readErrorCode(response);
-    final message = _readErrorMessage(response, errorCode);
-    final fields = _readFieldErrors(response);
+    final parsed = _parseError(response);
     switch (response.statusCode) {
       case 400:
-        throw ApiBadRequest(message, fieldErrors: fields);
+        throw ApiBadRequest(
+          parsed?.message ?? response.reasonPhrase ?? 'Request failed',
+          fieldErrors: parsed?.fields,
+        );
       case 401:
-        throw const ApiUnauthorized();
+        // One dead session, every screen told — the session layer clears
+        // state and the router lands on auth.
+        _onUnauthorized?.call();
+        throw ApiUnauthorized(
+          parsed?.message ?? 'You need to sign in.',
+        );
       case 403:
-        throw ApiForbidden(message);
+        throw ApiForbidden(parsed?.message ?? response.reasonPhrase ?? 'Request failed');
       case 404:
-        throw ApiNotFound(message);
+        throw ApiNotFound(parsed?.message ?? response.reasonPhrase ?? 'Request failed');
       case 409:
-        throw ApiConflict(message, fieldErrors: fields);
+        throw ApiConflict(
+          parsed?.message ?? response.reasonPhrase ?? 'Request failed',
+          fieldErrors: parsed?.fields,
+        );
       case 422:
-        throw ApiBadRequest(message, fieldErrors: fields);
+        throw ApiBadRequest(
+          parsed?.message ?? response.reasonPhrase ?? 'Request failed',
+          fieldErrors: parsed?.fields,
+        );
       default:
-        throw ApiServer(message);
+        throw ApiServer(parsed?.message ?? 'Something went wrong. Please try again.');
     }
-  }
-
-  String? _readErrorCode(http.Response response) {
-    if (response.body.isEmpty) return null;
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) return decoded['error'] as String?;
-    } on Object {
-      // fall through
-    }
-    return null;
-  }
-
-  String _readErrorMessage(http.Response response, String? errorCode) {
-    if (response.body.isEmpty) return response.reasonPhrase ?? 'Request failed';
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic> && decoded['message'] is String) {
-        return decoded['message'] as String;
-      }
-    } on Object {
-      // fall through
-    }
-    return response.reasonPhrase ?? 'Request failed';
-  }
-
-  List<ApiFieldError>? _readFieldErrors(http.Response response) {
-    if (response.body.isEmpty) return null;
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic> && decoded['details'] is List) {
-        return (decoded['details'] as List)
-            .whereType<Map<String, dynamic>>()
-            .map(ApiFieldError.fromJson)
-            .toList();
-      }
-    } on Object {
-      // fall through
-    }
-    return null;
   }
 }

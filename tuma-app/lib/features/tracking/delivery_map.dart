@@ -55,11 +55,24 @@ class _DeliveryMapState extends State<DeliveryMap>
   @override
   void initState() {
     super.initState();
-    // One rebuild per glide frame — one marker, platform-side position
-    // update; the trail and route geometry never change between polls.
-    _glide.addListener(() {
-      if (mounted && _glide.isAnimating) setState(() {});
-    });
+    // The glide re-renders the marker as it moves — but the whole widget
+    // subtree (including the GoogleMap platform-view widget) rebuilds on
+    // every setState, so per-frame 60fps updates were ~300 rebuilds per
+    // 5s glide. Throttled to ~10fps: still reads as smooth motion for a
+    // cross-town moto, at a tenth of the widget churn.
+    _glide.addListener(_throttledGlideRepaint);
+  }
+
+  DateTime _lastGlideRepaint = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _throttledGlideRepaint() {
+    if (!mounted || !_glide.isAnimating) return;
+    final now = DateTime.now();
+    if (now.difference(_lastGlideRepaint) < const Duration(milliseconds: 100)) {
+      return;
+    }
+    _lastGlideRepaint = now;
+    setState(() {});
   }
 
   @override
