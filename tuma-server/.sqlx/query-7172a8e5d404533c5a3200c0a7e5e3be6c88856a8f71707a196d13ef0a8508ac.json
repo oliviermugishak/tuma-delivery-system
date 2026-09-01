@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        FROM marketplace.stores\n        WHERE is_open\n        ORDER BY created_at\n        ",
+  "query": "\n        INSERT INTO marketplace.stores (\n            merchant_id, name, description, image_url, address_text,\n            lat, lng, category, delivery_fee, is_open,\n            contact_phone, contact_email\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,28 @@
       },
       {
         "ordinal": 12,
+        "name": "contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +169,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -159,7 +181,20 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float8",
+        "Float8",
+        "Text",
+        "Int8",
+        "Bool",
+        "Text",
+        "Text"
+      ]
     },
     "nullable": [
       false,
@@ -174,9 +209,11 @@
       true,
       false,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "7af9321e5f90b1d37611a14e0d4c0623616c9a27c55642c4d8cdf8a6265b56d6"
+  "hash": "7172a8e5d404533c5a3200c0a7e5e3be6c88856a8f71707a196d13ef0a8508ac"
 }

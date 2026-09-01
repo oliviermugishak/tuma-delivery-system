@@ -500,6 +500,8 @@ pub struct ActiveDelivery {
     pub store_address: Option<String>,
     pub store_lat: Option<f64>,
     pub store_lng: Option<f64>,
+    /// The store's phone — the Pick-up stage's Call-the-store action.
+    pub store_contact_phone: Option<String>,
     pub destination_address: String,
     pub destination_lat: Option<f64>,
     pub destination_lng: Option<f64>,
@@ -531,6 +533,7 @@ pub async fn active_deliveries_for_rider(
                so.number, so.total,
                s.name AS store_name, s.address_text AS store_address,
                s.lat AS store_lat, s.lng AS store_lng,
+               s.contact_phone AS store_contact_phone,
                og.address_text AS destination_address,
                og.address_lat AS destination_lat, og.address_lng AS destination_lng,
                c.name AS customer_name, u.phone AS customer_phone,
@@ -548,6 +551,53 @@ pub async fn active_deliveries_for_rider(
         ORDER BY d.handoff_at DESC NULLS LAST
         "#,
         rider_id,
+    )
+    .fetch_all(&mut *conn)
+    .await
+}
+
+/// One delivered stop in the rider's history — the run record the rider
+/// app lists under today's tally. `delivered_at` is the store order's
+/// last write: the moment the rider confirmed the handover.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct DeliveredDelivery {
+    pub delivery_id: Uuid,
+    pub store_order_id: Uuid,
+    pub number: i64,
+    pub total: i64,
+    pub store_name: String,
+    pub destination_address: String,
+    pub customer_name: Option<String>,
+    pub delivered_at: OffsetDateTime,
+}
+
+/// The rider's delivered history, newest first. Every delivery they
+/// completed — not just today's — so the kiosk can show the whole run.
+pub async fn delivered_history_for_rider(
+    conn: &mut PgConnection,
+    rider_id: Uuid,
+    limit: i64,
+) -> Result<Vec<DeliveredDelivery>, sqlx::Error> {
+    sqlx::query_as!(
+        DeliveredDelivery,
+        r#"
+        SELECT d.id AS delivery_id, d.store_order_id,
+               so.number, so.total,
+               s.name AS store_name,
+               og.address_text AS destination_address,
+               c.name AS customer_name,
+               so.updated_at AS delivered_at
+        FROM commerce.deliveries d
+        JOIN commerce.store_orders so ON so.id = d.store_order_id
+        JOIN commerce.order_groups og ON og.id = so.order_group_id
+        JOIN marketplace.stores s ON s.id = so.store_id
+        LEFT JOIN accounts.customers c ON c.user_id = og.user_id
+        WHERE d.rider_id = $1 AND so.status = 'delivered'
+        ORDER BY so.updated_at DESC
+        LIMIT $2
+        "#,
+        rider_id,
+        limit,
     )
     .fetch_all(&mut *conn)
     .await

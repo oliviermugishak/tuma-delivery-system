@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        FROM marketplace.stores\n        WHERE is_open AND (name ILIKE $1 OR category ILIKE $1)\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n               created_at, updated_at\n        FROM marketplace.stores\n        WHERE is_open\n        ORDER BY created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,28 @@
       },
       {
         "ordinal": 12,
+        "name": "contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +169,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -159,9 +181,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -176,9 +196,11 @@
       true,
       false,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "afd012990768584e8ee233cb3e9bf8aba187886e24da90da8881b8a5de1c5c98"
+  "hash": "6e8f539270ee1c715c671b0046066b1171252012db50c3d3255075cc36208e31"
 }

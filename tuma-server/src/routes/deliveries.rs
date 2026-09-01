@@ -209,6 +209,56 @@ pub async fn rider_today(
     }))
 }
 
+/// The rider's delivered history — every stop they completed, newest
+/// first. The rider app's history list (the day's tally shows the money;
+/// this shows the runs).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RiderHistoryEntryResponse {
+    pub delivery_id: Uuid,
+    /// The customer-facing order number ("Order #8").
+    pub number: i64,
+    /// The cash this stop collected.
+    pub total: i64,
+    pub store_name: String,
+    pub destination_address: String,
+    pub customer_name: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub delivered_at: OffsetDateTime,
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/deliveries/history",
+    responses(
+        (status = 200, description = "The rider's delivered deliveries, newest first (latest 50)", body = Vec<RiderHistoryEntryResponse>),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not a rider"),
+    ),
+    tag = "deliveries"
+)]
+#[tracing::instrument(name = "Rider delivered history", skip_all)]
+pub async fn rider_history(
+    State(app): State<AppState>,
+    Extension(context): Extension<UserContext>,
+) -> AppResult<Json<Vec<RiderHistoryEntryResponse>>> {
+    let rider = rider_id(&context)?;
+    let mut conn = app.db_pool.acquire().await?;
+    let rows = deliveries::delivered_history_for_rider(&mut conn, rider, 50).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| RiderHistoryEntryResponse {
+                delivery_id: row.delivery_id,
+                number: row.number,
+                total: row.total,
+                store_name: row.store_name,
+                destination_address: row.destination_address,
+                customer_name: row.customer_name,
+                delivered_at: row.delivered_at,
+            })
+            .collect(),
+    ))
+}
+
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RiderDeliveryResponse {
     pub delivery_id: Uuid,
@@ -220,6 +270,8 @@ pub struct RiderDeliveryResponse {
     pub store_address: Option<String>,
     pub store_lat: Option<f64>,
     pub store_lng: Option<f64>,
+    /// The store's phone — the Pick-up stage's Call-the-store action.
+    pub store_contact_phone: Option<String>,
     pub destination_address: String,
     pub destination_lat: Option<f64>,
     pub destination_lng: Option<f64>,
@@ -251,6 +303,7 @@ impl From<deliveries::ActiveDelivery> for RiderDeliveryResponse {
             store_address: row.store_address,
             store_lat: row.store_lat,
             store_lng: row.store_lng,
+            store_contact_phone: row.store_contact_phone,
             destination_address: row.destination_address,
             destination_lat: row.destination_lat,
             destination_lng: row.destination_lng,

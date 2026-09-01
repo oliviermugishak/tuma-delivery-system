@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT d.id AS delivery_id, d.store_order_id,\n               so.number, so.total,\n               s.name AS store_name, s.address_text AS store_address,\n               s.lat AS store_lat, s.lng AS store_lng,\n               og.address_text AS destination_address,\n               og.address_lat AS destination_lat, og.address_lng AS destination_lng,\n               c.name AS customer_name, u.phone AS customer_phone,\n               og.customer_note,\n               so.status AS \"status: OrderStatus\",\n               d.handoff_at, d.route_polyline, d.eta_target,\n               d.last_lat, d.last_lng, d.last_location_at\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        JOIN marketplace.stores s ON s.id = so.store_id\n        LEFT JOIN accounts.customers c ON c.user_id = og.user_id\n        LEFT JOIN accounts.users u ON u.id = og.user_id\n        WHERE d.rider_id = $1 AND so.status = 'picked_up'\n        ORDER BY d.handoff_at DESC NULLS LAST\n        ",
+  "query": "\n        SELECT d.id AS delivery_id, d.store_order_id,\n               so.number, so.total,\n               s.name AS store_name, s.address_text AS store_address,\n               s.lat AS store_lat, s.lng AS store_lng,\n               s.contact_phone AS store_contact_phone,\n               og.address_text AS destination_address,\n               og.address_lat AS destination_lat, og.address_lng AS destination_lng,\n               c.name AS customer_name, u.phone AS customer_phone,\n               og.customer_note,\n               so.status AS \"status: OrderStatus\",\n               d.handoff_at, d.route_polyline, d.eta_target,\n               d.last_lat, d.last_lng, d.last_location_at\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        JOIN marketplace.stores s ON s.id = so.store_id\n        LEFT JOIN accounts.customers c ON c.user_id = og.user_id\n        LEFT JOIN accounts.users u ON u.id = og.user_id\n        WHERE d.rider_id = $1 AND so.status = 'picked_up'\n        ORDER BY d.handoff_at DESC NULLS LAST\n        ",
   "describe": {
     "columns": [
       {
@@ -93,6 +93,17 @@
       },
       {
         "ordinal": 8,
+        "name": "store_contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "destination_address",
         "type_info": "Text",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "destination_lat",
         "type_info": "Float8",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "destination_lng",
         "type_info": "Float8",
         "origin": {
@@ -125,7 +136,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "customer_name",
         "type_info": "Text",
         "origin": {
@@ -136,7 +147,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "customer_phone",
         "type_info": "Text",
         "origin": {
@@ -147,7 +158,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "customer_note",
         "type_info": "Text",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "status: OrderStatus",
         "type_info": {
           "Custom": {
@@ -183,7 +194,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "handoff_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -194,7 +205,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "route_polyline",
         "type_info": "Text",
         "origin": {
@@ -205,7 +216,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "eta_target",
         "type_info": "Timestamptz",
         "origin": {
@@ -216,7 +227,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "last_lat",
         "type_info": "Float8",
         "origin": {
@@ -227,7 +238,7 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "last_lng",
         "type_info": "Float8",
         "origin": {
@@ -238,7 +249,7 @@
         }
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "last_location_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -263,6 +274,7 @@
       true,
       true,
       true,
+      true,
       false,
       true,
       true,
@@ -278,5 +290,5 @@
       true
     ]
   },
-  "hash": "fb5ca584dffd0768c6c972a4dfea689698ac609dd629332efc295b53eef8c2f6"
+  "hash": "584bb77b01e3d807150cfaa0f1fa109eae3972811e4eebc2d776025ec1478e14"
 }

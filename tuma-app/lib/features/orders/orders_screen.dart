@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
-import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
+import 'package:tuma_app/features/orders/active_orders_provider.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 
@@ -17,6 +16,11 @@ import 'package:tuma_app/shared/widgets/error_state.dart';
 /// orders get rich cards (status story + progress + Track, P11/P13);
 /// history compresses into grouped tiles with date headers (P1, P4).
 /// Status dot rows replace badge pills (P14).
+///
+/// The list is realtime: the screen watches [activeOrdersProvider], the
+/// one 5s heartbeat shared with Home — a status the merchant or rider
+/// advances appears here without a pull (and the poll stops the moment
+/// nothing is in flight).
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
 
@@ -25,67 +29,24 @@ class OrdersScreen extends ConsumerStatefulWidget {
 }
 
 class _OrdersScreenState extends ConsumerState<OrdersScreen> {
-  List<GroupSummary>? _orders;
-  String? _error;
   bool _showActive = true;
 
-  /// The full-load path (first mount): everything resets to a spinner.
-  /// Pull-to-refresh takes [_refresh] instead — new data swaps in place
-  /// and a failure keeps the last good list (a flash back to a spinner
-  /// for a refresh is jank, not honesty).
-  Future<void> _load() async {
-    setState(() {
-      _error = null;
-      _orders = null;
-    });
-    try {
-      final orders = await ref.read(orderApiProvider).listGroups();
-      if (!mounted) return;
-      setState(() => _orders = orders);
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.message);
-    }
-  }
-
-  Future<void> _refresh() async {
-    try {
-      final orders = await ref.read(orderApiProvider).listGroups();
-      if (!mounted) return;
-      setState(() {
-        _orders = orders;
-        _error = null;
-      });
-    } on ApiError {
-      // The list on screen stays; the next pull retries.
-    }
-  }
-
-  List<GroupSummary> get _active => [
-        for (final order in _orders ?? const <GroupSummary>[])
-          if (order.status == 'in_progress' ||
-              order.status == 'partially_fulfilled')
-            order,
+  List<GroupSummary> _active(List<GroupSummary> orders) => [
+        for (final order in orders)
+          if (groupInFlight(order)) order,
       ];
 
-  List<GroupSummary> get _history => [
-        for (final order in _orders ?? const <GroupSummary>[])
-          if (order.status != 'in_progress' &&
-              order.status != 'partially_fulfilled')
-            order,
+  List<GroupSummary> _history(List<GroupSummary> orders) => [
+        for (final order in orders)
+          if (!groupInFlight(order)) order,
       ];
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final orders = _orders;
-    final activeCount = orders == null ? 0 : _active.length;
+    final ordersAsync = ref.watch(activeOrdersProvider);
+    final orders = ordersAsync.value;
+    final activeCount = orders == null ? 0 : _active(orders).length;
 
     return Scaffold(
       body: SafeArea(
@@ -94,25 +55,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Your Orders', style: AppTheme.d1(textTheme)),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceHigh,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.search_rounded,
-                      size: 19,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+              child: Text('Your Orders', style: AppTheme.d1(textTheme)),
             ),
             // The underline tabs (the spec's .tab): accent text + accent
             // underline — no gray Material active-block.
@@ -124,24 +67,25 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 onSelect: (value) => setState(() => _showActive = value),
               ),
             ),
-            Expanded(child: _body()),
+            Expanded(child: _body(ordersAsync)),
           ],
         ),
       ),
     );
   }
 
-  Widget _body() {
-    if (_orders == null && _error == null) {
+  Widget _body(AsyncValue<List<GroupSummary>> ordersAsync) {
+    if (ordersAsync.isLoading && !ordersAsync.hasValue) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_orders == null && _error != null) {
+    if (ordersAsync.hasError && !ordersAsync.hasValue) {
       return ErrorState(
-        message: _error!,
-        onRetry: () => unawaited(_load()),
+        message: 'Could not load your orders.',
+        onRetry: () => ref.invalidate(activeOrdersProvider),
       );
     }
-    final shown = _showActive ? _active : _history;
+    final list = ordersAsync.value ?? const <GroupSummary>[];
+    final shown = _showActive ? _active(list) : _history(list);
     if (shown.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refresh,
@@ -173,6 +117,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           : _HistoryList(groups: shown),
     );
   }
+
+  /// Pull-to-refresh goes through the poller's silent poke: no loading
+  /// state, the new list swaps in place, and a failure keeps the last
+  /// good list.
+  Future<void> _refresh() => ref.read(activeOrdersProvider.notifier).poke();
 }
 
 /// The underline tab pair.
@@ -291,7 +240,7 @@ class _ActiveOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final store = group.stores.isNotEmpty ? group.stores.first : 'Your order';
-    final story = _statusStory(group);
+    final story = activeOrderStory(group);
     final color = story.color;
     final label = story.label;
     final progress = story.progress;
@@ -353,56 +302,12 @@ class _ActiveOrderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              TextButton(
-                onPressed: onTap,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                ),
-                child: const Text('Track'),
-              ),
+              TrackPill(onTap: onTap),
             ],
           ),
         ],
       ),
     );
-  }
-
-  /// The status story (P11): color + words + progress, one signal.
-  ({Color color, String label, double progress, bool pulsing})
-      _statusStory(GroupSummary group) {
-    switch (group.status) {
-      case 'partially_fulfilled':
-        return (
-          color: AppColors.success,
-          label: 'Out for delivery',
-          progress: 0.65,
-          pulsing: true,
-        );
-      case 'in_progress':
-        // The store chip's status rides the summary's first store; derive
-        // from the group: eta present means it's moving.
-        if (group.etaTarget != null) {
-          return (
-            color: AppColors.success,
-            label: 'Out for delivery',
-            progress: 0.65,
-            pulsing: true,
-          );
-        }
-        return (
-          color: AppColors.primary,
-          label: 'Preparing',
-          progress: 0.35,
-          pulsing: false,
-        );
-      default:
-        return (
-          color: AppColors.primary,
-          label: 'Confirmed',
-          progress: 0.15,
-          pulsing: false,
-        );
-    }
   }
 }
 
@@ -427,10 +332,7 @@ class _HistoryList extends StatelessWidget {
       sections[label]!.add(group);
     }
 
-    final children = <Widget>[
-      // The HISTORY hairline divider heading (signature: .hdiv).
-      const _HistoryDivider(),
-    ];
+    final children = <Widget>[];
     for (final label in order) {
       children
         ..add(Padding(
@@ -471,28 +373,6 @@ class _HistoryList extends StatelessWidget {
     } on Object {
       return 'Earlier';
     }
-  }
-}
-
-class _HistoryDivider extends StatelessWidget {
-  const _HistoryDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Container(height: 1, color: AppColors.surfaceBorder)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'HISTORY',
-            style: AppTheme.cap(context.textTheme)
-                .copyWith(letterSpacing: 1.2, fontSize: 11),
-          ),
-        ),
-        Expanded(child: Container(height: 1, color: AppColors.surfaceBorder)),
-      ],
-    );
   }
 }
 

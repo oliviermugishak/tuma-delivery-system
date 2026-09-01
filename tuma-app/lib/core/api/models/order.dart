@@ -45,6 +45,8 @@ class StoreOrder {
     required this.deliveryFee,
     required this.total,
     required this.items,
+    this.storeContactPhone,
+    this.storeContactEmail,
   });
 
   final String id;
@@ -57,6 +59,9 @@ class StoreOrder {
   final int deliveryFee;
   final int total;
   final List<OrderItem> items;
+  /// The store's contact surface — the Get-help sheet's Call/Email rows.
+  final String? storeContactPhone;
+  final String? storeContactEmail;
 
   factory StoreOrder.fromJson(Map<String, dynamic> json) => StoreOrder(
         id: json['id'] as String,
@@ -67,6 +72,8 @@ class StoreOrder {
         subtotal: json['subtotal'] as int,
         deliveryFee: json['delivery_fee'] as int,
         total: json['total'] as int,
+        storeContactPhone: json['store_contact_phone'] as String?,
+        storeContactEmail: json['store_contact_email'] as String?,
         items: (json['items'] as List)
             .whereType<Map<String, dynamic>>()
             .map(OrderItem.fromJson)

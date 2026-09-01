@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO marketplace.stores (\n            merchant_id, name, description, image_url, address_text,\n            lat, lng, category, delivery_fee, is_open\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        ",
+  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n               created_at, updated_at\n        FROM marketplace.stores\n        WHERE id = $1 AND merchant_id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,28 @@
       },
       {
         "ordinal": 12,
+        "name": "contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +169,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -161,15 +183,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Float8",
-        "Float8",
-        "Text",
-        "Int8",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -185,9 +199,11 @@
       true,
       false,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "bf187ab23a232855ab3eb77228ff5741bd4f6bf1daaa6f166f9fdff0eefa108c"
+  "hash": "5d55028e6a53d603b734eddc36dfc31a0dacb22c5d87b9d042783763e06ab378"
 }

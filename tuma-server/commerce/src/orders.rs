@@ -828,12 +828,25 @@ pub struct GroupSummaryExtras {
     pub eta_target: Option<OffsetDateTime>,
 }
 
+/// One of the group's store orders as the customer's detail carries it:
+/// the snapshot, the store's name, and the store's contact surface —
+/// the Get help sheet calls and emails the store straight from here,
+/// even when tracking is absent (cancelled orders included).
+#[derive(Debug, Clone)]
+pub struct GroupStoreOrder {
+    pub order: StoreOrder,
+    pub store_name: String,
+    pub store_contact_phone: Option<String>,
+    pub store_contact_email: Option<String>,
+    pub items: Vec<OrderItem>,
+}
+
 /// One of the customer's groups, fully loaded: store orders with their
 /// item snapshots and the payment state. Another customer's group is
 /// indistinguishable from a missing one.
 pub struct GroupDetail {
     pub group: OrderGroup,
-    pub store_orders: Vec<(StoreOrder, String, Vec<OrderItem>)>,
+    pub store_orders: Vec<GroupStoreOrder>,
     pub payment: Payment,
 }
 
@@ -879,7 +892,9 @@ pub async fn group_detail_for_user(
         SELECT so.id, so.order_group_id, so.merchant_id, so.store_id, so.number,
                so.status AS "status: OrderStatus", so.subtotal, so.delivery_fee,
                so.total, so.created_at, so.updated_at,
-               s.name AS store_name
+               s.name AS store_name,
+               s.contact_phone AS store_contact_phone,
+               s.contact_email AS store_contact_email
         FROM commerce.store_orders so
         JOIN marketplace.stores s ON s.id = so.store_id
         WHERE so.order_group_id = $1
@@ -915,8 +930,8 @@ pub async fn group_detail_for_user(
             .filter(|item| item.store_order_id == order.id)
             .cloned()
             .collect();
-        store_orders.push((
-            StoreOrder {
+        store_orders.push(GroupStoreOrder {
+            order: StoreOrder {
                 id: order.id,
                 order_group_id: order.order_group_id,
                 merchant_id: order.merchant_id,
@@ -929,9 +944,11 @@ pub async fn group_detail_for_user(
                 created_at: order.created_at,
                 updated_at: order.updated_at,
             },
-            order.store_name,
+            store_name: order.store_name,
+            store_contact_phone: order.store_contact_phone,
+            store_contact_email: order.store_contact_email,
             items,
-        ));
+        });
     }
     Ok(Some(GroupDetail {
         group,

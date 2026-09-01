@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -159,6 +160,18 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     } on Object {
       if (!mounted || _deliveries != null) return;
       setState(() => _loadError = 'Could not reach the server.');
+    }
+  }
+
+  /// The handoff moment: confirming the pickup IS going to work — the
+  /// food is in hand, so the GPS push loop, the wakelock, and the
+  /// customer's live map arm themselves here. Idempotent: already
+  /// delivering, it's a no-op; a GPS failure keeps the honest snackbar
+  /// and the rider taps again.
+  Future<void> _confirmPickup(String deliveryId) async {
+    setState(() => _confirmedPickups.add(deliveryId));
+    if (!_delivering && !_starting) {
+      await _startDelivering();
     }
   }
 
@@ -435,11 +448,6 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     return 'Pushing · last signal ${seconds}s ago';
   }
 
-  Future<void> _signOut() async {
-    await _stopDelivering();
-    await ref.read(sessionProvider.notifier).signOut();
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).asData?.value;
@@ -453,7 +461,8 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
           padding: const EdgeInsets.fromLTRB(0, 10, 0, 24),
           children: [
             // The top chrome: identity + the Stop pill (the deliver
-            // toggle lives here, always reachable).
+            // toggle lives here, always reachable) + the profile door —
+            // sign-out and history live THERE, not on the kiosk.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -495,6 +504,16 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                               : AppColors.onSurfaceMuted,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () => context.push('/rider/profile'),
+                    behavior: HitTestBehavior.opaque,
+                    child: const Icon(
+                      Icons.account_circle_rounded,
+                      size: 28,
+                      color: AppColors.onSurfaceMuted,
                     ),
                   ),
                 ],
@@ -569,20 +588,6 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
               ),
             const SizedBox(height: 8),
             _buildJobs(context),
-            const SizedBox(height: 16),
-            Center(
-              child: TextButton(
-                onPressed: _signOut,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.onSurfaceMuted,
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: const Text('Sign out'),
-              ),
-            ),
           ],
         ),
       ),
@@ -736,19 +741,25 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
             ),
           ),
           const SizedBox(height: 16),
-          Center(
-            child: _StartDeliveringButton(
-              starting: _starting,
-              onStart: () => unawaited(_startDelivering()),
+          // The one Start button in the whole kiosk: off the clock, the
+          // waiting card carries it. Once delivering (or mid-locate), it
+          // is GONE — the top chrome's Stop pill is the off switch; a
+          // button that stays after its action lies (P10).
+          if (!_delivering && !_starting)
+            Center(
+              child: _StartDeliveringButton(
+                starting: _starting,
+                onStart: () => unawaited(_startDelivering()),
+              ),
             ),
-          ),
         ],
       );
     }
 
     // ---- STAGES (screens 08/09): sequenced stops, the money strip ----
-    // The push-loop arming lives here too: Start when off the clock (the
-    // top chrome's Stop pill is its counterpart once delivering).
+    // Confirming the first pickup starts delivering automatically (the
+    // GPS loop arms itself there), so no Start button lives in this
+    // branch — the top chrome's Stop pill is the off switch.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -759,19 +770,12 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
             delivery: deliveries[i],
             pickedUp: _confirmedPickups.contains(deliveries[i].deliveryId),
             finishing: _finishingId == deliveries[i].deliveryId,
-            onConfirmPickup: () => setState(
-                () => _confirmedPickups.add(deliveries[i].deliveryId)),
+            onConfirmPickup: () =>
+                unawaited(_confirmPickup(deliveries[i].deliveryId)),
             onNavigate: () => unawaited(_navigateTo(deliveries[i])),
             onCall: (phone) => unawaited(_call(phone)),
             onDelivered: () => unawaited(_markDelivered(deliveries[i])),
           ),
-        const SizedBox(height: 6),
-        Center(
-          child: _StartDeliveringButton(
-            starting: _starting,
-            onStart: () => unawaited(_startDelivering()),
-          ),
-        ),
       ],
     );
   }
@@ -852,10 +856,18 @@ class _StageStop extends StatelessWidget {
                 StatLabel(delivering
                     ? 'Stop $stopNumber of $stopCount · Deliver'
                     : 'Stop $stopNumber of $stopCount · Pick up'),
+                // The stage's call action: PICK UP calls the STORE (the
+                // new work-list contact phone), DELIVER calls the
+                // customer. A missing number renders the chip quiet —
+                // never a dead button.
                 GestureDetector(
-                  onTap: delivering && (delivery.customerPhone ?? '').isNotEmpty
+                  onTap: delivering &&
+                          (delivery.customerPhone ?? '').isNotEmpty
                       ? () => onCall(delivery.customerPhone!)
-                      : null,
+                      : !delivering &&
+                              (delivery.storeContactPhone ?? '').isNotEmpty
+                          ? () => onCall(delivery.storeContactPhone!)
+                          : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 13, vertical: 7),

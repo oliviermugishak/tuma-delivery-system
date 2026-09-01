@@ -36,6 +36,17 @@ class RiderApi {
     return RiderTally.fromJson(response as Map<String, dynamic>);
   }
 
+  /// Every delivery the rider completed, newest first (the profile
+  /// page's history list — the tally shows the money, this shows the
+  /// runs). Latest 50, server-capped.
+  Future<List<RiderHistoryEntry>> history() async {
+    final response = await _client.get('/deliveries/history');
+    return (response as List)
+        .whereType<Map<String, dynamic>>()
+        .map(RiderHistoryEntry.fromJson)
+        .toList();
+  }
+
   /// The handover: food given, cash received, one real event. The server
   /// advances the store order and settles the delivery's payment
   /// allocation; the delivery leaves the work list.

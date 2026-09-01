@@ -14,6 +14,7 @@ import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/orders/active_orders_provider.dart';
 import 'package:tuma_app/features/orders/success_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart' show shellTabProvider;
 import 'package:tuma_app/features/location/customer_location.dart';
@@ -252,6 +253,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _idempotencyKey = null;
       await ref.read(cartProvider.notifier).clear();
       if (!mounted) return;
+      // A just-placed order appears on Home and Orders the moment the
+      // user looks — one silent poll refresh, no waiting for a tick.
+      unawaited(ref.read(activeOrdersProvider.notifier).poke());
       // The success screen: celebration + one-tap tracking (P12, P17).
       // Never pop here: the dead checkout under this screen is exactly
       // the strand — success REPLACES this route.

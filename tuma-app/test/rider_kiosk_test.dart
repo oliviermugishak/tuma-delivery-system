@@ -13,6 +13,7 @@ import 'package:tuma_app/core/auth/token_storage.dart';
 import 'package:tuma_app/core/router/app_router.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
+import 'package:tuma_app/features/rider/rider_profile_screen.dart';
 import 'package:tuma_app/features/rider/rider_screen.dart';
 
 import 'test_desktop.dart';
@@ -53,6 +54,7 @@ Map<String, dynamic> _job({
   String storeName = "Aline's Kitchen",
   String destination = 'KN 4 Ave, Kigali',
   String? customerPhone = '+250783002002',
+  String? storePhone = '+250788000001',
 }) =>
     {
       'delivery_id': deliveryId,
@@ -63,6 +65,7 @@ Map<String, dynamic> _job({
       'store_address': 'KG 7 Ave, Remera',
       'store_lat': -1.9512,
       'store_lng': 30.0623,
+      'store_contact_phone': storePhone,
       'destination_address': destination,
       'destination_lat': -1.9499,
       'destination_lng': 30.0622,
@@ -88,11 +91,19 @@ http.Response _json(Object body, [int status = 200]) => http.Response(
 class _Script {
   final requests = <http.Request>[];
   List<Map<String, dynamic>> jobs = [];
+  List<Map<String, dynamic>> history = [];
   bool deliveredCalled = false;
 
   MockClient client() => MockClient((request) async {
         requests.add(request);
         final path = request.url.path;
+        if (request.method == 'GET' &&
+            path.endsWith('/deliveries/history')) {
+          return _json(history);
+        }
+        if (request.method == 'GET' && path.endsWith('/deliveries/today')) {
+          return _json({'deliveries': 0, 'collected': 0});
+        }
         if (request.method == 'GET' && path.endsWith('/deliveries')) {
           return _json(jobs);
         }
@@ -183,8 +194,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testDesktop('start delivering pushes the position to every active delivery',
+  testDesktop('confirming pickup auto-starts the push loop to every delivery',
       (tester) async {
+    // The founder's contract: Picked Up IS going to work — the GPS loop
+    // arms itself at the confirm, with no separate Start tap. The stages
+    // branch never shows a Start button at all.
     final script = _Script()
       ..jobs = [
         _job(deliveryId: 'delivery-1'),
@@ -192,15 +206,20 @@ void main() {
       ];
     await _landOnKiosk(tester, script);
 
-    await tester.ensureVisible(find.text('Start delivering'));
+    // No Start button in the stages view — the state change owns it.
+    expect(find.text('Start delivering'), findsNothing);
+
+    // Confirm the pickup on stop 1: the immediate fix goes to BOTH
+    // active deliveries (the rider is in one place), and the 5s tick
+    // keeps the loop alive.
+    await tester.ensureVisible(find.text('Picked up').first);
     await tester.pump();
-    await tester.tap(find.text('Start delivering'));
+    await tester.tap(find.text('Picked up').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 100));
 
-    // The rider is in ONE place — each delivery got the same real fix.
     final pushes = script.requests
         .where((r) => r.url.path.endsWith('/location'))
         .toList();
@@ -214,6 +233,29 @@ void main() {
     expect(pushed.keys, {'delivery-1', 'delivery-2'});
     expect(pushed['delivery-1']?['lat'], -1.9550);
     expect(pushed['delivery-1']?['lng'], 30.0623);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('the pick-up stage calls the store with its real number',
+      (tester) async {
+    final script = _Script()..jobs = [_job()];
+    await _landOnKiosk(tester, script);
+
+    // The Store chip is a REAL call action now — it used to render with
+    // no number behind it (onTap null: a dead button). The fix: the
+    // pick-up chip carries the work list's store_contact_phone.
+    await tester.ensureVisible(find.text('Store'));
+    await tester.pump();
+    final chip = tester.widget<GestureDetector>(
+      find
+          .ancestor(
+            of: find.text('Store'),
+            matching: find.byType(GestureDetector),
+          )
+          .first,
+    );
+    expect(chip.onTap, isNotNull,
+        reason: 'the Pick-up Store chip is tappable — a real call action');
     expect(tester.takeException(), isNull);
   });
 
@@ -253,6 +295,43 @@ void main() {
     // The work list came back empty — the honest idle state returns.
     // Back to the Waiting state — the online pill and the number.
     expect(find.text("You're online"), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('the profile page carries identity, history, and sign-out',
+      (tester) async {
+    final script = _Script()
+      ..history = [
+        {
+          'delivery_id': 'delivery-9',
+          'number': 8,
+          'total': 8500,
+          'store_name': "Aline's Kitchen",
+          'destination_address': 'KN 4 Ave, Kigali',
+          'customer_name': 'Chantal',
+          'delivered_at': '2026-08-31T10:15:00Z',
+        },
+      ];
+    await _landOnKiosk(tester, script);
+
+    // The kiosk's top chrome opens the profile — sign-out LEFT the main
+    // screen (the founder's call).
+    await tester.tap(find.byIcon(Icons.account_circle_rounded));
+    for (var i = 0;
+        i < 20 && find.byType(RiderProfileScreen).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Identity + the rider number card.
+    expect(find.text('Jean'), findsOneWidget);
+    expect(find.text('#7'), findsOneWidget);
+    // The delivered history: one run with its cash.
+    expect(find.text('Order #8 · Aline\'s Kitchen'), findsOneWidget);
+    expect(find.text('8,500 RWF'), findsOneWidget);
+    // Sign out lives HERE now — the kiosk's main screen has none.
+    expect(find.text('Sign out'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

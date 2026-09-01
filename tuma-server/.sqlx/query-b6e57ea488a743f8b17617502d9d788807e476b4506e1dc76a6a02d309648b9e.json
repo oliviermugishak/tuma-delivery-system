@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE marketplace.stores\n        SET name = $2, description = $3, image_url = $4, address_text = $5,\n            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10\n        WHERE id = $1\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        ",
+  "query": "\n        UPDATE marketplace.stores\n        SET name = $2, description = $3, image_url = $4, address_text = $5,\n            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10,\n            contact_phone = $11, contact_email = $12\n        WHERE id = $1\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,28 @@
       },
       {
         "ordinal": 12,
+        "name": "contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +169,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -169,7 +191,9 @@
         "Float8",
         "Text",
         "Int8",
-        "Bool"
+        "Bool",
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -185,9 +209,11 @@
       true,
       false,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "243b94fbb79be40e2c5367d02e1f36b82c3c50ad4ba4822c803e83de7ddcc46d"
+  "hash": "b6e57ea488a743f8b17617502d9d788807e476b4506e1dc76a6a02d309648b9e"
 }

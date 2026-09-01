@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, created_at, updated_at\n        FROM marketplace.stores\n        WHERE id = $1 AND merchant_id = $2\n        ",
+  "query": "\n        UPDATE marketplace.stores\n        SET banner_key = $2\n        WHERE id = $1\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,28 @@
       },
       {
         "ordinal": 12,
+        "name": "contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -147,7 +169,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -161,7 +183,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -177,9 +199,11 @@
       true,
       false,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "dff01ffaddd5ec46e8705962d0a4430e9181381acc74cb9d6b93de7f64f69068"
+  "hash": "e51c2b76c24815437c9730483e014131afbe030ab2a637ecb4b42fe18452a5a8"
 }

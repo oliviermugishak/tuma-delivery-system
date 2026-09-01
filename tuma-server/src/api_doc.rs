@@ -65,6 +65,7 @@ use utoipa::OpenApi;
         crate::routes::deliveries::mark_delivered,
         crate::routes::deliveries::list_rider_deliveries,
         crate::routes::deliveries::rider_today,
+        crate::routes::deliveries::rider_history,
         crate::routes::storage::upload_store_banner,
         crate::routes::storage::delete_store_banner,
         crate::routes::storage::list_product_images,

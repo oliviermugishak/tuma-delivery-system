@@ -56,5 +56,12 @@
             <action android:name="android.intent.action.DIAL"/>
             <data android:scheme="tel"/>
         </intent>
+        <!-- Contact slice: the Get-help / store-info sheet's Email row
+             (mailto: deep-link) — without package visibility, Android 11+
+             hides every mail app from canLaunchUrl. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="mailto"/>
+        </intent>
     </queries>
 </manifest>

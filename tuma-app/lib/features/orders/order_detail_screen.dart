@@ -15,6 +15,7 @@ import 'package:tuma_app/features/tracking/delivery_map.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/store_contact_sheet.dart';
 
 /// Order group detail — the one purchase the customer placed, rendered as
 /// one section per fulfilling store. Each store has its own status
@@ -583,9 +584,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
 
   int _stepperIndex() {
     final deliveries = _tracking?.deliveries ?? const [];
+    // Delivered wins over picked_up: a completed stop must land on the
+    // last dot, not the "On the way" one (the checks are ordered by the
+    // ladder's progress, not by whichever status happens to appear).
+    if (deliveries.any((d) => d.status == 'delivered')) return 4;
     if (deliveries.any((d) => d.status == 'picked_up')) return 3;
     if (deliveries.any((d) => d.status == 'preparing')) return 1;
-    if (deliveries.any((d) => d.status == 'delivered')) return 4;
     return 0;
   }
 
@@ -713,6 +717,28 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       return const [];
     }
     final delivery = withRider.first;
+    // The card tells the truth about where the rider is: present tense
+    // only while the food is actually moving. A delivered stop reads as
+    // the past — never "on the way" (the founder's misleading-screen bug).
+    if (delivery.status == 'delivered') {
+      final when = ' · ${_clockTime(delivery.updatedAt)}';
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: _RiderCard(
+              avatarText: delivery.riderName!,
+              title: 'Delivered$when by ${delivery.riderName!.split(' ').first}',
+              subtitle: [
+                ?delivery.riderVehicle,
+                ?delivery.riderPlate,
+              ].join(' · '),
+            ),
+          ),
+        ),
+      ];
+    }
+    if (delivery.status == 'cancelled') return const [];
     final firstName = delivery.riderName!.split(' ').first;
     final vehicleLine = [
       ?delivery.riderVehicle,
@@ -723,50 +749,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Row(
-              children: [
-                AccentAvatar(text: delivery.riderName!, size: 44),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('$firstName is on the way',
-                          style: AppTheme.bd(Theme.of(context).textTheme)
-                              .copyWith(fontWeight: FontWeight.w600)),
-                      if (vehicleLine.isNotEmpty)
-                        Text(vehicleLine, style: AppTheme.sub(Theme.of(context).textTheme)),
-                    ],
-                  ),
-                ),
-                if (phone != null)
-                  GestureDetector(
-                    onTap: () => unawaited(
-                      launchUrl(Uri(scheme: 'tel', path: phone)),
-                    ),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: const Icon(Icons.call_rounded,
-                          size: 19, color: AppColors.primary),
-                    ),
-                  ),
-              ],
-            ),
+          child: _RiderCard(
+            avatarText: delivery.riderName!,
+            title: '$firstName is on the way',
+            subtitle: vehicleLine,
+            phone: phone,
           ),
         ),
       ),
@@ -799,7 +786,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => unawaited(_getHelp()),
+                onPressed: () => unawaited(_showContactSheet(order)),
                 child: const Text('Get help'),
               ),
             ),
@@ -826,18 +813,100 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     );
   }
 
-  Future<void> _getHelp() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Support opens with the accounts era — for now, call the store from the tracking card.',
-        ),
-      ),
+  /// Get help = reach the store directly: one contact card per
+  /// participating store, with the Call/Email actions (the founder's
+  /// replacement for the old "accounts era" placeholder).
+  Future<void> _showContactSheet(OrderGroup order) async {
+    final tracking = _tracking;
+    final entries = order.storeOrders.map((storeOrder) {
+      // Tracking's contact phone is the richer source when present; the
+      // detail's own fields carry the rest (and cover cancelled orders,
+      // which never reach tracking).
+      final phone =
+          tracking?.forStoreOrder(storeOrder.id)?.storeContactPhone ??
+              storeOrder.storeContactPhone;
+      return StoreContactEntry(
+        name: storeOrder.storeName,
+        address: order.addressText,
+        phone: phone,
+        email: storeOrder.storeContactEmail,
+      );
+    }).toList();
+    await showStoreContactSheet(
+      context,
+      entries: entries,
+      title: 'Order #${order.number} — contact',
     );
   }
 }
 
 
+
+/// The rider card: avatar, one status line that always tells the truth
+/// about where the rider is, the vehicle line, and the optional
+/// call-the-store circle (the store phone rides on the tracking entry).
+class _RiderCard extends StatelessWidget {
+  const _RiderCard({
+    required this.avatarText,
+    required this.title,
+    this.subtitle,
+    this.phone,
+  });
+
+  final String avatarText;
+  final String title;
+  final String? subtitle;
+  final String? phone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Row(
+        children: [
+          AccentAvatar(text: avatarText, size: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: AppTheme.bd(Theme.of(context).textTheme)
+                        .copyWith(fontWeight: FontWeight.w600)),
+                if (subtitle != null && subtitle!.isNotEmpty)
+                  Text(subtitle!,
+                      style: AppTheme.sub(Theme.of(context).textTheme)),
+              ],
+            ),
+          ),
+          if (phone != null)
+            GestureDetector(
+              onTap: () => unawaited(
+                launchUrl(Uri(scheme: 'tel', path: phone!)),
+              ),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Icon(Icons.call_rounded,
+                    size: 19, color: AppColors.primary),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 /// The collapsed receipt (P1: money in one place; the sheet keeps the
 /// hero focused). Tap the label row to expand.

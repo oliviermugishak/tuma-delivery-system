@@ -28,6 +28,9 @@ struct StoreSeed {
     lng: f64,
     category: &'static str,
     delivery_fee: i64,
+    /// The customer-facing contact surface (the app's Get-help sheet).
+    contact_phone: &'static str,
+    contact_email: &'static str,
     /// (catalog product, price at this branch, stock: None = untracked)
     menu: &'static [(&'static str, i64, Option<i64>)],
 }
@@ -63,6 +66,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.1290,
                 category: "Supermarket",
                 delivery_fee: 1500,
+                contact_phone: "+250788100001",
+                contact_email: "remera@simbasupermarket.rw",
                 // Branch pricing: Kimironko slightly higher, downtown promo.
                 menu: SIMBA_MENU,
             },
@@ -73,6 +78,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.1255,
                 category: "Supermarket",
                 delivery_fee: 1500,
+                contact_phone: "+250788100002",
+                contact_email: "kimironko@simbasupermarket.rw",
                 menu: &[
                     ("Rice 5KG", 12500, Some(25)),
                     ("Inyange Milk 1L", 1600, Some(50)),
@@ -91,6 +98,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.0622,
                 category: "Supermarket",
                 delivery_fee: 1000,
+                contact_phone: "+250788100003",
+                contact_email: "citycenter@simbasupermarket.rw",
                 menu: &[
                     ("Rice 5KG", 11500, Some(60)),
                     ("Inyange Milk 1L", 1500, Some(100)),
@@ -116,6 +125,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.0912,
                 category: "Fast food",
                 delivery_fee: 2000,
+                contact_phone: "+250788200001",
+                contact_email: "heights@kfcrwanda.rw",
                 menu: &[
                     ("Streetwise 2 (Chicken & Fries)", 6500, None),
                     ("Zinger Burger", 7000, None),
@@ -131,6 +142,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.1320,
                 category: "Fast food",
                 delivery_fee: 1500,
+                contact_phone: "+250788200002",
+                contact_email: "remera@kfcrwanda.rw",
                 menu: &[
                     ("Streetwise 2 (Chicken & Fries)", 6500, None),
                     ("Zinger Burger", 7000, None),
@@ -153,6 +166,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.0575,
                 category: "Coffee shop",
                 delivery_fee: 1000,
+                contact_phone: "+250788300001",
+                contact_email: "kiyovu@javahtourer.rw",
                 menu: &[
                     ("Cappuccino", 3500, None),
                     ("Espresso", 2500, None),
@@ -168,6 +183,8 @@ const SEEDS: &[MerchantSeed] = &[
                 lng: 30.0910,
                 category: "Coffee shop",
                 delivery_fee: 1000,
+                contact_phone: "+250788300002",
+                contact_email: "nyarutarama@javahtourer.rw",
                 menu: &[
                     ("Cappuccino", 3500, None),
                     ("Espresso", 2500, None),
@@ -246,6 +263,8 @@ async fn main() -> anyhow::Result<()> {
                     lng: Some(store_seed.lng),
                     category: Some(store_seed.category.to_string()),
                     delivery_fee: store_seed.delivery_fee,
+                    contact_phone: Some(store_seed.contact_phone.to_string()),
+                    contact_email: Some(store_seed.contact_email.to_string()),
                     // Open for business immediately — the founder tests
                     // against these today.
                     is_open: true,

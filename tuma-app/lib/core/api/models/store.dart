@@ -19,6 +19,8 @@ class Store {
     this.lng,
     this.distanceM,
     this.etaMin,
+    this.contactPhone,
+    this.contactEmail,
   });
 
   final String id;
@@ -36,6 +38,9 @@ class Store {
   /// and sorts nearest-first. Null otherwise; never computed client-side.
   final int? distanceM;
   final int? etaMin;
+  /// The store's contact surface — the info sheet's Call/Email actions.
+  final String? contactPhone;
+  final String? contactEmail;
   final int deliveryFee;
   final bool isOpen;
 
@@ -55,6 +60,8 @@ class Store {
         lng: (json['lng'] as num?)?.toDouble(),
         distanceM: json['distance_m'] as int?,
         etaMin: json['eta_min'] as int?,
+        contactPhone: json['contact_phone'] as String?,
+        contactEmail: json['contact_email'] as String?,
         deliveryFee: json['delivery_fee'] as int,
         isOpen: json['is_open'] as bool,
         createdAt: json['created_at'] as String,

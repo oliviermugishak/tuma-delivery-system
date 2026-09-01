@@ -75,6 +75,8 @@ final _store = {
   'lat': -1.9512,
   'lng': 30.0623,
   'category': 'Grill',
+  'contact_phone': '+250788000001',
+  'contact_email': 'hello@aline.rw',
   'delivery_fee': 1500,
   'is_open': true,
   'created_at': '2026-08-28T06:55:45Z',
@@ -100,6 +102,8 @@ Map<String, dynamic> _group({
   String status = 'completed',
   double? addressLat,
   double? addressLng,
+  String? storeContactPhone = '+250788000001',
+  String? storeContactEmail = 'hello@aline.rw',
 }) =>
     {
       'id': id,
@@ -123,6 +127,8 @@ Map<String, dynamic> _group({
           'subtotal': 7000,
           'delivery_fee': 1500,
           'total': 8500,
+          'store_contact_phone': storeContactPhone,
+          'store_contact_email': storeContactEmail,
           'items': [
             {
               'store_product_id': 'menu-1',
@@ -155,6 +161,7 @@ Map<String, dynamic> _tracking({
   String paymentStatus = 'pending',
   String changedAt = '2026-08-28T07:05:00Z',
   String deliveryStatus = 'picked_up',
+  String? riderName = 'Billie Jean',
   double? riderLat = -1.9550,
   double? riderLng = 30.0623,
   String? routePolyline = '_p~iF~ps|U_ulLnnqC',
@@ -177,6 +184,9 @@ Map<String, dynamic> _tracking({
         'store_lat': -1.9512,
         'store_lng': 30.0623,
         'store_contact_phone': '+250788000001',
+        'rider_name': riderName,
+        'rider_vehicle': riderName == null ? null : 'Moto',
+        'rider_plate': riderName == null ? null : 'MUP 1234',
         'status': deliveryStatus,
         'handoff_at':
             DateTime.now().toUtc().subtract(const Duration(minutes: 5))
@@ -219,8 +229,10 @@ ApiClient _apiClient({
   Map<String, dynamic>? groupDetail,
   List<Map<String, dynamic>>? riderDeliveries,
   http.Response Function(http.Request request)? tracking,
+  http.Response Function(int fetchCount)? orders,
 }) {
   final feed = stores ?? [_store];
+  var ordersFetchCount = 0;
   final handler = MockClient((request) async {
     seen?.add(request);
     final path = request.url.path;
@@ -234,6 +246,9 @@ ApiClient _apiClient({
       return _json(_group(status: 'in_progress'), 201);
     }
     if (method == 'GET' && path.endsWith('/orders')) {
+      // The stateful override (the live-update test): the nth fetch's
+      // answer comes from the caller's counter.
+      if (orders != null) return orders(++ordersFetchCount);
       return _json(groups, 200);
     }
     if (RegExp(r'/orders/[^/]+/tracking$').hasMatch(path) &&
@@ -756,6 +771,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testDesktop('the Orders Active tab live-updates without a pull',
+      (tester) async {
+    _seedCart();
+    // The stub's /orders answer flips from preparing to moving after the
+    // first fetch — what the server would answer once a merchant hands
+    // the order to a rider. The Active tab must follow the poll tick
+    // with no pull-to-refresh.
+    final client = _apiClient(
+      groupDetail: _group(id: 'group-1', status: 'in_progress'),
+      tracking: (_) => http.Response('', 204),
+      orders: (fetchCount) => _json([
+        {
+          'id': 'group-1',
+          'number': 1042,
+          'grand_total': 8500,
+          'status': fetchCount == 1 ? 'in_progress' : 'partially_fulfilled',
+          'stores': ["Aline's Kitchen"],
+          'items_count': 2,
+          'created_at': '2026-08-28T07:00:00Z',
+        },
+      ]),
+    );
+    await _landOnShell(tester, client);
+
+    await tester.tap(find.text('Orders'));
+    await _settle(tester);
+
+    // The preparing story is on screen.
+    expect(find.text('Preparing'), findsOneWidget);
+
+    // Advance past the 5s poll tick: the changed answer lands and the
+    // card's story follows — realtime, no pull.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Out for delivery'), findsOneWidget);
+    expect(find.text('Preparing'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testDesktop('orders tab lists group cards and opens the detail screen',
       (tester) async {
     final client = _apiClient(groups: [
@@ -827,6 +881,89 @@ void main() {
         reason: 'the stepper marks position in the story');
     expect(find.textContaining('the map renders on your phone'),
         findsOneWidget);
+    // The rider card tells the present-tense truth while moving.
+    expect(find.textContaining('Billie is on the way'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('a delivered order never says the rider is on the way',
+      (tester) async {
+    _seedCart();
+    final client = _apiClient(
+      groups: [
+        {
+          'id': 'group-1',
+          'number': 1042,
+          'grand_total': 8500,
+          'status': 'in_progress',
+          'stores': ["Aline's Kitchen"],
+          'created_at': '2026-08-28T07:00:00Z',
+        },
+      ],
+      groupDetail: _group(id: 'group-1', status: 'completed'),
+      tracking: (_) => _json(_tracking(
+        groupStatus: 'completed',
+        paymentStatus: 'collected',
+        deliveryStatus: 'delivered',
+      )),
+    );
+    await _landOnShell(tester, client);
+
+    await tester.tap(find.text('Orders'));
+    await _settle(tester);
+    await tester.tap(find.text('Track'));
+    await _settle(tester);
+
+    // The lie is gone: no present-tense line on a delivered order.
+    expect(find.textContaining('is on the way'), findsNothing);
+    // The past-tense truth: who delivered it, and when.
+    expect(find.textContaining(RegExp('Delivered · .*by Billie')),
+        findsOneWidget);
+    // The stepper lands on the LAST dot, not stuck at "On the way".
+    expect(find.text('Delivered'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('Get help opens the store contact sheet with real actions',
+      (tester) async {
+    _seedCart();
+    final client = _apiClient(
+      groups: [
+        {
+          'id': 'group-1',
+          'number': 1042,
+          'grand_total': 8500,
+          'status': 'completed',
+          'stores': ["Aline's Kitchen"],
+          'created_at': '2026-08-28T07:00:00Z',
+        },
+      ],
+      groupDetail: _group(id: 'group-1', status: 'completed'),
+    );
+    await _landOnShell(tester, client);
+
+    await tester.tap(find.text('Orders'));
+    await _settle(tester);
+    // The settled order lives under HISTORY.
+    await tester.tap(find.text('History'));
+    await _settle(tester);
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+
+    // Scroll to the actions and open the sheet.
+    await tester.scrollUntilVisible(
+      find.text('Get help'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Get help'));
+    await tester.pumpAndSettle();
+
+    // The sheet carries the store's real contact surface.
+    expect(find.textContaining('contact'), findsWidgets,
+        reason: 'the sheet title names the order');
+    expect(find.text('+250788000001'), findsOneWidget);
+    expect(find.text('hello@aline.rw'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -881,7 +1018,11 @@ void main() {
         addressLat: -1.9499,
         addressLng: 30.0622,
       ),
-      tracking: (_) => _json(_tracking(riderLat: null, riderLng: null)),
+      tracking: (_) => _json(_tracking(
+        riderName: null,
+        riderLat: null,
+        riderLng: null,
+      )),
     );
     await _landOnShell(tester, client);
 
@@ -1187,6 +1328,64 @@ void main() {
     expect(find.textContaining('Added to cart'), findsOneWidget);
 
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('the store info button opens the contact sheet',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+
+    // The identity block's info button surfaces the store's details.
+    await tester.tap(find.byIcon(Icons.info_outline_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Aline's Kitchen"), findsWidgets);
+    expect(find.text('+250788000001'), findsOneWidget);
+    expect(find.text('hello@aline.rw'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('the floating cart bar navigates to the cart', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+
+    // Add an item so the bar exists, then tap it: the fix that matters —
+    // the bar sits ABOVE the scrolling sheet in the Stack, so the tap
+    // lands on the button, not the list behind it.
+    final addButton = find.byIcon(Icons.add_rounded).first;
+    await tester.ensureVisible(addButton);
+    await tester.pump();
+    await tester.tap(addButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    // The confirmation snackbar floats right over the bar's spot — pump
+    // until it has actually left before tapping (bounded, never settle).
+    var snackbarGone = false;
+    for (var i = 0; i < 20 && !snackbarGone; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+      snackbarGone = find.textContaining('Added to cart').evaluate().isEmpty;
+    }
+    expect(snackbarGone, isTrue, reason: 'the snackbar leaves the screen');
+
+    // The bar's FilledButton.icon is the hit target — find it through the
+    // bar's bag icon and tap the icon's center.
+    final bagIcon = find.descendant(
+      of: find.byType(FilledButton),
+      matching: find.byIcon(Icons.shopping_bag_rounded),
+    );
+    expect(bagIcon, findsOneWidget,
+        reason: 'the floating bar is on screen with 1 item');
+    await tester.tap(bagIcon);
+    await _settle(tester);
+
+    expect(find.textContaining('Checkout ·'), findsWidgets,
+        reason: 'the cart screen is where the bar leads');
     expect(tester.takeException(), isNull);
   });
 

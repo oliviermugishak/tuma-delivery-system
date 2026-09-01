@@ -17,6 +17,7 @@ class RiderDelivery {
     this.storeAddress,
     this.storeLat,
     this.storeLng,
+    this.storeContactPhone,
     required this.destinationAddress,
     this.destinationLat,
     this.destinationLng,
@@ -44,6 +45,8 @@ class RiderDelivery {
   final String? storeAddress;
   final double? storeLat;
   final double? storeLng;
+  /// The store's phone — the Pick-up stage's Call-the-store action.
+  final String? storeContactPhone;
   final String destinationAddress;
   final double? destinationLat;
   final double? destinationLng;
@@ -68,6 +71,7 @@ class RiderDelivery {
         storeAddress: json['store_address'] as String?,
         storeLat: (json['store_lat'] as num?)?.toDouble(),
         storeLng: (json['store_lng'] as num?)?.toDouble(),
+        storeContactPhone: json['store_contact_phone'] as String?,
         destinationAddress: json['destination_address'] as String,
         destinationLat: (json['destination_lat'] as num?)?.toDouble(),
         destinationLng: (json['destination_lng'] as num?)?.toDouble(),
@@ -123,5 +127,44 @@ class RiderTally {
   factory RiderTally.fromJson(Map<String, dynamic> json) => RiderTally(
         deliveries: json['deliveries'] as int,
         collected: json['collected'] as int,
+      );
+}
+
+/// One completed stop in the rider's history (GET /v1/deliveries/history)
+/// — the profile page's run record: what was delivered, for whom, and
+/// the cash it collected.
+@immutable
+class RiderHistoryEntry {
+  const RiderHistoryEntry({
+    required this.deliveryId,
+    required this.number,
+    required this.total,
+    required this.storeName,
+    required this.destinationAddress,
+    this.customerName,
+    required this.deliveredAt,
+  });
+
+  final String deliveryId;
+
+  /// The customer-facing order number ("Order #8").
+  final int number;
+
+  /// The cash this stop collected.
+  final int total;
+  final String storeName;
+  final String destinationAddress;
+  final String? customerName;
+  final DateTime deliveredAt;
+
+  factory RiderHistoryEntry.fromJson(Map<String, dynamic> json) =>
+      RiderHistoryEntry(
+        deliveryId: json['delivery_id'] as String,
+        number: json['number'] as int,
+        total: json['total'] as int,
+        storeName: json['store_name'] as String,
+        destinationAddress: json['destination_address'] as String,
+        customerName: json['customer_name'] as String?,
+        deliveredAt: DateTime.parse(json['delivered_at'] as String),
       );
 }

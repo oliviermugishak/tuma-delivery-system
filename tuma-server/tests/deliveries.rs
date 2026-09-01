@@ -806,3 +806,89 @@ async fn a_bare_advance_cannot_skip_the_rider_handoff(pool: PgPool) {
         "the handoff with a rider number still works"
     );
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn rider_history_lists_completed_stops(pool: PgPool) {
+    let app = spawn_app(pool).await;
+    let op = owner(&app, "owner@test.rw", "Aline's Kitchen").await;
+    let customer = customer_session(&app, "+250780000020").await;
+    let rider = rider_session(&app, "Amani Niyonkuru", "+250780000021").await;
+    let rider_token = token_for(&app, rider.account.id, 3600);
+
+    let (_group, order_id) = preparing_order(&app, &op, (&customer.0, customer.1.as_str())).await;
+
+    // Before the handoff the history is empty.
+    let response = op
+        .client
+        .get("/v1/deliveries/history")
+        .bearer_auth(&rider_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response
+            .json::<Value>()
+            .await
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+
+    // Handoff by number → the rider delivers → the history gains one stop.
+    let rider_number: i64 =
+        sqlx::query_scalar("SELECT rider_number FROM commerce.riders WHERE id = $1")
+            .bind(rider.rider.id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    let response = handoff(&op, &order_id, rider_number).await;
+    assert_eq!(response.status(), 200);
+    let delivery_id = delivery_of(&app.pool, &order_id).await;
+
+    let response = op
+        .client
+        .post(&format!("/v1/deliveries/{delivery_id}/delivered"))
+        .bearer_auth(&rider_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    let response = op
+        .client
+        .get("/v1/deliveries/history")
+        .bearer_auth(&rider_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let history: Value = response.json().await.unwrap();
+    let entries = history.as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["store_name"], json!("Aline Remera"));
+    assert!(entries[0]["delivered_at"].is_string());
+
+    // Anti-probe: another rider's history stays empty.
+    let other = rider_session(&app, "Keza Alice", "+250780000022").await;
+    let other_token = token_for(&app, other.account.id, 3600);
+    let response = op
+        .client
+        .get("/v1/deliveries/history")
+        .bearer_auth(&other_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .json::<Value>()
+            .await
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+}

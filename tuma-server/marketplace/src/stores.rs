@@ -29,6 +29,10 @@ pub struct Store {
     pub category: Option<String>,
     pub delivery_fee: i64,
     pub is_open: bool,
+    /// The store's contact surface — the customer's Get-help and
+    /// store-info sheets call and email the store directly.
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -45,6 +49,8 @@ pub struct StoreChanges {
     pub category: Option<String>,
     pub delivery_fee: i64,
     pub is_open: bool,
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -67,11 +73,13 @@ pub async fn create_store(
         r#"
         INSERT INTO marketplace.stores (
             merchant_id, name, description, image_url, address_text,
-            lat, lng, category, delivery_fee, is_open
+            lat, lng, category, delivery_fee, is_open,
+            contact_phone, contact_email
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
-                  lat, lng, category, delivery_fee, is_open, created_at, updated_at
+                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+                  created_at, updated_at
         "#,
         merchant_id,
         changes.name,
@@ -83,6 +91,8 @@ pub async fn create_store(
         changes.category,
         changes.delivery_fee,
         changes.is_open,
+        changes.contact_phone,
+        changes.contact_email,
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -101,7 +111,8 @@ pub async fn stores_for_merchant_scoped(
         Store,
         r#"
         SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
-               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+               created_at, updated_at
         FROM marketplace.stores
         WHERE merchant_id = $1
           AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR id = ANY($2::uuid[]))
@@ -160,7 +171,8 @@ pub async fn store_for_scope(
         Store,
         r#"
         SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
-               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+               created_at, updated_at
         FROM marketplace.stores
         WHERE id = $1 AND merchant_id = $2
         "#,
@@ -187,10 +199,12 @@ pub async fn update_store(
         r#"
         UPDATE marketplace.stores
         SET name = $2, description = $3, image_url = $4, address_text = $5,
-            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10
+            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10,
+            contact_phone = $11, contact_email = $12
         WHERE id = $1
         RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
-                  lat, lng, category, delivery_fee, is_open, created_at, updated_at
+                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+                  created_at, updated_at
         "#,
         store_id,
         changes.name,
@@ -202,6 +216,8 @@ pub async fn update_store(
         changes.category,
         changes.delivery_fee,
         changes.is_open,
+        changes.contact_phone,
+        changes.contact_email,
     )
     .fetch_optional(&mut *conn)
     .await?
@@ -218,7 +234,8 @@ pub async fn store_by_id(
         Store,
         r#"
         SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
-               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+               created_at, updated_at
         FROM marketplace.stores
         WHERE id = $1
         "#,
@@ -234,7 +251,8 @@ pub async fn open_stores(conn: &mut PgConnection) -> Result<Vec<Store>, sqlx::Er
         Store,
         r#"
         SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
-               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+               created_at, updated_at
         FROM marketplace.stores
         WHERE is_open
         ORDER BY created_at
@@ -270,7 +288,8 @@ pub async fn search_stores(
         Store,
         r#"
         SELECT id, merchant_id, name, description, image_url, banner_key, address_text,
-               lat, lng, category, delivery_fee, is_open, created_at, updated_at
+               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+               created_at, updated_at
         FROM marketplace.stores
         WHERE is_open AND (name ILIKE $1 OR category ILIKE $1)
         ORDER BY created_at
@@ -377,7 +396,8 @@ pub async fn set_banner(
         SET banner_key = $2
         WHERE id = $1
         RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
-                  lat, lng, category, delivery_fee, is_open, created_at, updated_at
+                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
+                  created_at, updated_at
         "#,
         store_id,
         banner_key,

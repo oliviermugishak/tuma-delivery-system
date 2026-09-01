@@ -850,3 +850,69 @@ async fn list_stores_search_escapes_wildcards_and_caps_length(pool: sqlx::PgPool
         .unwrap();
     assert_eq!(response.status(), 400);
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn store_responses_carry_the_contact_surface(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    let store_id = create_store(
+        &aline,
+        json!({
+            "name": "Contact Kitchen",
+            "contact_phone": "+250788123456",
+            "contact_email": "hello@aline.rw"
+        }),
+    )
+    .await;
+    open(&app.pool, aline.merchant_id, store_id).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000030").await;
+
+    // The list carries both contacts.
+    let response = chantal
+        .get("/v1/stores")
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let stores: Value = response.json().await.unwrap();
+    let store = stores
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "Contact Kitchen")
+        .unwrap()
+        .clone();
+    assert_eq!(store["contact_phone"], json!("+250788123456"));
+    assert_eq!(store["contact_email"], json!("hello@aline.rw"));
+
+    // The detail (the info sheet's data source) carries both too.
+    let id = store["id"].as_str().unwrap();
+    let response = chantal
+        .get(&format!("/v1/stores/{id}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let detail: Value = response.json().await.unwrap();
+    assert_eq!(detail["store"]["contact_phone"], json!("+250788123456"));
+    assert_eq!(detail["store"]["contact_email"], json!("hello@aline.rw"));
+
+    // A store created without contacts leaves the fields null — the app
+    // renders honest "no contact" rows, never invented ones.
+    let bare_id = create_store(&aline, json!({ "name": "Bare Kitchen" })).await;
+    open(&app.pool, aline.merchant_id, bare_id).await;
+    let response = chantal
+        .get(&format!("/v1/stores/{bare_id}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let detail: Value = response.json().await.unwrap();
+    assert!(detail["store"]["contact_phone"].is_null());
+    assert!(detail["store"]["contact_email"].is_null());
+}

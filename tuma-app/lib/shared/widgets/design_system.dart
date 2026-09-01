@@ -295,19 +295,31 @@ class _Step extends StatelessWidget {
     };
     return Column(
       children: [
-        state == _StepState.current
-            ? const PulsingDot(color: AppColors.success, pulsing: true, size: 14)
-            : Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: state == _StepState.future
-                      ? AppColors.surfaceHigh
-                      : color,
-                  border: Border.all(color: color, width: 2),
-                ),
-              ),
+        // Layout-stable (the founder's bouncing-animation rule): EVERY
+        // step's dot box is the same fixed size — the current step's
+        // pulsing ring paints INSIDE a SizedBox of its full extent, so a
+        // step becoming current never grows the row and shoves the
+        // screen down.
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: Center(
+            child: state == _StepState.current
+                ? const PulsingDot(
+                    color: AppColors.success, pulsing: true, size: 14)
+                : Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: state == _StepState.future
+                          ? AppColors.surfaceHigh
+                          : color,
+                      border: Border.all(color: color, width: 2),
+                    ),
+                  ),
+          ),
+        ),
         const SizedBox(height: 7),
         SizedBox(
           width: 54,
@@ -633,6 +645,46 @@ class AccentAvatar extends StatelessWidget {
           fontSize: size * 0.33,
           fontWeight: FontWeight.w800,
           color: tinted ? AppColors.primary : AppColors.onPrimary,
+        ),
+      ),
+    );
+  }
+}
+
+/// The Track action pill (P5: the one clear next step): the navigate
+/// icon in an accent-well — unmistakably a button, never plain text.
+/// The one action every live order card carries.
+class TrackPill extends StatelessWidget {
+  const TrackPill({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.navigation_rounded,
+                  size: 14, color: AppColors.primary),
+              const SizedBox(width: 5),
+              const Text(
+                'Track',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -16,6 +16,7 @@ import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
+import 'package:tuma_app/shared/widgets/store_contact_sheet.dart';
 
 /// A store and its menu, the way customers see it: a fixed full-bleed
 /// banner behind everything, then the identity block (name, description,
@@ -62,6 +63,22 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
       if (!mounted) return;
       setState(() => _error = error.message);
     }
+  }
+
+  /// The store's details, one tap away: name, address, and the real
+  /// Call/Email actions from the server's contact fields.
+  Future<void> _showStoreInfo(Store store) {
+    return showStoreContactSheet(
+      context,
+      entries: [
+        StoreContactEntry(
+          name: store.name,
+          address: store.addressText,
+          phone: store.contactPhone,
+          email: store.contactEmail,
+        ),
+      ],
+    );
   }
 
   /// Way out of any state — even a cold start on this route with an
@@ -147,9 +164,6 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
             ),
           ),
         ),
-        // Layer 1.5 — the floating cart bar: the screen's one primary
-        // action, always in view, carrying the live total (P5, P8, P7).
-        const _FloatingCartBar(),
         // Layer 2 — the ONLY scrollable: a transparent gap down to the
         // peek point, then the rounded sheet with everything in it.
         ListView(
@@ -178,8 +192,10 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                       Text(address, style: AppTheme.sub(textTheme)),
                     ],
                     const SizedBox(height: 12),
-                    // The two facts that matter before the menu: the fee
-                    // in its accent pill, the ETA in its quiet well.
+                    // The facts that matter before the menu: the fee in
+                    // its accent pill, the ETA in its quiet well — and
+                    // the info button that surfaces the store's contact
+                    // details (the founder's "?" on every store screen).
                     Row(
                       children: [
                         _FeePill(label: 'Delivery · ${formatRwf(store.deliveryFee)}'),
@@ -208,6 +224,26 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                             ),
                           ),
                         ],
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => unawaited(_showStoreInfo(store)),
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.surfaceBorder,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.info_outline_rounded,
+                              size: 19,
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -258,6 +294,12 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
             ),
           ],
         ),
+        // Layer 3 — the floating cart bar LAST in the Stack: paint order
+        // is hit-test order, so the bar sits ABOVE the scrolling sheet
+        // and every tap reaches it (the old layer order let the sheet
+        // paint over the bar and swallow its taps — "View cart does
+        // nothing").
+        const _FloatingCartBar(),
       ],
     );
   }

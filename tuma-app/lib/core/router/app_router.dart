@@ -13,6 +13,7 @@ import 'package:tuma_app/features/orders/success_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/orders/order_detail_screen.dart';
 import 'package:tuma_app/features/profile/location_screen.dart';
+import 'package:tuma_app/features/rider/rider_profile_screen.dart';
 import 'package:tuma_app/features/rider/rider_screen.dart';
 import 'package:tuma_app/features/store/store_screen.dart';
 
@@ -39,12 +40,15 @@ GoRouter buildRouter() => GoRouter(
             final onAuthFlow = sub.startsWith('/auth');
             if (snapshot is SessionUser) {
               // Rider mode is the rider's surface: they start (and stay)
-              // there, and a customer never sees it.
+              // there — the kiosk and its profile page are the rider's
+              // two places — and a customer never sees either.
               final user = snapshot.user;
               if (user.isRider) {
-                return sub == '/rider' ? null : '/rider';
+                return (sub == '/rider' || sub == '/rider/profile')
+                    ? null
+                    : '/rider';
               }
-              if (sub == '/rider') return '/home';
+              if (sub.startsWith('/rider')) return '/home';
               return onAuthFlow || sub == '/' ? '/home' : null;
             }
             // Anonymous: the auth flow is the only place to be.
@@ -99,6 +103,8 @@ GoRouter buildRouter() => GoRouter(
           DeliveryLocationScreen(edit: state.extra as Address?),
     ),
     GoRoute(path: '/rider', builder: (_, _) => const RiderScreen()),
+    GoRoute(
+        path: '/rider/profile', builder: (_, _) => const RiderProfileScreen()),
       ],
     );
 

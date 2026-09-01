@@ -29,6 +29,146 @@
         }
       }
     },
+    "/v1/addresses": {
+      "get": {
+        "tags": [
+          "addresses"
+        ],
+        "operationId": "list_addresses",
+        "responses": {
+          "200": {
+            "description": "The caller's saved addresses, default first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AddressResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "addresses"
+        ],
+        "operationId": "create_address",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAddressInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The saved address (first one becomes the default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        }
+      }
+    },
+    "/v1/addresses/{id}": {
+      "delete": {
+        "tags": [
+          "addresses"
+        ],
+        "operationId": "delete_address",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Address id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Address not found (or not yours)"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "addresses"
+        ],
+        "operationId": "update_address",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Address id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAddressInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "description": "Address not found (or not yours)"
+          }
+        }
+      }
+    },
     "/v1/admin/customers": {
       "get": {
         "tags": [
@@ -714,6 +854,61 @@
         }
       }
     },
+    "/v1/deliveries/history": {
+      "get": {
+        "tags": [
+          "deliveries"
+        ],
+        "operationId": "rider_history",
+        "responses": {
+          "200": {
+            "description": "The rider's delivered deliveries, newest first (latest 50)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RiderHistoryEntryResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a rider"
+          }
+        }
+      }
+    },
+    "/v1/deliveries/today": {
+      "get": {
+        "tags": [
+          "deliveries"
+        ],
+        "operationId": "rider_today",
+        "responses": {
+          "200": {
+            "description": "Deliveries + cash settled today (UTC)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderTallyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Not a rider"
+          }
+        }
+      }
+    },
     "/v1/deliveries/{id}/delivered": {
       "post": {
         "tags": [
@@ -836,6 +1031,97 @@
           },
           "404": {
             "description": "No object at that key"
+          }
+        }
+      }
+    },
+    "/v1/geo/reverse": {
+      "get": {
+        "tags": [
+          "geo"
+        ],
+        "operationId": "reverse_geocode",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "description": "Latitude",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "description": "Longitude",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Addresses for the point, best first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeoHit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "502": {
+            "description": "Geocoding backend failed or is not configured"
+          }
+        }
+      }
+    },
+    "/v1/geo/search": {
+      "get": {
+        "tags": [
+          "geo"
+        ],
+        "operationId": "search_geocode",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Street or place text",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Address suggestions for the text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeoHit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "502": {
+            "description": "Geocoding backend failed or is not configured"
           }
         }
       }
@@ -2340,6 +2626,62 @@
   },
   "components": {
     "schemas": {
+      "AddressResponse": {
+        "type": "object",
+        "description": "The wire shape of a saved address (timestamps as RFC-3339).",
+        "required": [
+          "id",
+          "label",
+          "address_text",
+          "is_default",
+          "kind",
+          "created_at"
+        ],
+        "properties": {
+          "address_text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Home / work / other."
+          },
+          "label": {
+            "type": "string"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The rider note that travels with the address."
+          }
+        }
+      },
       "AdminStoreResponse": {
         "type": "object",
         "description": "A store inside the admin's business detail — standing facts plus how\nmany store products it sells. No location or image until something\ndisplays them.",
@@ -2496,6 +2838,13 @@
           "address_text": {
             "type": "string"
           },
+          "customer_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The checkout's \"Note for rider · optional\" — one line the rider\nsees on the Delivering card. Trimmed server-side; empty becomes\nNone (P2: nothing renders for an unknown)."
+          },
           "idempotency_key": {
             "type": [
               "string",
@@ -2526,6 +2875,52 @@
           "store_product_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "CreateAddressInput": {
+        "type": "object",
+        "required": [
+          "label",
+          "address_text"
+        ],
+        "properties": {
+          "address_text": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Home / work / other — the save screen's label chips."
+          },
+          "label": {
+            "type": "string"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The rider note — rides to the rider's Delivering card."
           }
         }
       },
@@ -2612,6 +3007,19 @@
               "null"
             ],
             "description": "What the store sells, in one word or two (e.g. \"Grill\", \"Bakery\")."
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The customer-facing contact surface (Get help / store info)."
           },
           "delivery_fee": {
             "type": [
@@ -2777,6 +3185,7 @@
           "store_order_id",
           "store_name",
           "status",
+          "updated_at",
           "trail"
         ],
         "properties": {
@@ -2815,6 +3224,25 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "rider_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The assigned rider's identity for the tracking card (\"Amani N. ·\nMoto · MUP 1234\") — hidden until a rider exists (P2)."
+          },
+          "rider_plate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rider_vehicle": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "route_polyline": {
             "type": [
@@ -2861,6 +3289,33 @@
               "$ref": "#/components/schemas/TrailResponse"
             },
             "description": "The recent real positions (tail), oldest first."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The delivery's last write — for a settled delivery, the delivered\nmoment the customer's \"Delivered · time\" line shows (D5)."
+          }
+        }
+      },
+      "GeoHit": {
+        "type": "object",
+        "description": "One geocode hit: what the location editor renders and what Save\nstores.",
+        "required": [
+          "address_text",
+          "lat",
+          "lng"
+        ],
+        "properties": {
+          "address_text": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lng": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -2872,12 +3327,28 @@
           "grand_total",
           "status",
           "stores",
+          "items_count",
           "created_at"
         ],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "eta_target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The soonest ETA among the group's out-for-delivery deliveries\n(null unless something is picked_up)."
+          },
+          "first_item_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The first item's snapshot name — the active card's sub-line."
           },
           "grand_total": {
             "type": "integer",
@@ -2886,6 +3357,11 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "items_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total frozen items across the group's store orders — the active\ncards' \"4 items\" line and the history rows' distinguishing fact."
           },
           "number": {
             "type": "integer",
@@ -3406,6 +3882,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "customer_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The checkout's rider note — the rider's Delivering card renders it."
+          },
           "delivery_total": {
             "type": "integer",
             "format": "int64"
@@ -3723,6 +4206,8 @@
         "required": [
           "delivery_id",
           "store_order_id",
+          "number",
+          "total",
           "store_name",
           "destination_address",
           "status"
@@ -3733,6 +4218,13 @@
               "string",
               "null"
             ]
+          },
+          "customer_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The checkout's rider note (\"blue gate, ring the bell\")."
           },
           "customer_phone": {
             "type": [
@@ -3796,6 +4288,10 @@
             ],
             "format": "date-time"
           },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
           "route_polyline": {
             "type": [
               "string",
@@ -3810,6 +4306,13 @@
               "string",
               "null"
             ]
+          },
+          "store_contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The store's phone — the Pick-up stage's Call-the-store action."
           },
           "store_lat": {
             "type": [
@@ -3831,6 +4334,55 @@
           "store_order_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The cash this stop collects — the Delivering card's accent strip."
+          }
+        }
+      },
+      "RiderHistoryEntryResponse": {
+        "type": "object",
+        "description": "The rider's delivered history — every stop they completed, newest\nfirst. The rider app's history list (the day's tally shows the money;\nthis shows the runs).",
+        "required": [
+          "delivery_id",
+          "number",
+          "total",
+          "store_name",
+          "destination_address",
+          "delivered_at"
+        ],
+        "properties": {
+          "customer_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delivered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delivery_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destination_address": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The customer-facing order number (\"Order #8\")."
+          },
+          "store_name": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The cash this stop collected."
           }
         }
       },
@@ -3855,6 +4407,24 @@
             "type": "string"
           },
           "rider_number": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RiderTallyResponse": {
+        "type": "object",
+        "description": "The rider's day so far — the Waiting card's \"3 deliveries · 12,000\nRWF collected\" line. Real money, really settled today (P8, P13).",
+        "required": [
+          "deliveries",
+          "collected"
+        ],
+        "properties": {
+          "collected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deliveries": {
             "type": "integer",
             "format": "int64"
           }
@@ -3918,6 +4488,20 @@
           },
           "status": {
             "type": "string"
+          },
+          "store_contact_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The store's email — the Get help sheet's Email row."
+          },
+          "store_contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The store's phone — the Get help sheet's Call row (absent on the\ncheckout response; the detail is the contact surface)."
           },
           "store_id": {
             "type": "string",
@@ -4031,6 +4615,19 @@
               "string",
               "null"
             ]
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The store's contact surface — the app's Get-help / store-info\nsheets call and email the store with these."
           },
           "created_at": {
             "type": "string",
@@ -4175,6 +4772,55 @@
           }
         }
       },
+      "UpdateAddressInput": {
+        "type": "object",
+        "properties": {
+          "address_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_default": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lng": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateCustomerInput": {
         "type": "object",
         "description": "Admin edits to a customer account. Provided fields overwrite, an empty\nname clears it, absent fields keep their value. Phone stays editable\nbecause a typo'd number during OTP signup is exactly the kind of thing\nan admin corrects; a taken phone is the typed 409.",
@@ -4297,6 +4943,18 @@
             ]
           },
           "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_phone": {
             "type": [
               "string",
               "null"

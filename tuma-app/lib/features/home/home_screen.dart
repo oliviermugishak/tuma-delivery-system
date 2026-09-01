@@ -13,6 +13,7 @@ import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
+import 'package:tuma_app/features/orders/active_orders_provider.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
@@ -34,9 +35,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Store>? _stores;
   String? _error;
 
-  /// The customer's most recent in-flight purchase — the live order
-  /// card's data. Loaded alongside the feed; null when nothing moves.
-  List<GroupSummary>? _activeOrders;
   List<Address>? _addresses;
   bool _showLocationHint = false;
   String? _category;
@@ -66,7 +64,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
   }
 
-  /// First mount: locate (GPS or the persisted pin), then the feed.
+  /// First mount: locate (GPS or the persisted pin), then the feed. The
+  /// active orders come from the shared realtime poller (Home only
+  /// renders them) — the feed fetch is stores + addresses.
   Future<void> _load() async {
     setState(() => _error = null);
     final located = await _locate();
@@ -85,10 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() => _error = null);
     try {
       final api = ref.read(storeApiProvider);
-      final results = await Future.wait([
-        api.listStores(lat: located?.lat, lng: located?.lng),
-        ref.read(orderApiProvider).listGroups(limit: 10),
-      ]);
+      final stores = await api.listStores(lat: located?.lat, lng: located?.lng);
       List<Address>? addresses;
       try {
         addresses = await ref.read(addressApiProvider).list();
@@ -96,16 +93,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // The bar falls back to the invitation (P2).
       }
       if (!mounted) return;
-      final stores = results[0] as List<Store>;
-      final groups = results[1] as List<GroupSummary>;
       setState(() {
         _stores = stores;
-        _activeOrders = [
-          for (final group in groups)
-            if (group.status == 'in_progress' ||
-                group.status == 'partially_fulfilled')
-              group,
-        ];
         _addresses = addresses;
         _showLocationHint = located == null;
         if (_category != null && !_categories(stores).contains(_category)) {
@@ -154,7 +143,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final stores = _stores;
     final filtered = stores == null ? null : _filtered(stores);
     final categories = stores == null ? null : _categories(stores);
-    final activeOrders = _activeOrders;
+    // The live order card rides the shared realtime poller: its status
+    // words and pulse are always the server's truth, and the card
+    // disappears the moment the order settles.
+    final activeOrders = [
+      for (final group in ref.watch(activeOrdersProvider).value ?? const <GroupSummary>[])
+        if (groupInFlight(group)) group,
+    ];
     // P15's tint system keys off the deliver-to bar's location: the
     // persisted pin is the address line; the hint hides it (P2).
 
@@ -197,7 +192,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       // The live order card claims the highest-value slot
                       // when a delivery is moving (P11, P17).
-                      if (activeOrders != null && activeOrders.isNotEmpty) ...[
+                      if (activeOrders.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         _LiveOrderCard(order: activeOrders.first),
                       ],
@@ -382,7 +377,8 @@ class _DeliverToBar extends StatelessWidget {
 }
 
 /// The live order card: the most recent in-flight purchase with its
-/// pulsing progress — one tap to Track (P11, P13, P17).
+/// pulsing progress — one tap to Track (P11, P13, P17). The status row
+/// reads the server's story (never a hardcoded label).
 class _LiveOrderCard extends StatelessWidget {
   const _LiveOrderCard({required this.order});
 
@@ -391,12 +387,13 @@ class _LiveOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = order.stores.isNotEmpty ? order.stores.first : 'Your order';
+    final story = activeOrderStory(order);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+        border: Border.all(color: story.color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -416,17 +413,14 @@ class _LiveOrderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 StatusRow(
-                  color: AppColors.success,
-                  label: 'Out for delivery',
-                  pulsing: true,
+                  color: story.color,
+                  label: story.label,
+                  pulsing: story.pulsing,
                 ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: () => context.push('/orders/${order.id}'),
-            child: const Text('Track'),
-          ),
+          TrackPill(onTap: () => context.push('/orders/${order.id}')),
         ],
       ),
     );

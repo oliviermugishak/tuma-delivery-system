@@ -59,6 +59,13 @@ pub struct StoreOrderResponse {
     pub subtotal: i64,
     pub delivery_fee: i64,
     pub total: i64,
+    /// The store's phone — the Get help sheet's Call row (absent on the
+    /// checkout response; the detail is the contact surface).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store_contact_phone: Option<String>,
+    /// The store's email — the Get help sheet's Email row.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store_contact_email: Option<String>,
     pub items: Vec<OrderItemResponse>,
 }
 
@@ -295,6 +302,8 @@ fn group_response(created: orders::CheckoutCreated) -> OrderGroupResponse {
                 subtotal: slice.order.subtotal,
                 delivery_fee: slice.order.delivery_fee,
                 total: slice.order.total,
+                store_contact_phone: None,
+                store_contact_email: None,
                 items: slice
                     .items
                     .into_iter()
@@ -316,7 +325,7 @@ fn group_detail_response(detail: orders::GroupDetail) -> OrderGroupResponse {
     let statuses: Vec<OrderStatus> = detail
         .store_orders
         .iter()
-        .map(|(order, _, _)| order.status)
+        .map(|slice| slice.order.status)
         .collect();
     OrderGroupResponse {
         id: detail.group.id,
@@ -334,16 +343,19 @@ fn group_detail_response(detail: orders::GroupDetail) -> OrderGroupResponse {
         store_orders: detail
             .store_orders
             .into_iter()
-            .map(|(order, store_name, items)| StoreOrderResponse {
-                id: order.id,
-                number: order.number,
-                store_id: order.store_id,
-                store_name,
-                status: order.status,
-                subtotal: order.subtotal,
-                delivery_fee: order.delivery_fee,
-                total: order.total,
-                items: items
+            .map(|slice| StoreOrderResponse {
+                id: slice.order.id,
+                number: slice.order.number,
+                store_id: slice.order.store_id,
+                store_name: slice.store_name,
+                status: slice.order.status,
+                subtotal: slice.order.subtotal,
+                delivery_fee: slice.order.delivery_fee,
+                total: slice.order.total,
+                store_contact_phone: slice.store_contact_phone,
+                store_contact_email: slice.store_contact_email,
+                items: slice
+                    .items
                     .into_iter()
                     .map(|item| OrderItemResponse {
                         store_product_id: item.store_product_id,
@@ -475,21 +487,24 @@ pub async fn cancel_store_order(
     let detail = orders::group_detail_for_user(&mut conn, user_id, id)
         .await?
         .ok_or_else(|| AppError::Internal("cancelled order's group disappeared".into()))?;
-    let (order, store_name, items) = detail
+    let slice = detail
         .store_orders
         .into_iter()
-        .find(|(order, _, _)| order.id == store_order_id)
+        .find(|slice| slice.order.id == store_order_id)
         .ok_or_else(|| AppError::Internal("cancelled order vanished from its group".into()))?;
     Ok(Json(StoreOrderResponse {
-        id: order.id,
-        number: order.number,
-        store_id: order.store_id,
-        store_name,
-        status: order.status,
-        subtotal: order.subtotal,
-        delivery_fee: order.delivery_fee,
-        total: order.total,
-        items: items
+        id: slice.order.id,
+        number: slice.order.number,
+        store_id: slice.order.store_id,
+        store_name: slice.store_name,
+        status: slice.order.status,
+        subtotal: slice.order.subtotal,
+        delivery_fee: slice.order.delivery_fee,
+        total: slice.order.total,
+        store_contact_phone: slice.store_contact_phone,
+        store_contact_email: slice.store_contact_email,
+        items: slice
+            .items
             .into_iter()
             .map(|item| OrderItemResponse {
                 store_product_id: item.store_product_id,

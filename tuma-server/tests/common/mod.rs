@@ -229,6 +229,8 @@ pub async fn seed_store(
             category: None,
             delivery_fee: 0,
             is_open,
+            contact_phone: None,
+            contact_email: None,
         },
     )
     .await

@@ -40,6 +40,10 @@ pub struct StoreResponse {
     /// UI). Present exactly when `distance_m` is.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eta_min: Option<i64>,
+    /// The store's contact surface — the app's Get-help / store-info
+    /// sheets call and email the store with these.
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -67,6 +71,8 @@ impl StoreResponse {
             category: store.category,
             delivery_fee: store.delivery_fee,
             is_open: store.is_open,
+            contact_phone: store.contact_phone,
+            contact_email: store.contact_email,
             distance_m: None,
             eta_min: None,
             created_at: store.created_at,
@@ -95,6 +101,11 @@ pub struct CreateStoreInput {
     /// Integer RWF. Defaults to 0 (free delivery).
     #[validate(range(min = 0, message = "delivery_fee must be 0 or more"))]
     pub delivery_fee: Option<i64>,
+    /// The customer-facing contact surface (Get help / store info).
+    #[validate(length(max = 30, message = "contact_phone must be at most 30 characters"))]
+    pub contact_phone: Option<String>,
+    #[validate(length(max = 200, message = "contact_email must be at most 200 characters"))]
+    pub contact_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
@@ -116,6 +127,10 @@ pub struct UpdateStoreInput {
     #[validate(range(min = 0, message = "delivery_fee must be 0 or more"))]
     pub delivery_fee: Option<i64>,
     pub is_open: Option<bool>,
+    #[validate(length(max = 30, message = "contact_phone must be at most 30 characters"))]
+    pub contact_phone: Option<String>,
+    #[validate(length(max = 200, message = "contact_email must be at most 200 characters"))]
+    pub contact_email: Option<String>,
 }
 
 /// PATCH text semantics: provided overwrites (trimmed), an empty string
@@ -189,6 +204,8 @@ pub async fn create_own_store(
             category: merge_text(input.category, None),
             delivery_fee: input.delivery_fee.unwrap_or(0),
             is_open: false,
+            contact_phone: input.contact_phone,
+            contact_email: input.contact_email,
         },
     )
     .await?;
@@ -298,6 +315,8 @@ pub async fn update_own_store(
         category: merge_text(input.category, store.category),
         delivery_fee: input.delivery_fee.unwrap_or(store.delivery_fee),
         is_open: input.is_open.unwrap_or(store.is_open),
+        contact_phone: merge_text(input.contact_phone, store.contact_phone),
+        contact_email: merge_text(input.contact_email, store.contact_email),
     };
     let store = stores::update_store(&mut conn, store.id, changes).await?;
     Ok(Json(StoreResponse::from_store(

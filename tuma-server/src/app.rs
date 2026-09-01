@@ -15,7 +15,8 @@ use crate::routes::catalog::{
     list_store_products, update_product, update_store_product,
 };
 use crate::routes::deliveries::{
-    list_rider_deliveries, mark_delivered, order_tracking, push_location, rider_today,
+    list_rider_deliveries, mark_delivered, order_tracking, push_location, rider_history,
+    rider_today,
 };
 use crate::routes::health_check;
 use crate::routes::me::{me, update_me};
@@ -81,6 +82,7 @@ pub struct AppState {
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)] // wiring, not logic — every field is a distinct fact
     pub fn new(
         db_pool: PgPool,
         accounts: Arc<accounts::AccountManager>,
@@ -422,6 +424,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
             Router::new()
                 .route("/", get(list_rider_deliveries))
                 .route("/today", get(rider_today))
+                .route("/history", get(rider_history))
                 .route("/{id}/location", post(push_location))
                 .route("/{id}/delivered", post(mark_delivered))
                 .layer(middleware::from_fn(require_rider)),
