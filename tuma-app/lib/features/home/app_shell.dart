@@ -10,8 +10,8 @@ import 'package:tuma_app/features/profile/profile_screen.dart';
 import 'package:tuma_app/features/search/search_screen.dart';
 
 /// Which tab the shell shows. Global so screens can navigate by tab —
-/// the home search field is a door to the Search tab, not its own
-/// controller.
+/// checkout lands on the Orders tab, the empty cart routes to the Cart
+/// tab, and so on.
 class ShellTabNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -22,8 +22,9 @@ class ShellTabNotifier extends Notifier<int> {
 final shellTabProvider =
     NotifierProvider<ShellTabNotifier, int>(ShellTabNotifier.new);
 
-/// The five-tab shell: browse (Home), discovery (Search), history
-/// (Orders), the cart, and identity (Profile). Tabs live in one
+/// The five-tab shell, the redesign's exact chrome: pill-highlighted
+/// icons (the active tab's icon sits in a surface-high pill), labels
+/// under, and the cart's live accent badge. Tabs live in one
 /// IndexedStack — switching keeps every tab's scroll and state alive.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key});
@@ -31,10 +32,7 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(shellTabProvider);
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      // Each tab owns its body; no shell appBar — the cart lives in the
-      // bottom bar where the user actually looks for it.
       body: IndexedStack(
         index: tab,
         children: const [
@@ -47,56 +45,47 @@ class AppShell extends ConsumerWidget {
       ),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
+          color: AppColors.navSurface,
           border: Border(top: BorderSide(color: AppColors.surfaceBorder)),
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: AppColors.surfaceAlt,
-            indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-            height: 68,
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return IconThemeData(
-                color: selected ? AppColors.primary : AppColors.onSurfaceMuted,
-                size: 24,
-              );
-            }),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return (textTheme.labelMedium ?? const TextStyle()).copyWith(
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected ? AppColors.primary : AppColors.onSurfaceMuted,
-              );
-            }),
-          ),
-          child: NavigationBar(
-            elevation: 0,
-            selectedIndex: tab,
-            onDestinationSelected: (index) =>
-                ref.read(shellTabProvider.notifier).select(index),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.storefront_outlined),
-                selectedIcon: Icon(Icons.storefront),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.search_rounded),
-                selectedIcon: Icon(Icons.search),
-                label: 'Search',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_rounded),
-                selectedIcon: Icon(Icons.receipt_long),
-                label: 'Orders',
-              ),
-              _CartDestination(),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 10, 6, 18),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _NavItem(
+                  icon: Icons.storefront_rounded,
+                  label: 'Home',
+                  selected: tab == 0,
+                  onTap: () => ref.read(shellTabProvider.notifier).select(0),
+                ),
+                _NavItem(
+                  icon: Icons.search_rounded,
+                  label: 'Search',
+                  selected: tab == 1,
+                  onTap: () => ref.read(shellTabProvider.notifier).select(1),
+                ),
+                _NavItem(
+                  icon: Icons.receipt_long_rounded,
+                  label: 'Orders',
+                  selected: tab == 2,
+                  onTap: () => ref.read(shellTabProvider.notifier).select(2),
+                ),
+                _CartNavItem(
+                  selected: tab == 3,
+                  onTap: () => ref.read(shellTabProvider.notifier).select(3),
+                ),
+                _NavItem(
+                  icon: Icons.person_rounded,
+                  label: 'Profile',
+                  selected: tab == 4,
+                  onTap: () => ref.read(shellTabProvider.notifier).select(4),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -104,10 +93,91 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-/// The Cart tab icon with a live item-count badge — visible feedback that
-/// something is in the cart, right where the user expects it.
-class _CartDestination extends ConsumerWidget {
-  const _CartDestination();
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        selected ? AppColors.primary : AppColors.onSurfaceMuted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.surfaceHigh : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, size: 24, color: color),
+                if (badge != null)
+                  Positioned(
+                    top: -4,
+                    right: -8,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        badge!,
+                        style: const TextStyle(
+                          color: AppColors.onPrimary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          height: 16 / 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Cart tab item with the live item-count badge (the redesign's
+/// yellow cbadge).
+class _CartNavItem extends ConsumerWidget {
+  const _CartNavItem({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -116,42 +186,12 @@ class _CartDestination extends ConsumerWidget {
       data: (v) => v.itemCount,
       orElse: () => 0,
     );
-    return NavigationDestination(
-      icon: _icon(Icons.shopping_cart_outlined, count),
-      selectedIcon: _icon(Icons.shopping_cart, count),
+    return _NavItem(
+      icon: Icons.shopping_cart_rounded,
       label: 'Cart',
-    );
-  }
-
-  Widget _icon(IconData icon, int count) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Icon(icon),
-        if (count > 0)
-          Positioned(
-            right: -6,
-            top: -6,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                count > 99 ? '99+' : '$count',
-                style: const TextStyle(
-                  color: AppColors.onPrimary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-      ],
+      selected: selected,
+      onTap: onTap,
+      badge: count > 0 ? (count > 99 ? '99+' : '$count') : null,
     );
   }
 }

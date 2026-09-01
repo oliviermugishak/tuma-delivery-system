@@ -3,14 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/api/models/tracking.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/features/tracking/delivery_map.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
-import 'package:tuma_app/features/tracking/map_world_card.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 
 /// Order group detail — the one purchase the customer placed, rendered as
@@ -38,6 +41,10 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
 /// [_OrderDetailScreenState._pollInterval].
 const _livePollInterval = Duration(seconds: 5);
 
+/// The statuses a customer can still cancel from (P10: cancel
+/// disappears once the order is picked up).
+const _cancellableStatuses = {'placed', 'accepted', 'preparing'};
+
 class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     with WidgetsBindingObserver {
   OrderGroup? _order;
@@ -53,17 +60,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     return _tracking?.groupStatus ?? order.status;
   }
 
-  bool get _effectiveInFlight =>
-      _effectiveGroupStatus == 'in_progress' ||
-      _effectiveGroupStatus == 'partially_fulfilled';
-
   /// Effective payment state — cash flips to collected on delivery, and
-  /// the money line must show that without a full refetch.
+  /// the receipt line must show that without a full refetch.
   String get _effectivePaymentStatus {
     final order = _order;
     if (order == null) return '';
     return _tracking?.paymentStatus ?? order.paymentStatus;
   }
+
+  bool get _effectiveInFlight =>
+      _effectiveGroupStatus == 'in_progress' ||
+      _effectiveGroupStatus == 'partially_fulfilled';
 
   /// The first-load path: everything resets to a spinner. Pull-to-refresh
   /// takes [_silentRefresh] — a failed refresh keeps the order on screen
@@ -355,8 +362,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     }
     final order = _order!;
     final textTheme = Theme.of(context).textTheme;
-    final storeCount = order.storeOrders.length;
-
     return Scaffold(
       // A plain pinned AppBar — no collapsible layers to overlap — with an
       // explicit way home: whatever the navigation stack looks like (fresh
@@ -379,297 +384,210 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
           },
         ),
         title: Text(
-          'Order #${order.number}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          'Track order #${order.number}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           overflow: TextOverflow.ellipsis,
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Home',
-            icon: const Icon(Icons.home_outlined, color: AppColors.onSurface),
-            onPressed: () => context.go('/home'),
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _silentRefresh,
         color: AppColors.primary,
         child: CustomScrollView(
           slivers: [
-            // Overall state + payment.
+            // The HERO STATUS (P11): one story narrating the lifecycle —
+            // icon, hero words, the promise subline. One signal at a time.
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: Column(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _GroupStatusChip(status: _effectiveGroupStatus),
-                        const SizedBox(width: 8),
-                        if (_effectiveInFlight) const _LiveBadge(),
-                      ],
+                    const Icon(
+                      Icons.two_wheeler_rounded,
+                      size: 26,
+                      color: AppColors.primary,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      storeCount > 1
-                          ? '$storeCount stores are fulfilling this order.'
-                          : order.storeOrders.isNotEmpty
-                              ? '${order.storeOrders.first.storeName} is fulfilling this order.'
-                              : 'This purchase is being fulfilled.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _effectivePaymentStatus == 'pending'
-                          ? 'Cash on delivery — pay ${formatRwf(order.grandTotal)} when it arrives.'
-                          : 'Payment: $_effectivePaymentStatus · ${formatRwf(order.grandTotal)}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // One section per store: identity, world (map when moving,
-            // timeline otherwise), items, totals.
-            for (final storeOrder in order.storeOrders) ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              SliverToBoxAdapter(
-                child: _StoreOrderSection(
-                  storeOrder: storeOrder,
-                  tracking: _tracking?.forStoreOrder(storeOrder.id),
-                  destinationLat: order.addressLat,
-                  destinationLng: order.addressLng,
-                  onCancel: () => unawaited(_cancelStoreOrder(storeOrder)),
-                ),
-              ),
-            ],
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            // The purchase's totals.
-            SliverToBoxAdapter(
-              child: _SectionTitle('Your purchase'),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    _TotalsRow(label: 'Subtotal', value: order.subtotal),
-                    _TotalsRow(
-                      label: storeCount > 1
-                          ? 'Delivery (all stores)'
-                          : 'Delivery fee',
-                      value: order.deliveryTotal,
-                    ),
-                    const _Divider(),
-                    _TotalsRow(
-                      label: 'Total',
-                      value: order.grandTotal,
-                      bold: true,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Delivery address
-            if (order.addressText.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-              const SliverToBoxAdapter(child: _SectionTitle('Delivery address')),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.location_on_rounded,
-                            color: AppColors.primary, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            order.addressText,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_heroTitle(), style: AppTheme.d2(textTheme)),
+                          const SizedBox(height: 2),
+                          Text(
+                            _heroSubline(),
+                            style: AppTheme.bd(textTheme)
+                                .copyWith(color: AppColors.onSurfaceMuted),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            // Wayfinding: a settled purchase always offers the way back to
-            // shopping — nobody ends on a dead screen.
-            if (!_effectiveInFlight) ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FilledButton.icon(
-                    onPressed: () => context.go('/home'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    icon: const Icon(Icons.storefront_rounded),
-                    label: const Text(
-                      'Continue shopping',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            // Footer note
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-                child: Text(
-                  _effectiveInFlight
-                      ? 'This screen updates itself — or pull to refresh now.'
-                      : 'Pull to refresh any time.',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        ],
                       ),
-                  textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
             ),
+            // The ladder's warning line: amber on lagging, the store
+            // call when it's genuinely late (P14: delay is amber).
+            ..._ladderWarningSliver(),
+            // The stepper — position in the story, labeled.
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: OrderStepper.lifecycle(
+                  index: _stepperIndex(),
+                  completed: _effectiveGroupStatus == 'completed',
+                ),
+              ),
+            ),
+            // The MAP — an asset when the pin exists (screen 04), a
+            // quiet nothing when it doesn't (P2: never a broken promise).
+            ..._mapSliver(order),
+            // The RIDER CARD — who is bringing it, with the call action.
+            // Appears only when a rider exists (P2).
+            ..._riderCardSliver(),
+            // The DELIVER-TO row with the actions beside it (P10: cancel
+            // disappears once picked up — it's no longer reversible).
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded,
+                          size: 20, color: AppColors.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          order.addressText,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.bd(textTheme)
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // The ORDER SUMMARY — collapsed behind a micro-label with an
+            // expand affordance (the receipt, one place, P1).
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: _CollapsibleSummary(
+                  order: order,
+                  effectivePaymentStatus: _effectivePaymentStatus,
+                ),
+              ),
+            ),
+            // ACTIONS per status (P10, P14): cancel only while reversible;
+            // Reorder as the settled primary.
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: _actionsRow(order),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
       ),
     );
   }
-}
 
-/// The overall group state chip.
-class _GroupStatusChip extends StatelessWidget {
-  const _GroupStatusChip({required this.status});
-
-  final String status;
-
-  Color get _color {
-    switch (status) {
-      case 'in_progress':
-        return AppColors.primary;
-      case 'partially_fulfilled':
-        return const Color(0xFF8B5CF6); // purple
-      case 'completed':
-        return AppColors.success;
-      case 'cancelled':
-        return AppColors.error;
-      default:
-        return AppColors.onSurfaceMuted;
+  /// The hero words, from the effective statuses (P11: story, not
+  /// sticker). One fact: position in the lifecycle + the promise.
+  /// The ladder's rung for the moving delivery (tracking doc §2): fresh
+  /// signal + not past ETA → live; stale signal or past the 15-min grace
+  /// → lagging; ~24h past ETA → ended.
+  ({String rung, DateTime? soonestEta, bool stale}) _ladder() {
+    const endedAfter = Duration(hours: 24);
+    const grace = Duration(minutes: 15);
+    final deliveries = _tracking?.deliveries ?? const <DeliveryTracking>[];
+    final moving = deliveries.where((d) => d.status == 'picked_up');
+    var stale = false;
+    DateTime? soonest;
+    for (final d in moving) {
+      final age = d.signalAgeMinutes;
+      if (age != null && age >= 5) stale = true;
+      final eta = d.etaTarget;
+      if (eta != null && (soonest == null || eta.isBefore(soonest))) {
+        soonest = eta;
+      }
     }
-  }
-
-  String get _label {
-    switch (status) {
-      case 'in_progress':
-        return 'In progress';
-      case 'partially_fulfilled':
-        return 'Partially fulfilled';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
+    final overdue = soonest == null
+        ? null
+        : DateTime.now().difference(soonest);
+    if (overdue != null && overdue >= endedAfter) {
+      return (rung: 'ended', soonestEta: soonest, stale: stale);
     }
+    if (stale || (overdue != null && overdue >= grace)) {
+      return (rung: 'lagging', soonestEta: soonest, stale: stale);
+    }
+    return (rung: 'live', soonestEta: soonest, stale: stale);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: _color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        _label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _color,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
+  String _heroTitle() {
+    if (_effectiveGroupStatus == 'cancelled') return 'Cancelled';
+    if (_effectiveGroupStatus == 'completed') return 'Delivered';
+    final deliveries = _tracking?.deliveries ?? const <DeliveryTracking>[];
+    final anyMoving = deliveries.any((d) => d.status == 'picked_up');
+    if (anyMoving) {
+      if (_ladder().rung == 'ended') {
+        return 'Taking much longer than expected';
+      }
+      if (_ladder().rung == 'lagging') return 'Running late';
+      return 'Out for delivery';
+    }
+    return 'Preparing your order';
   }
-}
 
-/// A quiet pulse: the group is still moving and the screen is watching it.
-class _LiveBadge extends StatelessWidget {
-  const _LiveBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: AppColors.success,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            'Live',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
-      ),
-    );
+  String _heroSubline() {
+    if (_effectiveGroupStatus == 'cancelled') {
+      return 'This order was cancelled — nothing was charged.';
+    }
+    if (_effectiveGroupStatus == 'completed') {
+      final at = _tracking?.deliveries
+          .map((d) => d.updatedAt)
+          .fold<DateTime?>(null, (max, t) => max == null || t.isAfter(max) ? t : max);
+      final when = at != null ? 'Today at ${_clockTime(at)}' : 'Today';
+      return '$when · ${_order?.addressText ?? ''}';
+    }
+    // The ladder's promise (P11: a delay warning ALWAYS pairs with the
+    // revised ETA — even when the revised answer is "now").
+    final etas = _tracking?.deliveries
+        .map((d) => d.etaTarget)
+        .whereType<DateTime>()
+        .toList();
+    if (etas != null && etas.isNotEmpty) {
+      final soonest = etas.reduce((a, b) => a.isBefore(b) ? a : b);
+      final remaining = soonest.difference(DateTime.now());
+      if (_ladder().rung == 'ended') {
+        return 'This needs a human — call the store below.';
+      }
+      if (remaining.isNegative) return 'Now arriving';
+      if (_ladder().rung == 'lagging') return 'Now arriving ~${remaining.inMinutes + (remaining.inSeconds > 0 ? 1 : 0)} min';
+      final minutes = remaining.inMinutes + (remaining.inSeconds > 0 ? 1 : 0);
+      return 'Arriving in about $minutes min';
+    }
+    return 'Cash on delivery — ${formatRwf(_order?.grandTotal ?? 0)} when it arrives';
   }
-}
 
-/// One store's slice: header, world (the map card takes over the moment
-/// the delivery is picked_up — the timeline collapses to the slim strip;
-/// waiting and settled states keep the quiet timeline), items, money, and
-/// the cancel affordance while cancelling is still possible.
-class _StoreOrderSection extends StatelessWidget {
-  const _StoreOrderSection({
-    required this.storeOrder,
-    required this.onCancel,
-    this.tracking,
-    this.destinationLat,
-    this.destinationLng,
-  });
-
-  final StoreOrder storeOrder;
-  final VoidCallback onCancel;
-  final DeliveryTracking? tracking;
-  final double? destinationLat;
-  final double? destinationLng;
-
-  bool get _cancellable =>
-      storeOrder.status == 'placed' ||
-      storeOrder.status == 'accepted' ||
-      storeOrder.status == 'preparing';
-
-  /// The section's effective status: tracking's when a snapshot covers
-  /// this delivery (statuses only move forward on the server), the store
-  /// order's own otherwise.
-  String get _status => tracking?.status ?? storeOrder.status;
+  int _stepperIndex() {
+    final deliveries = _tracking?.deliveries ?? const [];
+    if (deliveries.any((d) => d.status == 'picked_up')) return 3;
+    if (deliveries.any((d) => d.status == 'preparing')) return 1;
+    if (deliveries.any((d) => d.status == 'delivered')) return 4;
+    return 0;
+  }
 
   String _clockTime(DateTime time) {
     final local = time.toLocal();
@@ -678,386 +596,362 @@ class _StoreOrderSection extends StatelessWidget {
     return '$hour:$minute';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final moving = _status == 'picked_up';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
+  /// The lagging/ended warning: amber dot row + the store-call escape.
+  List<Widget> _ladderWarningSliver() {
+    if (_effectiveGroupStatus != 'in_progress' &&
+        _effectiveGroupStatus != 'partially_fulfilled') {
+      return const [];
+    }
+    final ladder = _ladder();
+    if (ladder.rung == 'live') return const [];
+    final phone = _tracking?.deliveries
+        .map((d) => d.storeContactPhone)
+        .whereType<String>()
+        .firstWhere((_) => true, orElse: () => '');
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
+            children: [
+              StatusRow(
+                color: AppColors.warning,
+                label: ladder.rung == 'ended'
+                    ? 'Ended · contact the store'
+                    : 'Running late',
+                pulsing: false,
+              ),
+              const Spacer(),
+              if (phone!.isNotEmpty)
+                GestureDetector(
+                  onTap: () =>
+                      unawaited(launchUrl(Uri(scheme: 'tel', path: phone))),
                   child: Text(
-                    storeOrder.storeName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    'Call store',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontSize: 14,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ),
-                _StoreStatusChip(status: _status),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // The world gate (doc §1): moving → the map card leads and
-            // the slim strip replaces the timeline; waiting/settled → the
-            // quiet timeline.
-            if (moving) ...[
-              if (tracking != null)
-                MapWorldCard(
-                  tracking: tracking!,
-                  destinationLat: destinationLat,
-                  destinationLng: destinationLng,
-                ),
-              const SizedBox(height: 10),
-              const SlimProgressStrip(),
-            ] else ...[
-              // The settled polish (doc §5): a delivered delivery shows
-              // the moment it happened — the delivery's last write.
-              if (_status == 'delivered' && tracking != null) ...[
-                Row(
-                  children: [
-                    const Icon(Icons.verified_rounded,
-                        size: 18, color: AppColors.success),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Delivered · ${_clockTime(tracking!.updatedAt)}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-              _StatusTimeline(status: _status),
             ],
-            const SizedBox(height: 12),
-            ...storeOrder.items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The map sliver: when the destination pin exists and the delivery
+  /// is moving, the DeliveryMap (route, trail, rider marker); desktop
+  /// renders the honest placeholder. No pin → nothing (P2).
+  List<Widget> _mapSliver(OrderGroup order) {
+    final tracking = _tracking;
+    if (tracking == null) return const [];
+    if (order.addressLat == null || order.addressLng == null) {
+      return const [];
+    }
+    final moving =
+        tracking.deliveries.any((d) => d.status == 'picked_up');
+    if (!moving) return const [];
+    final delivery = tracking.deliveries.first;
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: DeliveryMap(
+            tracking: delivery,
+            destinationLat: order.addressLat,
+            destinationLng: order.addressLng,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The rider card sliver — data from the tracking snapshot's new
+  /// identity fields; the first word of the rider's name is what shows.
+  List<Widget> _riderCardSliver() {
+    final tracking = _tracking;
+    if (tracking == null) return const [];
+    final withRider = tracking.deliveries
+        .where((d) => d.riderName != null && d.riderName!.isNotEmpty)
+        .toList();
+    if (withRider.isEmpty) {
+      // Before assignment: one quiet row, not a dead placeholder (P2).
+      if (_effectiveInFlight) {
+        return [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
                 child: Row(
                   children: [
+                    const Icon(Icons.person_outline_rounded,
+                        size: 20, color: AppColors.onSurfaceMuted),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '${item.productName} × ${item.quantity}',
-                        style: textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      formatRwf(item.lineTotal),
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        'A rider will be assigned as soon as the store hands your order over.',
+                        style: AppTheme.sub(Theme.of(context).textTheme),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            const Divider(height: 1, color: AppColors.surfaceBorder),
-            const SizedBox(height: 6),
-            _MiniTotalsRow(label: 'Subtotal', value: storeOrder.subtotal),
-            _MiniTotalsRow(label: 'Delivery', value: storeOrder.deliveryFee),
-            _MiniTotalsRow(
-              label: 'Total',
-              value: storeOrder.total,
-              bold: true,
+          ),
+        ];
+      }
+      return const [];
+    }
+    final delivery = withRider.first;
+    final firstName = delivery.riderName!.split(' ').first;
+    final vehicleLine = [
+      ?delivery.riderVehicle,
+      ?delivery.riderPlate,
+    ].join(' · ');
+    final phone = delivery.storeContactPhone;
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.surfaceBorder),
             ),
-            if (_cancellable) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onCancel,
+            child: Row(
+              children: [
+                AccentAvatar(text: delivery.riderName!, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$firstName is on the way',
+                          style: AppTheme.bd(Theme.of(context).textTheme)
+                              .copyWith(fontWeight: FontWeight.w600)),
+                      if (vehicleLine.isNotEmpty)
+                        Text(vehicleLine, style: AppTheme.sub(Theme.of(context).textTheme)),
+                    ],
+                  ),
+                ),
+                if (phone != null)
+                  GestureDetector(
+                    onTap: () => unawaited(
+                      launchUrl(Uri(scheme: 'tel', path: phone)),
+                    ),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: const Icon(Icons.call_rounded,
+                          size: 19, color: AppColors.primary),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The actions row: what this status allows (P10).
+  Widget _actionsRow(OrderGroup order) {
+    final cancellable =
+        order.storeOrders.any((so) => _cancellableStatuses.contains(so.status));
+    final settled =
+        _effectiveGroupStatus == 'completed' || _effectiveGroupStatus == 'cancelled';
+    return Column(
+      children: [
+        if (settled) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.go('/home'),
+              icon: const Icon(Icons.replay_rounded, size: 20),
+              label: const Text(
+                'Reorder',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => unawaited(_getHelp()),
+                child: const Text('Get help'),
+              ),
+            ),
+            if (cancellable) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => unawaited(
+                    _cancelStoreOrder(order.storeOrders.first),
+                  ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,
                     side: BorderSide(
-                      color: AppColors.error.withValues(alpha: 0.4),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.error.withValues(alpha: 0.35),
                     ),
                   ),
-                  icon: const Icon(Icons.cancel_outlined, size: 18),
-                  label: const Text('Cancel this order'),
+                  child: const Text('Cancel order'),
                 ),
               ),
             ],
           ],
         ),
+      ],
+    );
+  }
+
+  Future<void> _getHelp() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Support opens with the accounts era — for now, call the store from the tracking card.',
+        ),
       ),
     );
   }
 }
 
-class _MiniTotalsRow extends StatelessWidget {
-  const _MiniTotalsRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
+
+
+/// The collapsed receipt (P1: money in one place; the sheet keeps the
+/// hero focused). Tap the label row to expand.
+class _CollapsibleSummary extends StatefulWidget {
+  const _CollapsibleSummary({
+    required this.order,
+    required this.effectivePaymentStatus,
   });
 
-  final String label;
-  final int value;
-  final bool bold;
+  final OrderGroup order;
+
+  /// Tracking's payment status when a snapshot landed, the group
+  /// detail's otherwise — cash flips to collected on delivery and the
+  /// receipt must show that without a refetch.
+  final String effectivePaymentStatus;
 
   @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: textTheme.bodySmall?.copyWith(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-              color: bold ? AppColors.onSurface : AppColors.onSurfaceMuted,
-            ),
-          ),
-          Text(
-            formatRwf(value),
-            style: textTheme.bodySmall?.copyWith(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-              color: bold ? AppColors.primary : AppColors.onSurface,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  State<_CollapsibleSummary> createState() => _CollapsibleSummaryState();
 }
 
-/// Store-order status chip — colored pill matching the state.
-class _StoreStatusChip extends StatelessWidget {
-  const _StoreStatusChip({required this.status});
-
-  final String status;
-
-  Color get _color {
-    switch (status) {
-      case 'placed':
-        return AppColors.primary;
-      case 'accepted':
-      case 'preparing':
-        return const Color(0xFF0EA5E9); // sky blue
-      case 'picked_up':
-        return const Color(0xFF8B5CF6); // purple
-      case 'delivered':
-        return AppColors.success;
-      case 'cancelled':
-        return AppColors.error;
-      default:
-        return AppColors.onSurfaceMuted;
-    }
-  }
-
-  String get _label {
-    if (status.isEmpty) return 'Placed';
-    return status
-        .split('_')
-        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-  }
+class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
+    final order = widget.order;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Text(
-        _label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _color,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  const _Divider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
-      child: Divider(
-        height: 1,
-        color: AppColors.surfaceBorder,
-      ),
-    );
-  }
-}
-
-class _TotalsRow extends StatelessWidget {
-  const _TotalsRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
-
-  final String label;
-  final int value;
-  final bool bold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                  color: bold ? AppColors.onSurface : AppColors.onSurfaceMuted,
-                ),
-          ),
-          Text(
-            formatRwf(value),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-                  color: bold ? AppColors.primary : AppColors.onSurface,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Six-step vertical timeline showing a store order's progression.
-/// Completed steps are teal; the current step is gold; future muted;
-/// cancelled renders as a red terminal state.
-class _StatusTimeline extends StatelessWidget {
-  const _StatusTimeline({required this.status});
-
-  final String status;
-
-  static const _steps = [
-    _Step('placed', 'Placed'),
-    _Step('accepted', 'Accepted'),
-    _Step('preparing', 'Preparing'),
-    _Step('picked_up', 'Picked up'),
-    _Step('delivered', 'Delivered'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final currentIndex = _steps.indexWhere((s) => s.key == status);
-    final textTheme = Theme.of(context).textTheme;
-    final cancelled = status == 'cancelled';
-
-    final visibleSteps = cancelled
-        ? const [_Step('placed', 'Placed'), _Step('cancelled', 'Cancelled')]
-        : _steps;
-    final visibleIndex =
-        cancelled ? 1 : currentIndex;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(visibleSteps.length, (i) {
-        final step = visibleSteps[i];
-        final completed = !cancelled && i < visibleIndex;
-        final current = !cancelled && i == visibleIndex;
-        final isCancelledStep = step.key == 'cancelled';
-        final color = isCancelledStep
-            ? AppColors.error
-            : completed
-                ? AppColors.success
-                : current
-                    ? AppColors.primary
-                    : AppColors.onSurfaceMuted;
-        final icon = isCancelledStep
-            ? Icons.cancel_rounded
-            : completed
-                ? Icons.check_rounded
-                : current
-                    ? Icons.schedule_rounded
-                    : Icons.circle_outlined;
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 24,
-                child: Icon(icon, size: 18, color: color),
-              ),
-              const SizedBox(width: 4),
-              // Vertical line connector (except last)
-              if (i < visibleSteps.length - 1)
-                Container(
-                  width: 2,
-                  height: 26,
-                  margin: const EdgeInsets.only(left: 11, top: 20),
-                  color: completed
-                      ? AppColors.success.withValues(alpha: 0.4)
-                      : AppColors.surfaceBorder,
-                ),
-              Expanded(
-                child: Text(
-                  step.label,
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: current || isCancelledStep
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: color,
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                const Expanded(child: MicroLabel('Order summary')),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(
+                    Icons.expand_more_rounded,
+                    size: 18,
+                    color: AppColors.onSurfaceMuted,
                   ),
+                ),
+              ],
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 9),
+            for (final storeOrder in order.storeOrders)
+              for (final item in storeOrder.items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item.productName} × ${item.quantity}',
+                          style: AppTheme.bd(textTheme)
+                              .copyWith(color: AppColors.onSurfaceMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(formatRwf(item.lineTotal),
+                          style: AppTheme.bd(textTheme)),
+                    ],
+                  ),
+                ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Delivery fee',
+                      style: AppTheme.bd(textTheme)
+                          .copyWith(color: AppColors.onSurfaceMuted)),
+                  Text(formatRwf(order.deliveryTotal),
+                      style: AppTheme.bd(textTheme)),
+                ],
+              ),
+            ),
+            const Divider(color: AppColors.surfaceBorder),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.effectivePaymentStatus == 'pending'
+                    ? 'Total · pay cash on delivery'
+                    : 'Total · paid',
+                style: AppTheme.bd(textTheme).copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                formatRwf(order.grandTotal),
+                style: textTheme.titleSmall?.copyWith(
+                  fontSize: 15,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-        );
-      }),
+        ],
+      ),
     );
   }
-}
-
-class _Step {
-  const _Step(this.key, this.label);
-  final String key;
-  final String label;
 }

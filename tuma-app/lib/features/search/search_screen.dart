@@ -10,9 +10,11 @@ import 'package:tuma_app/core/api/models/discovery.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/sliver_row_grid.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
@@ -452,15 +454,11 @@ class _PopularHeader extends StatelessWidget {
         const Icon(
           Icons.local_fire_department_rounded,
           size: 18,
-          color: AppColors.primaryDeep,
+          color: AppColors.warning,
         ),
-        const SizedBox(width: 6),
-        Text(
-          'Popular near you',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-        ),
+        const SizedBox(width: 8),
+        Text('Popular near you',
+            style: AppTheme.sec(Theme.of(context).textTheme)),
       ],
     );
   }
@@ -478,7 +476,9 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final distance = hit.distanceM;
+    // P4: distance is deleted from product cards — the useful question
+    // for a product is "where from", answered by the store name below.
+    final tint = CategoryTint.forCategory(hit.storeName, hint: hit.name);
     return Material(
       color: AppColors.surfaceAlt,
       borderRadius: BorderRadius.circular(16),
@@ -488,36 +488,43 @@ class _ProductTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: RemoteImage(
-                    url: hit.imageUrl,
-                    seed: hit.name,
-                    borderRadius: 0,
-                    memCacheSize: 720,
-                    fallbackIcon: Icons.lunch_dining_rounded,
-                  ),
-                ),
-                if (popular)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface.withValues(alpha: 0.75),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.local_fire_department_rounded,
-                        size: 14,
-                        color: AppColors.primaryDeep,
+            SizedBox(
+              height: 86,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  TintedTile(tint: tint, borderRadius: 0, iconSize: 30),
+                  if (hit.imageUrl != null)
+                    RemoteImage(
+                      url: hit.imageUrl,
+                      seed: hit.name,
+                      borderRadius: 0,
+                      memCacheSize: 720,
+                      fallbackIcon: Icons.lunch_dining_rounded,
+                    ),
+                  // Scarcity is what makes "popular" mean anything: the
+                  // flame rides only where it's earned (top 2 of the
+                  // shelf, decided by the caller).
+                  if (popular)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: 0.75),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 14,
+                          color: AppColors.warning,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -526,10 +533,13 @@ class _ProductTile extends StatelessWidget {
                 children: [
                   Text(
                     hit.name,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyLarge?.copyWith(
+                    style: TextStyle(
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                      height: 1.25,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -537,29 +547,20 @@ class _ProductTile extends StatelessWidget {
                     hit.storeName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
                       color: AppColors.onSurfaceMuted,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        formatRwf(hit.price),
-                        style: textTheme.labelLarge?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (distance != null)
-                        Text(
-                          '${(distance / 1000).toStringAsFixed(1)} km',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
-                          ),
-                        ),
-                    ],
+                  Text(
+                    formatRwf(hit.price),
+                    style: textTheme.titleSmall?.copyWith(
+                      fontSize: 14,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -619,24 +620,33 @@ class _StoreRow extends StatelessWidget {
         ? store.category
         : null;
     final distance = store.distanceM;
+    final tint = CategoryTint.forCategory(category ?? '', hint: store.name);
     return Material(
-      color: Colors.transparent,
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
           child: Row(
             children: [
-              RemoteImage(
-                url: store.imageUrl,
-                seed: store.name,
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                fallbackIcon: Icons.storefront_rounded,
+              Stack(
+                children: [
+                  TintedTile(tint: tint, size: 44, iconSize: 20),
+                  if (store.imageUrl != null)
+                    RemoteImage(
+                      url: store.imageUrl,
+                      seed: store.name,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      memCacheSize: 120,
+                      fallbackIcon: Icons.storefront_rounded,
+                    ),
+                ],
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,11 +655,14 @@ class _StoreRow extends StatelessWidget {
                       store.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyLarge?.copyWith(
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
+                    // Distance is KEPT here, deliberately: for stores
+                    // it's decision-relevant (P4's complement).
                     Text(
                       [
                         ?category,
@@ -658,16 +671,14 @@ class _StoreRow extends StatelessWidget {
                       ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                      ),
+                      style: AppTheme.sub(textTheme),
                     ),
                   ],
                 ),
               ),
               const Icon(
                 Icons.chevron_right_rounded,
-                size: 20,
+                size: 18,
                 color: AppColors.onSurfaceMuted,
               ),
             ],

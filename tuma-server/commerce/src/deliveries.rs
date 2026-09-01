@@ -493,6 +493,9 @@ pub async fn mark_delivered(
 pub struct ActiveDelivery {
     pub delivery_id: Uuid,
     pub store_order_id: Uuid,
+    pub number: i64,
+    /// The cash this stop collects (P8: money at the point of action).
+    pub total: i64,
     pub store_name: String,
     pub store_address: Option<String>,
     pub store_lat: Option<f64>,
@@ -502,6 +505,9 @@ pub struct ActiveDelivery {
     pub destination_lng: Option<f64>,
     pub customer_name: Option<String>,
     pub customer_phone: Option<String>,
+    /// The checkout's rider note ("blue gate, ring the bell") — shown on
+    /// the Delivering card; None renders as nothing (P2).
+    pub customer_note: Option<String>,
     pub status: OrderStatus,
     pub handoff_at: Option<OffsetDateTime>,
     pub route_polyline: Option<String>,
@@ -522,11 +528,13 @@ pub async fn active_deliveries_for_rider(
         ActiveDelivery,
         r#"
         SELECT d.id AS delivery_id, d.store_order_id,
+               so.number, so.total,
                s.name AS store_name, s.address_text AS store_address,
                s.lat AS store_lat, s.lng AS store_lng,
                og.address_text AS destination_address,
                og.address_lat AS destination_lat, og.address_lng AS destination_lng,
                c.name AS customer_name, u.phone AS customer_phone,
+               og.customer_note,
                so.status AS "status: OrderStatus",
                d.handoff_at, d.route_polyline, d.eta_target,
                d.last_lat, d.last_lng, d.last_location_at
@@ -553,6 +561,12 @@ pub struct DeliveryTracking {
     pub delivery_id: Uuid,
     pub store_order_id: Uuid,
     pub store_name: String,
+    /// The assigned rider's identity for the tracking card — the first
+    /// word of the rider's name plus their vehicle, nullable until a
+    /// rider is assigned (P2: hidden until it exists).
+    pub rider_name: Option<String>,
+    pub rider_vehicle: Option<String>,
+    pub rider_plate: Option<String>,
     pub store_lat: Option<f64>,
     pub store_lng: Option<f64>,
     pub store_contact_phone: Option<String>,
@@ -572,6 +586,29 @@ pub struct TrailPoint {
     pub lat: f64,
     pub lng: f64,
     pub recorded_at: OffsetDateTime,
+}
+
+/// The rider's day so far: deliveries marked delivered today (UTC) and
+/// the cash that rode with them. The Waiting card's motivation line.
+pub async fn rider_today_tally(
+    conn: &mut PgConnection,
+    rider_id: Uuid,
+) -> Result<(i64, i64), sqlx::Error> {
+    let row = sqlx::query!(
+        r#"
+        SELECT COUNT(*) AS "deliveries!: i64",
+               COALESCE(SUM(so.total), 0) AS "collected!: i64"
+        FROM commerce.deliveries d
+        JOIN commerce.store_orders so ON so.id = d.store_order_id
+        WHERE d.rider_id = $1
+          AND so.status = 'delivered'
+          AND so.updated_at >= date_trunc('day', now())
+        "#,
+        rider_id,
+    )
+    .fetch_one(&mut *conn)
+    .await?;
+    Ok((row.deliveries, row.collected))
 }
 
 /// The group's tracking snapshot — one entry per store-order delivery,
@@ -609,6 +646,8 @@ pub async fn tracking_for_user(
         DeliveryTracking,
         r#"
         SELECT d.id AS delivery_id, so.id AS store_order_id, s.name AS store_name,
+               r.name AS rider_name, r.vehicle_type AS rider_vehicle,
+               r.plate_number AS rider_plate,
                s.lat AS store_lat, s.lng AS store_lng,
                s.contact_phone AS store_contact_phone,
                so.status AS "status: OrderStatus",
@@ -618,6 +657,7 @@ pub async fn tracking_for_user(
         FROM commerce.store_orders so
         JOIN commerce.deliveries d ON d.store_order_id = so.id
         JOIN marketplace.stores s ON s.id = so.store_id
+        LEFT JOIN commerce.riders r ON r.id = d.rider_id
         WHERE so.order_group_id = $1
         ORDER BY so.created_at
         "#,

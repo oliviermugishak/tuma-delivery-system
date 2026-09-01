@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, user_id, label, address_text, lat, lng, is_default,\n               created_at, updated_at\n        FROM commerce.addresses\n        WHERE user_id = $1\n        ORDER BY is_default DESC, created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "is_default",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6bb811c888d373e7f89f5699b624f4318b378b0f78c05b93acb7be5a0f9e161d"
+}

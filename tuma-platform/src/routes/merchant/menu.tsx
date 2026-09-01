@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { AssortmentPanel } from '@/features/merchant/components/assortment-panel'
+import { MenuScreen } from '@/features/merchant/components/menu'
 
 export const Route = createFileRoute('/merchant/menu')({
-  component: AssortmentPanel,
+  component: MenuScreen,
 })

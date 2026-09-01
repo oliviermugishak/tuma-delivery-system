@@ -16,6 +16,7 @@
 //!   store, created and committed atomically.
 //! - One payment per checkout, explicitly allocated per store order.
 
+pub mod addresses;
 pub mod deliveries;
 pub mod orders;
 

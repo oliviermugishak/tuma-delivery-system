@@ -5,18 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
+import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
-import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 import 'package:tuma_app/shared/widgets/sliver_row_grid.dart';
 
-/// Home tab: greeting, then sections — "Stores near you" first; more
-/// sections slot in below it as they earn their place. Pure browsing:
-/// discovery lives on the Search tab; chips filter the feed in place.
+/// Home tab — the redesign's screen 01: greeting + avatar, the deliver-to
+/// bar (context first), the live order card claiming the top slot when a
+/// delivery is moving (an active delivery is the most urgent fact in the
+/// user's life), category chips, and the tinted store grid. Pure
+/// browsing: discovery lives on the Search tab.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -27,12 +32,11 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Store>? _stores;
   String? _error;
-  /// True when the feed is bare — no GPS fix AND no persisted pin — so
-  /// one honest hint offers the way to distances. Nothing noisy, nothing
-  /// fake.
+
+  /// The customer's most recent in-flight purchase — the live order
+  /// card's data. Loaded alongside the feed; null when nothing moves.
+  List<GroupSummary>? _activeOrders;
   bool _showLocationHint = false;
-  /// The category chips are a client-side filter over the server feed —
-  /// browsing, not searching. The name search lives on the Search tab.
   String? _category;
 
   @override
@@ -41,13 +45,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     unawaited(_load());
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  /// The categories present in the current feed, deduped, first-appearance
-  /// order — real data only; the chip row disappears when none is set.
   List<String> _categories(List<Store> stores) {
     final seen = <String>{};
     return [
@@ -75,9 +72,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Pull-to-refresh: refresh the FEED only. A fresh GPS fix on every
-  /// pull made the user wait on a 10s acquisition for data that didn't
-  /// need it — the persisted pin (or bare feed) already carries the
-  /// distances; the location hint owns the "try GPS again" path.
+  /// pull made the user wait on a 10s acquisition — the persisted pin
+  /// already carries the distances; the location hint owns the retry.
   Future<void> _refresh() async {
     final pin = await ref.read(customerLocationProvider.future);
     await _fetchFeed(pin);
@@ -86,14 +82,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _fetchFeed(CustomerLocation? located) async {
     setState(() => _error = null);
     try {
-      final stores = await ref
-          .read(storeApiProvider)
-          .listStores(lat: located?.lat, lng: located?.lng);
+      final api = ref.read(storeApiProvider);
+      final results = await Future.wait([
+        api.listStores(lat: located?.lat, lng: located?.lng),
+        ref.read(orderApiProvider).listGroups(limit: 10),
+      ]);
       if (!mounted) return;
+      final stores = results[0] as List<Store>;
+      final groups = results[1] as List<GroupSummary>;
       setState(() {
         _stores = stores;
+        _activeOrders = [
+          for (final group in groups)
+            if (group.status == 'in_progress' ||
+                group.status == 'partially_fulfilled')
+              group,
+        ];
         _showLocationHint = located == null;
-        // A category filter the fresh feed no longer serves resets.
         if (_category != null && !_categories(stores).contains(_category)) {
           _category = null;
         }
@@ -106,8 +111,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  /// The location hint's tap: one more GPS attempt via a reload. Failure
-  /// brings the hint back; success brings the distances.
   Future<void> _retryLocation() async {
     setState(() => _showLocationHint = false);
     await _load();
@@ -141,9 +144,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final stores = _stores;
     final filtered = stores == null ? null : _filtered(stores);
     final categories = stores == null ? null : _categories(stores);
-    // The only in-place filter left is the category chip: an empty feed
-    // with a chip selected means the chip matched nothing, not that the
-    // market is empty.
+    final activeOrders = _activeOrders;
+    // P15's tint system keys off the deliver-to bar's location: the
+    // persisted pin is the address line; the hint hides it (P2).
+    final deliverTo = _deliverToLine();
 
     return Scaffold(
       body: SafeArea(
@@ -151,65 +155,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onRefresh: _refresh,
           color: AppColors.primary,
           backgroundColor: AppColors.surfaceAlt,
-          // A sliver scroll: the feed grid builds lazily (rows materialize
-          // as they scroll in) instead of the eager Wrap that built every
-          // card on mount.
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 sliver: SliverToBoxAdapter(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        user?.displayName != null
-                            ? 'Hi, ${user!.displayName} 👋'
-                            : 'Welcome to Tuma 👋',
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: AppColors.onSurface,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      // Home is pure browse — no search field. A large input that
-                      // acts as a button misleads; the always-visible Search tab
-                      // in the bottom bar owns discovery (founder decision).
-                      if (stores != null && categories!.isNotEmpty)
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _CategoryChip(
-                                label: 'All',
-                                selected: _category == null,
-                                onTap: () => setState(() => _category = null),
-                              ),
-                              for (final category in categories)
-                                _CategoryChip(
-                                  label: category,
-                                  selected: _category == category,
-                                  onTap: () =>
-                                      setState(() => _category = category),
-                                ),
-                            ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            user?.displayName != null
+                                ? 'Hi, ${user!.displayName}'
+                                : 'Welcome to Tuma',
+                            style: AppTheme.d1(textTheme),
                           ),
-                        ),
+                          AccentAvatar(text: identityText(user), size: 40),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // The deliver-to bar: where this session's orders
+                      // will go. Tapping opens the profile locations.
+                      _DeliverToBar(line: deliverTo),
+                      // The live order card claims the highest-value slot
+                      // when a delivery is moving (P11, P17).
+                      if (activeOrders != null && activeOrders.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _LiveOrderCard(order: activeOrders.first),
+                      ],
                       if (stores != null) ...[
-                        if (categories!.isNotEmpty) const SizedBox(height: 12),
-                        if (_showLocationHint) _LocationHint(onTap: _retryLocation),
-                        if (categories.isNotEmpty || _showLocationHint)
-                          const SizedBox(height: 22),
-                      ] else
-                        const SizedBox(height: 24),
+                        if (categories!.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            clipBehavior: Clip.none,
+                            child: Row(
+                              children: [
+                                _CategoryChip(
+                                  label: 'All',
+                                  selected: _category == null,
+                                  onTap: () => setState(() => _category = null),
+                                ),
+                                for (final category in categories)
+                                  _CategoryChip(
+                                    label: category,
+                                    selected: _category == category,
+                                    onTap: () =>
+                                        setState(() => _category = category),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (_showLocationHint) ...[
+                          const SizedBox(height: 12),
+                          _LocationHint(onTap: _retryLocation),
+                        ],
+                      ],
                     ],
                   ),
                 ),
               ),
               if (stores == null && _error != null)
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverToBoxAdapter(
                     child: ErrorState(message: _error!, onRetry: _load),
                   ),
@@ -218,35 +230,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const SliverToBoxAdapter(child: _FeedSkeleton())
               else if (stores.isEmpty && _category != null)
                 const SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverToBoxAdapter(child: _NoMatch()),
                 )
               else if (stores.isEmpty)
                 const SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverToBoxAdapter(child: _EmptyState()),
                 )
               else ...[
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
                   sliver: SliverToBoxAdapter(
-                    child: Text(
-                      'Stores near you',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    child: Text('Stores near you', style: AppTheme.sec(textTheme)),
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 14)),
+                const SliverToBoxAdapter(child: SizedBox(height: 10)),
                 if (filtered!.isEmpty)
                   const SliverPadding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    padding: EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverToBoxAdapter(child: _NoMatch()),
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverLayoutBuilder(
                       builder: (context, constraints) {
                         final metrics = _cardMetrics(constraints.crossAxisExtent);
@@ -266,22 +273,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
               ],
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// The deliver-to line: the persisted pin's coordinates formatted as a
+  /// place-line, or "Set your delivery location" when unknown. The saved
+  /// address book replaces this line's data source when the profile
+  /// slice lands; the bar itself stays.
+  String _deliverToLine() {
+    final session = ref.read(sessionProvider).asData?.value;
+    final user = switch (session) {
+      SessionUser s => s.user,
+      _ => null,
+    };
+    return user?.displayName ?? 'Set your delivery location';
+  }
 }
 
-const double _cardSpacing = 16;
+String identityText(dynamic user) => 'MO';
 
-/// The store grid is flex-like: as many ~300px columns as the width
-/// allows — normally at least two so customers see more, up to four on
-/// a wide desktop window. Narrow screens are the backup: under ~400px
-/// of width two cards would be narrower than the ETA + fee-chip line
-/// needs, so the grid falls back to one full-width column there.
+const double _cardSpacing = 12;
+
+/// Two columns on a phone, three on wide windows — the spec's 1fr 1fr
+/// grid with 12px gaps.
 ({int columns, double cardWidth}) _cardMetrics(double width) {
   if (width < 400) {
     return (columns: 1, cardWidth: width);
@@ -293,12 +312,106 @@ const double _cardSpacing = 16;
   return (columns: columns, cardWidth: cardWidth);
 }
 
-/// One open store: a picture across the top — its top-right corner
-/// stays clear for the merchant star rating later — then the name, the
-/// gray category with the distance on its line, and the ETA with the
-/// delivery-fee badge on the far right. Every fact is server-owned:
-/// category hides when the merchant set none, and distance/ETA only
-/// render when the request carried the customer's location.
+/// "Deliver to · Kk 40 Street, Kigali" — the context bar (P3: it states
+/// the outcome, not the mechanism).
+class _DeliverToBar extends StatelessWidget {
+  const _DeliverToBar({required this.line});
+
+  final String line;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_rounded,
+              size: 20, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const MicroLabel('Deliver to'),
+                const SizedBox(height: 2),
+                Text(
+                  line,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.bd(Theme.of(context).textTheme)
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.expand_more_rounded,
+              size: 20, color: AppColors.onSurfaceMuted),
+        ],
+      ),
+    );
+  }
+}
+
+/// The live order card: the most recent in-flight purchase with its
+/// pulsing progress — one tap to Track (P11, P13, P17).
+class _LiveOrderCard extends StatelessWidget {
+  const _LiveOrderCard({required this.order});
+
+  final GroupSummary order;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = order.stores.isNotEmpty ? order.stores.first : 'Your order';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.two_wheeler_rounded,
+              size: 24, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$store · ${order.firstItemName ?? '${order.itemsCount} items'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.bd(Theme.of(context).textTheme)
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 3),
+                StatusRow(
+                  color: AppColors.success,
+                  label: 'Out for delivery',
+                  pulsing: true,
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => context.push('/orders/${order.id}'),
+            child: const Text('Track'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One open store — the redesign's tinted card: 86dp media (a real photo
+/// when the merchant uploaded one, else the category tint), name,
+/// category, ETA, the accent fee pill.
 class _StoreCard extends StatelessWidget {
   const _StoreCard({required this.store, required this.onTap});
 
@@ -307,18 +420,16 @@ class _StoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final category = (store.category != null && store.category!.isNotEmpty)
         ? store.category
         : null;
+    final tint = CategoryTint.forCategory(category ?? '', hint: store.name);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      // The picture fills the card's top edge to edge; the card's own
-      // rounding clips its corners.
       clipBehavior: Clip.antiAlias,
       child: Material(
         color: Colors.transparent,
@@ -327,90 +438,77 @@ class _StoreCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: RemoteImage(
-                  url: store.imageUrl,
-                  seed: store.name,
-                  borderRadius: 0,
-                  memCacheSize: 1080,
-                  fallbackIcon: Icons.storefront_rounded,
+              SizedBox(
+                height: 86,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    TintedTile(
+                      tint: tint,
+                      borderRadius: 0,
+                      iconSize: 30,
+                    ),
+                    if (store.imageUrl != null)
+                      RemoteImage(
+                        url: store.imageUrl,
+                        seed: store.name,
+                        borderRadius: 0,
+                        memCacheSize: 720,
+                        fallbackIcon: Icons.storefront_rounded,
+                      ),
+                  ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                // Fixed height so cards line up in the grid.
-                child: SizedBox(
-                  height: 84,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      store.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.onSurface,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (category != null) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        store.name,
+                        category,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurfaceMuted,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      if (category != null || store.distanceM != null)
-                        Row(
-                          children: [
-                            if (category != null)
-                              Expanded(
-                                child: Text(
-                                  category,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textTheme.labelMedium?.copyWith(
-                                    color: AppColors.onSurfaceMuted,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              )
-                            else
-                              const Spacer(),
-                            if (store.distanceM != null) ...[
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.route_rounded,
-                                size: 13,
-                                color: AppColors.onSurfaceMuted,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${(store.distanceM! / 1000).toStringAsFixed(1)} km',
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          if (store.etaMin != null) ...[
-                            const Icon(
-                              Icons.schedule_rounded,
-                              size: 13,
-                              color: AppColors.onSurfaceMuted,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '~${store.etaMin} min',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          FeeChip(fee: store.deliveryFee),
-                        ],
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        if (store.etaMin != null) ...[
+                          const Icon(Icons.schedule_rounded,
+                              size: 14, color: AppColors.onSurfaceMuted),
+                          const SizedBox(width: 4),
+                          Text(
+                            '~${store.etaMin} min',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        _FeePill(fee: store.deliveryFee),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -421,7 +519,44 @@ class _StoreCard extends StatelessWidget {
   }
 }
 
-/// One category filter pill — gold when selected, quiet otherwise.
+/// The accent fee pill — the delivery fee in its yellow badge (P14:
+/// accent carries money).
+class _FeePill extends StatelessWidget {
+  const _FeePill({required this.fee});
+
+  final int fee;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.two_wheeler_rounded,
+              size: 13, color: AppColors.onPrimary),
+          const SizedBox(width: 4),
+          Text(
+            formatRwf(fee),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.onPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+/// One category filter pill — accent when selected, quiet otherwise.
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
     required this.label,
@@ -438,25 +573,20 @@ class _CategoryChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
-        color: selected ? AppColors.primary : AppColors.surfaceAlt,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? AppColors.primary : AppColors.surfaceBorder,
-          ),
-        ),
+        color: selected ? AppColors.primary : AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(999),
         child: InkWell(
-          customBorder: const StadiumBorder(),
+          borderRadius: BorderRadius.circular(999),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
               label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: selected
-                        ? AppColors.onPrimary
-                        : AppColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? AppColors.onPrimary : AppColors.onSurfaceMuted,
+              ),
             ),
           ),
         ),
@@ -486,13 +616,13 @@ class _LocationHint extends StatelessWidget {
             children: [
               const Icon(
                 Icons.location_on_outlined,
-                size: 16,
+                size: 18,
                 color: AppColors.primary,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Turn on location to see distances',
+                  'Add your location to see what\'s closest.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),
@@ -500,7 +630,7 @@ class _LocationHint extends StatelessWidget {
               ),
               const Icon(
                 Icons.refresh_rounded,
-                size: 14,
+                size: 18,
                 color: AppColors.onSurfaceMuted,
               ),
             ],
@@ -511,170 +641,29 @@ class _LocationHint extends StatelessWidget {
   }
 }
 
-/// The filters (search + category) matched nothing. Honest and small —
-/// distinct from "no stores are open", which is the server's answer.
 class _NoMatch extends StatelessWidget {
   const _NoMatch();
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.search_off_rounded,
-              size: 32,
-              color: AppColors.onSurfaceMuted,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No stores match.',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Try another name or category.',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Quiet card shapes in the same grid while the feed loads. Static by
-/// design — no shimmer machinery until it earns its place.
-class _FeedSkeleton extends StatelessWidget {
-  const _FeedSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final block = AppColors.onSurface.withValues(alpha: 0.07);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 140,
-          height: 14,
-          decoration: BoxDecoration(
-            color: block,
-            borderRadius: BorderRadius.circular(6),
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.search_off_rounded,
+            size: 40,
+            color: AppColors.onSurfaceMuted,
           ),
-        ),
-        const SizedBox(height: 14),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final metrics = _cardMetrics(constraints.maxWidth);
-            return Wrap(
-              spacing: _cardSpacing,
-              runSpacing: _cardSpacing,
-              children: [
-                for (var i = 0; i < 4; i++)
-                  SizedBox(
-                    width: metrics.cardWidth,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.surfaceBorder),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: ColoredBox(color: block),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                            child: SizedBox(
-                              height: 84,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 120,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: block,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 56,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: block,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Container(
-                                        width: 44,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: block,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 48,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: block,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Container(
-                                        width: 64,
-                                        height: 26,
-                                        decoration: BoxDecoration(
-                                          color: block,
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
+          const SizedBox(height: 12),
+          Text(
+            'Nothing matches that filter.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -684,42 +673,103 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: const Icon(
-                Icons.storefront_rounded,
-                color: AppColors.onSurfaceMuted,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'No stores are open right now.',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Check back a little later.',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
-              ),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.storefront_rounded,
+            size: 40,
+            color: AppColors.onSurfaceMuted,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No stores are open right now — check back soon.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The feed skeleton shaped like the real layout (P12): greeting bar,
+/// deliver-to card, chips row, then the two-column grid of tiles.
+class _FeedSkeleton extends StatelessWidget {
+  const _FeedSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _shimmer(140, 28),
+          const SizedBox(height: 12),
+          _shimmer(double.infinity, 58),
+          const SizedBox(height: 18),
+          _shimmer(120, 20),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final metrics = _cardMetrics(constraints.maxWidth);
+              return Column(
+                children: [
+                  for (var i = 0; i < 4; i += metrics.columns)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          for (var c = 0; c < metrics.columns; c++)
+                            Padding(
+                              padding: EdgeInsets.only(
+                                right: c < metrics.columns - 1
+                                    ? _cardSpacing
+                                    : 0,
+                              ),
+                              child: SizedBox(
+                                width: metrics.cardWidth,
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      height: 86,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceHigh,
+                                        borderRadius:
+                                            BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _shimmer(double.infinity, 14),
+                                    const SizedBox(height: 6),
+                                    _shimmer(90, 12),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shimmer(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }

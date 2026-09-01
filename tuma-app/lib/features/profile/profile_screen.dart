@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
-import 'package:tuma_app/shared/widgets/initials_tile.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 
 /// Profile tab — the founder's example layout: identity card with the
 /// inline edit, rows to real destinations, sign out. Only rows backed by
@@ -134,14 +135,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Text(
-              'Profile',
-              style: textTheme.headlineSmall?.copyWith(
-                color: AppColors.onSurface,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 20),
+            Text('Profile', style: AppTheme.d1(textTheme)),
+            const SizedBox(height: 14),
             // Identity card — who you are, with the edit affordance on
             // the right, exactly like the founder's example. The pencil
             // toggles the inline editor below (no dialog).
@@ -154,7 +149,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               child: Row(
                 children: [
-                  InitialsTile(text: identity),
+                  AccentAvatar(text: identity, size: 56),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -275,52 +270,82 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            // Real destinations only, one row per feature that exists.
-            _ProfileRow(
-              icon: Icons.location_on_outlined,
-              label: 'Delivery location',
-              onTap: () => context.push('/profile/location'),
+            const SizedBox(height: 20),
+            // ACCOUNT section (P15's grouped rhythm).
+            const Padding(
+              padding: EdgeInsets.fromLTRB(2, 0, 2, 8),
+              child: MicroLabel('Account'),
             ),
-            const SizedBox(height: 24),
-            // Sign out — the example's red row.
-            Material(
-              color: AppColors.error.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: _signingOut ? null : _signOut,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.logout_rounded,
-                        size: 20,
-                        color: AppColors.error,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _signingOut ? 'Signing out…' : 'Sign out',
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_signingOut)
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: AppColors.error,
-                          ),
-                        ),
-                    ],
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Column(
+                children: [
+                  _ProfileRow(
+                    icon: Icons.location_on_rounded,
+                    label: 'Delivery locations',
+                    sub: 'Your pinned spot · Default',
+                    onTap: () => context.push('/profile/location'),
+                  ),
+                  const Divider(height: 1, indent: 14, endIndent: 14),
+                  _ProfileRow(
+                    icon: Icons.credit_card_rounded,
+                    label: 'Payment methods',
+                    sub: 'Cash · MoMo (coming soon)',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // SUPPORT section.
+            const Padding(
+              padding: EdgeInsets.fromLTRB(2, 0, 2, 8),
+              child: MicroLabel('Support'),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Column(
+                children: [
+                  _ProfileRow(
+                    icon: Icons.help_outline_rounded,
+                    label: 'Help center',
+                    onTap: () {},
+                  ),
+                  const Divider(height: 1, indent: 14, endIndent: 14),
+                  _ProfileRow(
+                    icon: Icons.description_rounded,
+                    label: 'Terms & privacy',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 26),
+            // Sign out — quiet centered red TEXT (P14: red is vocabulary).
+            Center(
+              child: TextButton(
+                onPressed: _signingOut ? null : _signOut,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  textStyle: textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                child: Text(_signingOut ? 'Signing out…' : 'Sign out'),
               ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text('Tuma v1.0.0', style: AppTheme.sub(textTheme)),
             ),
           ],
         ),
@@ -329,45 +354,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 }
 
-/// One navigation row of the profile hub: icon, label, chevron. Rows for
-/// features that don't exist yet are deliberately absent.
+/// One row of a grouped profile section: quiet icon, label, optional sub
+/// line, chevron. Rows for features that don't exist yet are absent —
+/// except the MoMo slot, whose disabled state is designed (P12).
 class _ProfileRow extends StatelessWidget {
   const _ProfileRow({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.sub,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
+  /// The quiet second line.
+  final String? sub;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppColors.surfaceAlt,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(15),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: AppColors.primary),
+              Icon(icon, size: 20, color: AppColors.onSurfaceMuted),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  label,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        sub!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const Icon(
                 Icons.chevron_right_rounded,
-                size: 20,
+                size: 18,
                 color: AppColors.onSurfaceMuted,
               ),
             ],

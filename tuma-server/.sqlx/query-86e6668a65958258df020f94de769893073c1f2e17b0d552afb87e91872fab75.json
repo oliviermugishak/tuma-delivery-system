@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"deliveries!: i64\",\n               COALESCE(SUM(so.total), 0) AS \"collected!: i64\"\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        WHERE d.rider_id = $1\n          AND so.status = 'delivered'\n          AND so.updated_at >= date_trunc('day', now())\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deliveries!: i64",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "collected!: i64",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "86e6668a65958258df020f94de769893073c1f2e17b0d552afb87e91872fab75"
+}

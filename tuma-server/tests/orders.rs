@@ -132,7 +132,10 @@ async fn group_count(client: &TestClient, token: &str) -> usize {
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), 200);
+    if response.status() != 200 {
+        let body = response.text().await.unwrap_or_default();
+        panic!("group_count got non-200: {body}");
+    }
     response
         .json::<Value>()
         .await

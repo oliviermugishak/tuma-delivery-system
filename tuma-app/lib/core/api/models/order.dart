@@ -89,6 +89,7 @@ class OrderGroup {
     required this.paymentStatus,
     required this.createdAt,
     required this.storeOrders,
+    this.customerNote,
     this.addressLat,
     this.addressLng,
   });
@@ -105,6 +106,7 @@ class OrderGroup {
   final String status;
   /// One of: pending, collected, refunded.
   final String paymentStatus;
+  final String? customerNote;
   final String createdAt; // RFC-3339
   final List<StoreOrder> storeOrders;
 
@@ -124,6 +126,7 @@ class OrderGroup {
         grandTotal: json['grand_total'] as int,
         status: json['status'] as String,
         paymentStatus: json['payment_status'] as String,
+        customerNote: json['customer_note'] as String?,
         createdAt: json['created_at'] as String,
         storeOrders: (json['store_orders'] as List)
             .whereType<Map<String, dynamic>>()
@@ -142,6 +145,9 @@ class GroupSummary {
     required this.status,
     required this.stores,
     required this.createdAt,
+    this.itemsCount = 0,
+    this.firstItemName,
+    this.etaTarget,
   });
 
   final String id;
@@ -150,6 +156,14 @@ class GroupSummary {
   final String status;
   /// Which stores are fulfilling this purchase.
   final List<String> stores;
+  /// Total frozen items across the group — the active cards' "4 items"
+  /// line and the history rows' distinguishing fact.
+  final int itemsCount;
+  /// The first item's snapshot name — the active card's sub-line.
+  final String? firstItemName;
+  /// The soonest ETA among out-for-delivery deliveries (null unless
+  /// something is picked_up).
+  final DateTime? etaTarget;
   final String createdAt; // RFC-3339
 
   factory GroupSummary.fromJson(Map<String, dynamic> json) => GroupSummary(
@@ -158,6 +172,11 @@ class GroupSummary {
         grandTotal: json['grand_total'] as int,
         status: json['status'] as String,
         stores: (json['stores'] as List).whereType<String>().toList(),
+        itemsCount: (json['items_count'] as num?)?.toInt() ?? 0,
+        firstItemName: json['first_item_name'] as String?,
+        etaTarget: json['eta_target'] is String
+            ? DateTime.parse(json['eta_target'] as String)
+            : null,
         createdAt: json['created_at'] as String,
       );
 }
@@ -170,12 +189,15 @@ class CheckoutRequest {
     required this.items,
     this.addressLat,
     this.addressLng,
+    this.customerNote,
     this.idempotencyKey,
   });
 
   final String addressText;
   final double? addressLat;
   final double? addressLng;
+  /// The checkout's "Note for rider · optional".
+  final String? customerNote;
   final String? idempotencyKey;
   final List<CheckoutLine> items;
 
@@ -183,6 +205,7 @@ class CheckoutRequest {
         'address_text': addressText,
         if (addressLat != null) 'address_lat': addressLat,
         if (addressLng != null) 'address_lng': addressLng,
+        if (customerNote != null) 'customer_note': customerNote,
         if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
         'items': items.map((e) => e.toJson()).toList(),
       };

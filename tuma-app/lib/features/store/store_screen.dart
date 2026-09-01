@@ -10,10 +10,11 @@ import 'package:tuma_app/core/api/models/product.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
-import 'package:tuma_app/shared/widgets/fee_chip.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
 /// A store and its menu, the way customers see it: a fixed full-bleed
@@ -114,7 +115,6 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     final store = detail.store;
     final products = detail.products;
     final address = store.addressText;
-    final description = store.description;
     final topInset = MediaQuery.paddingOf(context).top;
     // How much of the photo stays visible above the sheet on entry — the
     // framed first impression the founder asked for.
@@ -147,6 +147,9 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
             ),
           ),
         ),
+        // Layer 1.5 — the floating cart bar: the screen's one primary
+        // action, always in view, carrying the live total (P5, P8, P7).
+        const _FloatingCartBar(),
         // Layer 2 — the ONLY scrollable: a transparent gap down to the
         // peek point, then the rounded sheet with everything in it.
         ListView(
@@ -154,60 +157,62 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
           children: [
             SizedBox(height: bannerHeight - imagePeek),
             Container(
-              decoration: BoxDecoration(
+              // The spec's sheet-card: bg-colored, 26px overlap over the
+              // hero, hairline top edge — depth through surface (P6).
+              margin: const EdgeInsets.only(top: 8),
+              decoration: const BoxDecoration(
                 color: AppColors.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.surface.withValues(alpha: 0.6),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                border: Border(
+                  top: BorderSide(color: AppColors.surfaceBorder),
+                ),
               ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 96),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      store.name,
-                      style: textTheme.headlineSmall?.copyWith(
-                        color: AppColors.onSurface,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (description != null && description.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        description,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.onSurfaceMuted,
-                          height: 1.5,
-                        ),
-                      ),
+                    Text(store.name, style: AppTheme.d2(textTheme)),
+                    if (address != null && address.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(address, style: AppTheme.sub(textTheme)),
                     ],
-                    const SizedBox(height: 14),
-                    // Badges sit together on one row. The star badge joins when
-                    // ratings exist — no fake stars before then.
+                    const SizedBox(height: 12),
+                    // The two facts that matter before the menu: the fee
+                    // in its accent pill, the ETA in its quiet well.
                     Row(
                       children: [
-                        FeeChip(fee: store.deliveryFee),
-                        if (address != null && address.isNotEmpty) ...[
+                        _FeePill(label: 'Delivery · ${formatRwf(store.deliveryFee)}'),
+                        if (store.etaMin != null) ...[
                           const SizedBox(width: 8),
-                          Flexible(child: _LocationBadge(address: address)),
+                          Container(
+                            height: 30,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceHigh,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.schedule_rounded,
+                                    size: 14,
+                                    color: AppColors.onSurfaceMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '~${store.etaMin} min',
+                                  style: AppTheme.sub(textTheme),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ],
                     ),
-                    const SizedBox(height: 28),
-                    Text(
-                      'Menu',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    Text('Menu', style: AppTheme.sec(textTheme)),
+                    const SizedBox(height: 10),
                     if (products.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -219,21 +224,34 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                         ),
                       )
                     else
-                      for (var i = 0; i < products.length; i++) ...[
-                  _ProductRow(
-                    product: products[i],
-                    onTap: () => _showProduct(context, store, products[i]),
-                          onAdd: () => unawaited(
-                            _addToCart(context, store, products[i]),
-                          ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.surfaceBorder),
                         ),
-                        if (i < products.length - 1)
-                          Container(
-                            height: 1,
-                            margin: const EdgeInsets.symmetric(horizontal: 12),
-                            color: AppColors.surfaceBorder,
-                          ),
-                      ],
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < products.length; i++) ...[
+                              _ProductRow(
+                                product: products[i],
+                                onTap: () =>
+                                    _showProduct(context, store, products[i]),
+                                onAdd: () => unawaited(
+                                  _addToCart(context, store, products[i]),
+                                ),
+                              ),
+                              if (i < products.length - 1)
+                                Container(
+                                  height: 1,
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  color: AppColors.surfaceBorder,
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -265,8 +283,9 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
   Future<void> _addToCart(
     BuildContext context,
     Store store,
-    MenuItem item,
-  ) async {
+    MenuItem item, {
+    int quantity = 1,
+  }) async {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     await ref.read(cartProvider.notifier).add(
@@ -274,6 +293,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
           storeId: store.id,
           storeName: store.name,
           deliveryFee: store.deliveryFee,
+          quantity: quantity,
         );
     if (!mounted) return;
     final count = ref.read(cartProvider).maybeWhen(
@@ -313,126 +333,48 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     Store store,
     MenuItem product,
   ) {
-    final textTheme = Theme.of(context).textTheme;
-    final description = product.description;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceAlt,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      builder: (sheetContext) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(sheetContext).size.height * 0.85,
-        ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _SheetGallery(product: product),
-                const SizedBox(height: 20),
-                Text(
-                  product.name,
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  formatRwf(product.price),
-                  style: textTheme.titleMedium?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (description != null && description.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    description,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                FilledButton(
-                  // Close first, then add — the snackbar lands on the
-                  // store screen, confirming the fresh count.
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    unawaited(_addToCart(context, store, product));
-                  },
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  child: Text(
-                    'Add to cart · ${formatRwf(product.price)}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (sheetContext) => _ProductSheet(
+        store: store,
+        product: product,
+        onAdd: (quantity) {
+          Navigator.of(sheetContext).pop();
+          unawaited(_addToCart(context, store, product, quantity: quantity));
+        },
       ),
     );
   }
 }
 
-/// The store's address as a quiet pill beside the fee badge.
-class _LocationBadge extends StatelessWidget {
-  const _LocationBadge({required this.address});
+/// The accent fee pill (P14: accent carries money) — "2,000 delivery".
+class _FeePill extends StatelessWidget {
+  const _FeePill({required this.label});
 
-  final String address;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.onSurface.withValues(alpha: 0.06),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.place_rounded,
-            size: 14,
-            color: AppColors.onSurfaceMuted,
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              address,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onPrimary,
+        ),
       ),
     );
   }
@@ -464,14 +406,29 @@ class _ProductRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
-              RemoteImage(
-                url: product.displayImage,
-                seed: product.name,
-                width: 56,
-                height: 56,
-                borderRadius: 14,
+              Stack(
+                children: [
+                  TintedTile(
+                    tint: CategoryTint.forCategory(
+                      product.name,
+                      hint: product.description ?? '',
+                    ),
+                    size: 52,
+                    iconSize: 22,
+                  ),
+                  if (product.displayImage != null)
+                    RemoteImage(
+                      url: product.displayImage,
+                      seed: product.name,
+                      width: 52,
+                      height: 52,
+                      borderRadius: 12,
+                      memCacheSize: 120,
+                      fallbackIcon: Icons.lunch_dining_rounded,
+                    ),
+                ],
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,25 +437,22 @@ class _ProductRow extends StatelessWidget {
                       product.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: textTheme.titleSmall?.copyWith(fontSize: 15),
                     ),
                     if (description != null && description.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         description,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
-                        ),
+                        style: AppTheme.sub(textTheme),
                       ),
                     ],
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       formatRwf(product.price),
-                      style: textTheme.labelLarge?.copyWith(
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 14,
                         color: AppColors.primary,
                         fontWeight: FontWeight.w700,
                       ),
@@ -507,7 +461,7 @@ class _ProductRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _AddToCartButton(onTap: onAdd),
+              _AddButton(onTap: onAdd),
             ],
           ),
         ),
@@ -516,9 +470,10 @@ class _ProductRow extends StatelessWidget {
   }
 }
 
-/// Gold circle where the price used to sit — the row's invitation to add.
-class _AddToCartButton extends StatelessWidget {
-  const _AddToCartButton({required this.onTap});
+/// The spec's addbtn: a 36dp accent circle with a plain "+" — it means
+/// add, and it's a smaller, calmer target than a cart icon (P4).
+class _AddButton extends StatelessWidget {
+  const _AddButton({required this.onTap});
 
   final VoidCallback onTap;
 
@@ -533,11 +488,7 @@ class _AddToCartButton extends StatelessWidget {
         child: const SizedBox(
           width: 36,
           height: 36,
-          child: Icon(
-            Icons.add_shopping_cart_rounded,
-            size: 17,
-            color: AppColors.onPrimary,
-          ),
+          child: Icon(Icons.add_rounded, size: 19, color: AppColors.onPrimary),
         ),
       ),
     );
@@ -991,6 +942,293 @@ class _SheetGalleryState extends State<_SheetGallery> {
           ],
         ),
       ],
+    );
+  }
+}
+
+
+/// The floating cart bar — the screen's one primary action (P5): items
+/// + live total over a shadow strong enough to separate it from
+/// scrolling content (P6's single sanctioned shadow).
+class _FloatingCartBar extends ConsumerWidget {
+  const _FloatingCartBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartProvider);
+    final state = cart.maybeWhen(data: (v) => v, orElse: () => null);
+    final count = state?.itemCount ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    final total = state?.total ?? 0;
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 18,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 30,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: FilledButton.icon(
+          onPressed: () => context.push('/cart'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(50),
+          ),
+          icon: const Icon(Icons.shopping_bag_rounded, size: 20),
+          label: Text(
+            'View cart · $count item${count > 1 ? 's' : ''} · ${formatRwf(total)}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The product sheet — the redesign's screen 11: store caption + close X
+/// above the gallery, elongated dots, the name/price with a quantity
+/// stepper, and the CTA total going live with qty (P8).
+class _ProductSheet extends StatefulWidget {
+  const _ProductSheet({
+    required this.store,
+    required this.product,
+    required this.onAdd,
+  });
+
+  final Store store;
+  final MenuItem product;
+  final ValueChanged<int> onAdd;
+
+  @override
+  State<_ProductSheet> createState() => _ProductSheetState();
+}
+
+class _ProductSheetState extends State<_ProductSheet> {
+  int _quantity = 1;
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final product = widget.product;
+    final tint = CategoryTint.forCategory(
+      product.name,
+      hint: product.description ?? '',
+    );
+    final images = [
+      ?product.displayImage,
+      ...product.images,
+    ];
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Center(child: _SheetHandle()),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      widget.store.name,
+                      style: AppTheme.cap(textTheme),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _SheetCloseButton(onTap: () => Navigator.of(context).pop()),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  height: 172,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      TintedTile(tint: tint, borderRadius: 16, iconSize: 60),
+                      if (images.isNotEmpty)
+                        PageView.builder(
+                          itemCount: images.length,
+                          onPageChanged: (page) => setState(() => _page = page),
+                          itemBuilder: (context, index) => RemoteImage(
+                            url: images[index],
+                            seed: '${product.name}:$index',
+                            borderRadius: 0,
+                            memCacheSize: 1080,
+                            fallbackIcon: Icons.restaurant_rounded,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (images.length > 1) ...[
+                const SizedBox(height: 10),
+                DotIndicators(count: images.length, activeIndex: _page),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: AppTheme.d2(textTheme).copyWith(fontSize: 20),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          formatRwf(product.price),
+                          style: textTheme.titleSmall?.copyWith(
+                            fontSize: 15,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // The quantity stepper — the missing half of the
+                  // purchase decision.
+                  Row(
+                    children: [
+                      _QtyButton(
+                        icon: Icons.remove_rounded,
+                        onTap: _quantity > 1
+                            ? () => setState(() => _quantity -= 1)
+                            : null,
+                      ),
+                      SizedBox(
+                        width: 28,
+                        child: Text(
+                          '$_quantity',
+                          textAlign: TextAlign.center,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _QtyButton(
+                        icon: Icons.add_rounded,
+                        onTap: () => setState(() => _quantity += 1),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (product.description != null &&
+                  product.description!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  product.description!,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w400,
+                    height: 1.55,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => widget.onAdd(_quantity),
+                child: Text(
+                  'Add to cart · ${formatRwf(product.price * _quantity)}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 4,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _SheetCloseButton extends StatelessWidget {
+  const _SheetCloseButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceHigh,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.close_rounded,
+          size: 17,
+          color: AppColors.onSurfaceMuted,
+        ),
+      ),
+    );
+  }
+}
+
+class _QtyButton extends StatelessWidget {
+  const _QtyButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceHigh,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: AppColors.onSurface),
+      ),
     );
   }
 }

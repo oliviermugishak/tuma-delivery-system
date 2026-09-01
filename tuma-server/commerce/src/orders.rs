@@ -156,6 +156,7 @@ pub struct OrderGroup {
     pub delivery_total: i64,
     pub grand_total: i64,
     pub idempotency_key: Option<String>,
+    pub customer_note: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -263,6 +264,10 @@ pub struct NewCheckout {
     pub address_lng: Option<f64>,
     pub idempotency_key: Option<String>,
     pub items: Vec<NewCheckoutItem>,
+    /// The checkout's "Note for rider · optional" — stored on the group,
+    /// displayed on the rider's Delivering card ("blue gate, ring the
+    /// bell"). Trimmed by the caller; None renders as nothing (P2).
+    pub customer_note: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -540,11 +545,11 @@ pub async fn create_checkout(
         r#"
         INSERT INTO commerce.order_groups
             (user_id, address_text, address_lat, address_lng, subtotal,
-             delivery_total, grand_total, idempotency_key)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             delivery_total, grand_total, idempotency_key, customer_note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, user_id, number, address_text, address_lat, address_lng,
                   subtotal, delivery_total, grand_total, idempotency_key,
-                  created_at, updated_at
+                  customer_note, created_at, updated_at
         "#,
         user_id,
         checkout.address_text,
@@ -554,6 +559,7 @@ pub async fn create_checkout(
         delivery_total,
         grand_total,
         checkout.idempotency_key,
+        checkout.customer_note,
     )
     .fetch_one(&mut *tx)
     .await
@@ -706,7 +712,14 @@ pub async fn group_summaries_for_user(
     user_id: Uuid,
     limit: i64,
     offset: i64,
-) -> Result<Vec<(GroupSummaryRow, Vec<GroupStoreStatusRow>)>, sqlx::Error> {
+) -> Result<
+    Vec<(
+        GroupSummaryRow,
+        Vec<GroupStoreStatusRow>,
+        GroupSummaryExtras,
+    )>,
+    sqlx::Error,
+> {
     let groups = sqlx::query_as!(
         GroupSummaryRow,
         r#"
@@ -739,10 +752,13 @@ pub async fn group_summaries_for_user(
     )
     .fetch_all(&mut *conn)
     .await?;
-    let mut by_group: std::collections::HashMap<Uuid, Vec<GroupStoreStatusRow>> =
+    // The summary cards' distinguishing facts, in one batched query:
+    // total item count, the first item's name, and the soonest ETA among
+    // out-for-delivery deliveries.
+    let mut by_group_items: std::collections::HashMap<Uuid, Vec<GroupStoreStatusRow>> =
         std::collections::HashMap::new();
     for row in &statuses {
-        by_group
+        by_group_items
             .entry(row.order_group_id)
             .or_default()
             .push(GroupStoreStatusRow {
@@ -751,13 +767,66 @@ pub async fn group_summaries_for_user(
                 status: row.status,
             });
     }
+    let extras_rows = sqlx::query!(
+        r#"
+        SELECT so.order_group_id,
+               COALESCE(SUM(oi.count), 0)::int8 AS "items_count!: i64",
+               (ARRAY_AGG(oi.first_name ORDER BY oi.first_id))[1]
+                   AS first_item_name,
+               MIN(CASE WHEN so.status = 'picked_up' THEN d.eta_target END)
+                   AS "eta_target: Option<time::OffsetDateTime>"
+        FROM commerce.store_orders so
+        LEFT JOIN (
+            SELECT store_order_id,
+                   COUNT(*) AS count,
+                   MIN(product_name_snapshot) AS first_name,
+                   (ARRAY_AGG(id ORDER BY id))[1] AS first_id
+            FROM commerce.order_items
+            GROUP BY store_order_id
+        ) oi ON oi.store_order_id = so.id
+        LEFT JOIN commerce.deliveries d ON d.store_order_id = so.id
+        WHERE so.order_group_id = ANY($1)
+        GROUP BY so.order_group_id
+        "#,
+        &group_ids[..],
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut by_group_extras: std::collections::HashMap<Uuid, GroupSummaryExtras> =
+        std::collections::HashMap::new();
+    for row in extras_rows {
+        by_group_extras.insert(
+            row.order_group_id,
+            GroupSummaryExtras {
+                items_count: row.items_count,
+                first_item_name: row.first_item_name,
+                eta_target: row.eta_target.flatten(),
+            },
+        );
+    }
     Ok(groups
         .into_iter()
         .map(|group| {
-            let rows = by_group.remove(&group.id).unwrap_or_default();
-            (group, rows)
+            let rows = by_group_items.remove(&group.id).unwrap_or_default();
+            let extras = by_group_extras
+                .remove(&group.id)
+                .unwrap_or(GroupSummaryExtras {
+                    items_count: 0,
+                    first_item_name: None,
+                    eta_target: None,
+                });
+            (group, rows, extras)
         })
         .collect())
+}
+
+/// The summary card's per-group facts beyond statuses (the redesign's
+/// active-card and history-row lines).
+#[derive(Debug, Clone)]
+pub struct GroupSummaryExtras {
+    pub items_count: i64,
+    pub first_item_name: Option<String>,
+    pub eta_target: Option<OffsetDateTime>,
 }
 
 /// One of the customer's groups, fully loaded: store orders with their
@@ -779,7 +848,7 @@ pub async fn group_detail_for_user(
         r#"
         SELECT id, user_id, number, address_text, address_lat, address_lng,
                subtotal, delivery_total, grand_total, idempotency_key,
-               created_at, updated_at
+               customer_note, created_at, updated_at
         FROM commerce.order_groups
         WHERE id = $1 AND user_id = $2
         "#,
@@ -1213,7 +1282,7 @@ pub async fn group_by_idempotency_key(
         r#"
         SELECT id, user_id, number, address_text, address_lat, address_lng,
                subtotal, delivery_total, grand_total, idempotency_key,
-               created_at, updated_at
+               customer_note, created_at, updated_at
         FROM commerce.order_groups
         WHERE user_id = $1 AND idempotency_key = $2
         "#,

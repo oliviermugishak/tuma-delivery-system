@@ -15,7 +15,7 @@ use crate::routes::catalog::{
     list_store_products, update_product, update_store_product,
 };
 use crate::routes::deliveries::{
-    list_rider_deliveries, mark_delivered, order_tracking, push_location,
+    list_rider_deliveries, mark_delivered, order_tracking, push_location, rider_today,
 };
 use crate::routes::health_check;
 use crate::routes::me::{me, update_me};
@@ -363,6 +363,12 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/", get(search))
         .layer(middleware::from_fn(require_customer));
 
+    // Saved delivery addresses — checkout is saved-address-first, and the
+    // profile's "Delivery locations" manages the list.
+    let addresses = Router::new()
+        .nest("/addresses", crate::routes::addresses::router())
+        .layer(middleware::from_fn(require_customer));
+
     // Business routes live under /api/v1, namespaced by audience
     // (/auth, /me, /admin, /merchant, /stores). The OpenAPI contract is
     // served alongside them. See tuma-docs/Tuma_API_Architecture.md.
@@ -376,6 +382,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .nest("/merchant", merchant)
         .nest("/stores", stores)
         .nest("/search", discovery)
+        .nest("/addresses", addresses)
         .nest(
             "/orders",
             Router::new()
@@ -397,6 +404,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
             "/deliveries",
             Router::new()
                 .route("/", get(list_rider_deliveries))
+                .route("/today", get(rider_today))
                 .route("/{id}/location", post(push_location))
                 .route("/{id}/delivered", post(mark_delivered))
                 .layer(middleware::from_fn(require_rider)),

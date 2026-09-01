@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce.addresses\n        SET label = $3, address_text = $4, lat = $5, lng = $6, is_default = $7\n        WHERE id = $1 AND user_id = $2\n        RETURNING id, user_id, label, address_text, lat, lng, is_default,\n                  created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "address_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "address_text"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "lat",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "lng",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "lng"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "is_default",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "commerce.addresses",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Float8",
+        "Float8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aab9108c84508bca6e21cab0f59eb697f3904ecec44729c1bb7fef784b461e01"
+}

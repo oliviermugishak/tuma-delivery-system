@@ -1,183 +1,58 @@
-Welcome to your new TanStack Start app!
+# Tuma Platform — admin + merchant web dashboard
 
-# Getting Started
-
-To run this application:
+React 19 · TypeScript · Vite · Tailwind v4 · TanStack Router + Query ·
+Orval-generated API client. Dark-only, built to the Phase-2 design
+constitution (repo root: `DESIGN PRINCIPLES.md`, visual ground truth:
+`../redesigns/dashboard_redesign.html`).
 
 ```bash
 pnpm install
-pnpm dev
-```
-
-# Building For Production
-
-To build this application for production:
-
-```bash
+pnpm dev            # :3000, /api proxied to the local Rust server :8080
+pnpm exec tsc --noEmit
 pnpm build
 ```
 
-## Styling
+After any server API change: `./run.sh openapi` (repo root) then
+`pnpm generate:api`, and review the generated diff as part of the slice.
+`src/api/generated/` is never hand-edited.
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+## Layout
 
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
+```
+src/
+  api/            generated client (do not edit) + client.ts wrapper (auth,
+                  error envelope, 401 convergence) + queries barrel
+  components/
+    ds/           the design-system vocabulary — every screen composes
+                  from here; page-specific inventions are banned (P15)
+    ui/           shadcn/base-ui primitives the ds layer sits on
+    settings-screen.tsx   shared Settings (both wings, P16)
+  features/
+    admin/        Overview · Orders · Merchants(+detail, forms) · Riders ·
+                  Customers · Disputes(+resolve) · Fees · Audit
+    merchant/     Overview · Orders(board+history) · Menu(+product form) ·
+                  Stores(+form, pin picker) · Store detail · Earnings · Reviews
+    demo/seed.ts  demo rows for screens awaiting backend endpoints
+    auth/         login
+  lib/            format.ts (money/dates) · status.ts (dot+text vocabulary)
+                  · session.ts · csv.ts
+  routes/         file-based routes, two wings behind requireWing guards
 ```
 
-Then anywhere in your JSX you can use it like so:
+## The law (short form)
 
-```tsx
-<Link to="/about">About</Link>
-```
+One fact, one place · never render unknown data (no `—`, no `N/A`, no raw
+IDs) · pages over modals (the only centered dialogs are P10 guard confirms)
+· one accent button per view, carrying the amount when money moves · status
+is dot + text · every table/chart has skeleton, empty, error, and content
+states · no purple, no shadows, no gradients beyond skeleton shimmer and
+≤10% chart fills · tokens live only in `src/styles.css`.
 
-This will create a link that will navigate to the `/about` route.
+## Honesty notes
 
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+- Screens whose endpoints don't exist yet are marked `BACKEND GAP (Gn)` in
+  code and catalogued with the needed contract in `BACKEND-GAPS.md`. They
+  render demo rows from `src/features/demo/seed.ts` and their mutations
+  stay client-side — nothing pretends to be server truth.
+- The server owns truth: prices, statuses, totals are formatted, never
+  recomputed; money is integer RWF.

@@ -78,6 +78,8 @@ pub struct OrderGroupResponse {
     pub status: GroupStatus,
     #[schema(value_type = String)]
     pub payment_status: commerce::PaymentStatus,
+    /// The checkout's rider note — the rider's Delivering card renders it.
+    pub customer_note: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub store_orders: Vec<StoreOrderResponse>,
@@ -92,6 +94,15 @@ pub struct GroupSummaryResponse {
     pub status: GroupStatus,
     /// Which stores are fulfilling this purchase.
     pub stores: Vec<String>,
+    /// Total frozen items across the group's store orders — the active
+    /// cards' "4 items" line and the history rows' distinguishing fact.
+    pub items_count: i64,
+    /// The first item's snapshot name — the active card's sub-line.
+    pub first_item_name: Option<String>,
+    /// The soonest ETA among the group's out-for-delivery deliveries
+    /// (null unless something is picked_up).
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub eta_target: Option<time::OffsetDateTime>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
@@ -161,6 +172,11 @@ pub struct CheckoutInput {
     /// returns the group it already created instead of placing twice.
     #[validate(length(max = 100, message = "idempotency_key must be at most 100 characters"))]
     pub idempotency_key: Option<String>,
+    /// The checkout's "Note for rider · optional" — one line the rider
+    /// sees on the Delivering card. Trimmed server-side; empty becomes
+    /// None (P2: nothing renders for an unknown).
+    #[validate(length(max = 140, message = "note must be at most 140 characters"))]
+    pub customer_note: Option<String>,
     /// At least one line. Each carries the store_product id and quantity.
     #[validate(length(min = 1, message = "cart must have at least one item"))]
     pub items: Vec<CheckoutLineInput>,
@@ -207,6 +223,12 @@ pub async fn checkout(
             address_lat: input.address_lat,
             address_lng: input.address_lng,
             idempotency_key: input.idempotency_key.clone(),
+            customer_note: input
+                .customer_note
+                .as_deref()
+                .map(str::trim)
+                .filter(|note| !note.is_empty())
+                .map(str::to_string),
             items: input
                 .items
                 .iter()
@@ -259,6 +281,7 @@ fn group_response(created: orders::CheckoutCreated) -> OrderGroupResponse {
         grand_total: created.group.grand_total,
         status: orders::derive_group_status(&statuses),
         payment_status: created.payment.status,
+        customer_note: created.group.customer_note,
         created_at: created.group.created_at,
         store_orders: created
             .store_orders
@@ -306,6 +329,7 @@ fn group_detail_response(detail: orders::GroupDetail) -> OrderGroupResponse {
         grand_total: detail.group.grand_total,
         status: orders::derive_group_status(&statuses),
         payment_status: detail.payment.status,
+        customer_note: detail.group.customer_note,
         created_at: detail.group.created_at,
         store_orders: detail
             .store_orders
@@ -360,7 +384,7 @@ pub async fn list_orders(
         orders::group_summaries_for_user(&mut conn, user_id, page.limit(), page.offset()).await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(group, statuses)| GroupSummaryResponse {
+            .map(|(group, statuses, extras)| GroupSummaryResponse {
                 id: group.id,
                 number: group.number,
                 grand_total: group.grand_total,
@@ -368,6 +392,9 @@ pub async fn list_orders(
                     &statuses.iter().map(|row| row.status).collect::<Vec<_>>(),
                 ),
                 stores: statuses.iter().map(|row| row.store_name.clone()).collect(),
+                items_count: extras.items_count,
+                first_item_name: extras.first_item_name,
+                eta_target: extras.eta_target,
                 created_at: group.created_at,
             })
             .collect(),

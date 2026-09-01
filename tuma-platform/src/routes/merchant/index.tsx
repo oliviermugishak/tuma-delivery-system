@@ -1,7 +1,7 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+
+import { MerchantOverview } from '@/features/merchant/components/merchant-overview'
 
 export const Route = createFileRoute('/merchant/')({
-  beforeLoad: () => {
-    throw redirect({ to: '/merchant/dashboard' })
-  },
+  component: MerchantOverview,
 })

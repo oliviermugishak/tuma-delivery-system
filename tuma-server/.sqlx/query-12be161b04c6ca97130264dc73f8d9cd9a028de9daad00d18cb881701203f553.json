@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM commerce.addresses\n        WHERE id = $1 AND user_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "12be161b04c6ca97130264dc73f8d9cd9a028de9daad00d18cb881701203f553"
+}

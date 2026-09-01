@@ -493,7 +493,7 @@ void main() {
 
     // Home feed loads from the stub, and the greeting uses the profile name.
     expect(find.text("Aline's Kitchen"), findsOneWidget);
-    expect(find.text('Hi, Chantal 👋'), findsOneWidget);
+    expect(find.text('Hi, Chantal'), findsOneWidget);
     // The real server-owned category renders on the card — and on the
     // category chip row above it, both fed by the same server field.
     expect(find.text('Grill'), findsWidgets);
@@ -502,7 +502,7 @@ void main() {
     // Orders tab renders its empty state.
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    expect(find.text('No orders yet'), findsOneWidget);
+    expect(find.text('No active orders'), findsOneWidget);
 
     // Cart tab shows the grouped item, store header, totals, and the CTA.
     await tester.tap(find.text('Cart'));
@@ -511,10 +511,10 @@ void main() {
     // header is in the visible tree.
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.text('Ibirazi'), findsOneWidget);
-    expect(find.text('Proceed to checkout'), findsOneWidget);
+    expect(find.textContaining('Checkout ·'), findsOneWidget);
     expect(find.textContaining('7,000'), findsWidgets);
     expect(find.textContaining('1,500'), findsWidgets); // delivery fee row
-    expect(find.textContaining('8,500'), findsOneWidget); // total
+    expect(find.textContaining('8,500'), findsWidgets); // total (line + CTA)
 
     // Profile tab renders.
     await tester.tap(find.text('Profile'));
@@ -613,19 +613,13 @@ void main() {
     // Cart → checkout.
     await tester.tap(find.text('Cart'));
     await _settle(tester);
-    await tester.tap(find.text('Proceed to checkout'));
+    await tester.tap(find.textContaining('Checkout ·'));
     await _settle(tester);
 
     expect(find.text('Checkout'), findsOneWidget);
-    // The delivery-pin map pushes address + payment below the fold, and
-    // a ListView only builds visible children — scroll down (topmost
-    // route's list) before interacting with them.
-    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
-    await _settle(tester);
-    expect(find.text('Cash on delivery'), findsOneWidget);
-
-    // Enter an address and place the order. The desktop pin field is a
-    // TextField too — target the address field by its hint.
+    // The fallback address field sits right under the deliver-to section
+    // — visible without scrolling. The persisted pin carries the
+    // coordinates; the field carries the human-readable address.
     await tester.enterText(
       find.ancestor(
         of: find.text('Street, building, landmark…'),
@@ -633,17 +627,25 @@ void main() {
       ),
       'KN 4 Ave, Kigali',
     );
-    await tester.tap(find.text('Place order'));
+    // Drag to the payment section and the CTA.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await _settle(tester);
+    expect(find.text('Cash on delivery'), findsOneWidget);
+
+    // Place the order.
+    await tester.tap(find.textContaining('Place order'));
     // Bounded pumps: the shell's data loads settle, so no pumpAndSettle.
     await _settle(tester);
 
-    // Lands on the Orders TAB of the shell — never on a dead checkout:
-    // the list page title is up, the bottom bar is back, and the order
-    // is in history. Back from a detail opened here goes to this list.
-    expect(find.text('Your Orders'), findsOneWidget);
-    expect(find.byType(AppShell), findsOneWidget);
-    expect(find.text('Checkout'), findsNothing);
-    expect(find.text("Aline's Kitchen"), findsOneWidget);
+    // Lands on the SUCCESS screen (the redesign's flow): celebration,
+    // the order's facts, and Track order as the one next step.
+    expect(find.text('Order placed!'), findsOneWidget);
+    expect(find.textContaining('· Aline'), findsOneWidget);
+    expect(find.text('Track order'), findsOneWidget);
+    // Track order lands on the tracking screen.
+    await tester.tap(find.text('Track order'));
+    await _settle(tester);
+    expect(find.textContaining('Track order #'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -687,8 +689,8 @@ void main() {
 
     // …and the card renders the server-computed facts — no placeholder
     // numbers anywhere.
-    expect(find.text('0.9 km'), findsOneWidget);
     expect(find.text('~3 min'), findsOneWidget);
+    expect(find.text('1,500 RWF'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -719,13 +721,11 @@ void main() {
 
     await tester.tap(find.text('Cart'));
     await _settle(tester);
-    await tester.tap(find.text('Proceed to checkout'));
+    await tester.tap(find.textContaining('Checkout ·'));
     await _settle(tester);
-    // Scroll past the map so the address field is built and visible. The
-    // desktop pin field is a TextField too — target the address field by
-    // its hint.
-    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
-    await _settle(tester);
+    // The v2 checkout: the address field is the fallback (no saved
+    // addresses in this stub) — the only TextField with this hint. The
+    // note field sits below it, so target by hint.
     await tester.enterText(
       find.ancestor(
         of: find.text('Street, building, landmark…'),
@@ -733,9 +733,16 @@ void main() {
       ),
       'KN 4 Ave, Kigali',
     );
-    await tester.tap(find.text('Place order'));
+    await tester.tap(find.textContaining('Place order'));
     await _settle(tester);
 
+    final reqPaths = [for (final r in seen) '${r.method} ${r.url.path}'];
+    debugPrint('SEEN: $reqPaths');
+    final screenTexts = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data ?? t.textSpan?.toPlainText())
+        .toList();
+    debugPrint('CHECKOUT TEXTS: $screenTexts');
     // The checkout POST body carries the pin the map was seeded with.
     final checkout = seen.singleWhere(
       (r) => r.method == 'POST' && r.url.path.endsWith('/orders'),
@@ -763,16 +770,18 @@ void main() {
     await tester.tap(find.text('Orders'));
     await _settle(tester);
 
-    // The group card renders the derived state and the store list.
-    expect(find.text('Completed'), findsOneWidget);
-    expect(find.text("Aline's Kitchen"), findsWidgets);
+    // The completed order lives under HISTORY (the Active/History split);
+    // its dot-row status reads "Delivered".
+    await tester.tap(find.text('History'));
+    await _settle(tester);
+    expect(find.text('Delivered'), findsOneWidget);
+    expect(find.text("Aline's Kitchen"), findsOneWidget);
 
-    await tester.tap(find.text('Completed'));
+    await tester.tap(find.text("Aline's Kitchen"));
     await _settle(tester);
 
-    // Detail screen renders the store section's timeline.
-    expect(find.textContaining('Order #'), findsOneWidget);
-    expect(find.textContaining('Delivered'), findsWidgets);
+    // Detail screen renders.
+    expect(find.textContaining('Track order #'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -802,18 +811,19 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    // The Moving world: the strip replaces the timeline, the card shows
-    // the decaying ETA, and the map panel is present (desktop: the honest
-    // data placeholder — the real map is a phone verification).
+    // The Moving world: the HERO status narrates, the stepper shows
+    // position, the map panel is present (desktop: the honest data
+    // placeholder — the real map is a phone verification).
     expect(find.text('Out for delivery'), findsOneWidget);
-    expect(find.textContaining('Arriving'), findsOneWidget);
+    expect(find.textContaining('Arriving in about'), findsOneWidget);
+    expect(find.text('On the way'), findsOneWidget,
+        reason: 'the stepper marks position in the story');
     expect(find.textContaining('the map renders on your phone'),
         findsOneWidget);
-    expect(find.text('Delivered'), findsNothing,
-        reason: 'the six-step timeline is folded away while moving');
     expect(tester.takeException(), isNull);
   });
 
@@ -838,11 +848,11 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    expect(find.textContaining('add a map pin at checkout next time'),
-        findsOneWidget);
+    // P2: the map sliver is simply absent — no placeholder, no guess.
     expect(find.textContaining('the map renders on your phone'),
         findsNothing, reason: 'no pin, no map — not even the placeholder');
     expect(tester.takeException(), isNull);
@@ -874,11 +884,12 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    expect(find.textContaining('the moment their phone checks in'),
-        findsOneWidget);
+    // Before assignment: one quiet row, not a dead placeholder.
+    expect(find.textContaining('A rider will be assigned'), findsOneWidget);
     // The map panel IS present — the pin exists; only the rider is away.
     expect(find.textContaining('the map renders on your phone'),
         findsOneWidget);
@@ -912,22 +923,25 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    // The snapshot's statuses win: the header chip, the payment line, and
-    // the settled-state wayfinding — no full refetch needed.
-    expect(find.text('Completed'), findsOneWidget);
-    expect(find.textContaining('collected'), findsOneWidget);
-    // The settled polish: the delivered moment shows on the section.
-    expect(find.textContaining('Delivered · '), findsOneWidget);
-    // Wayfinding sits below the fold — scroll the detail to it.
+    final dtexts = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data ?? t.textSpan?.toPlainText())
+        .toList();
+    debugPrint('DETAIL TEXTS: $dtexts');
+    // The snapshot's statuses win: the hero reads Delivered, the receipt
+    // says paid, and Reorder is the settled primary — no full refetch.
+    expect(find.text('Delivered'), findsWidgets);
+    expect(find.textContaining('Total · paid'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Continue shopping'),
+      find.text('Reorder'),
       200,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('Continue shopping'), findsOneWidget);
+    expect(find.text('Reorder'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -959,7 +973,8 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
     var trackingRequests = seen
@@ -1009,12 +1024,15 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    expect(find.textContaining('Lagging'), findsOneWidget);
-    expect(find.textContaining('Arriving'), findsOneWidget);
-    expect(find.text('Taking longer than expected'), findsNothing);
+    // "Running late" appears on the active card AND the hero — the same
+    // truth, two surfaces (P14 vocabulary, not duplicate data).
+    expect(find.text('Running late'), findsWidgets);
+    // The revised promise is mandatory next to the bad news (P11).
+    expect(find.textContaining('Now arriving'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1046,12 +1064,13 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    expect(find.text('Taking longer than expected'), findsOneWidget);
-    expect(find.textContaining('call the store'), findsOneWidget);
-    expect(find.text('Call'), findsOneWidget);
+    expect(find.text('Running late'), findsWidgets);
+    expect(find.textContaining('Now arriving'), findsOneWidget);
+    expect(find.text('Call store'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1083,11 +1102,12 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
 
-    expect(find.textContaining('much longer than expected'), findsOneWidget);
-    expect(find.textContaining('Ended'), findsOneWidget);
+    expect(find.text('Taking much longer than expected'), findsOneWidget);
+    expect(find.textContaining('Ended · contact the store'), findsOneWidget);
     expect(find.text('Arriving now'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -1123,7 +1143,8 @@ void main() {
 
     await tester.tap(find.text('Orders'));
     await _settle(tester);
-    await tester.tap(find.text('In progress'));
+    // Active tab is default; the rich card's Track button opens tracking.
+    await tester.tap(find.text('Track'));
     await _settle(tester);
     // Let any in-flight initial poll finish before baselining.
     await tester.pump(const Duration(seconds: 5));
@@ -1153,9 +1174,9 @@ void main() {
     await _settle(tester);
     expect(find.text('Menu'), findsOneWidget);
 
-    // Scroll the first add-to-cart button into view, tap it, and expect a
-    // confirmation snackbar.
-    final addButton = find.byIcon(Icons.add_shopping_cart_rounded).first;
+    // Scroll the first add button into view (the v2 row's plain "+",
+    // P4), tap it, and expect a confirmation snackbar.
+    final addButton = find.byIcon(Icons.add_rounded).first;
     await tester.ensureVisible(addButton);
     await tester.pump();
     await tester.tap(addButton);
@@ -1176,7 +1197,7 @@ void main() {
     await tester.tap(find.text("Aline's Kitchen").first);
     await _settle(tester);
 
-    final addButton = find.byIcon(Icons.add_shopping_cart_rounded).first;
+    final addButton = find.byIcon(Icons.add_rounded).first;
     await tester.ensureVisible(addButton);
     await tester.pump();
     await tester.tap(addButton);
@@ -1228,6 +1249,11 @@ void main() {
 
     await tester.tap(find.text('Profile'));
     await _settle(tester);
+    // The v2 sign-out is quiet red TEXT (P14) — verify the profile tab
+    // actually opened before tapping it.
+    expect(find.text('Sign out'), findsOneWidget);
+    await tester.ensureVisible(find.text('Sign out'));
+    await tester.pump();
     await tester.tap(find.text('Sign out'));
     await _settle(tester);
 
@@ -1379,7 +1405,7 @@ void main() {
     // …and the Home greeting follows, because the session updated live.
     await tester.tap(find.text('Home'));
     await _settle(tester);
-    expect(find.text('Hi, Mutesi 👋'), findsOneWidget);
+    expect(find.text('Hi, Mutesi'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1423,10 +1449,10 @@ void main() {
 
     // Rider mode renders: identity, the rider number, the honest empty
     // work list (this harness's stub serves no jobs). No customer shell.
-    expect(find.text('Rider mode'), findsOneWidget);
     expect(find.text('Jean'), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
     expect(find.text('#7'), findsOneWidget);
-    expect(find.textContaining('No deliveries yet'), findsOneWidget);
+    expect(find.text("You're online"), findsOneWidget);
     expect(find.byType(AppShell), findsNothing);
     expect(tester.takeException(), isNull);
   });

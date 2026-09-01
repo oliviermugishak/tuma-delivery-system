@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE commerce.addresses SET is_default = FALSE\n            WHERE user_id = $1 AND is_default\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "497df39cc87bed2c440c4754ac952e20abb35a54690ce3571f031453ab39c6c6"
+}

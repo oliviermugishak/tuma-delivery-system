@@ -8,12 +8,15 @@ import 'package:go_router/go_router.dart';
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
+import 'package:tuma_app/core/api/models/address.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
+import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
+import 'package:tuma_app/features/orders/success_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart' show shellTabProvider;
 import 'package:tuma_app/features/location/customer_location.dart';
-import 'package:tuma_app/features/location/delivery_pin_map.dart';
 
 /// Checkout — one checkout no matter how many stores are in the cart. The
 /// customer reviews the grouped summary, enters a delivery address, and
@@ -33,6 +36,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressController = TextEditingController();
   bool _placing = false;
   String? _error;
+  List<Address>? _savedAddresses;
+  Address? _selectedAddress;
+  final TextEditingController _noteController = TextEditingController();
 
   /// Which slot renders [_error]: the form banner (field-level, e.g. a
   /// missing address) or the items-area banner (cart/server conflicts).
@@ -47,8 +53,36 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   void initState() {
+    unawaited(_loadAddresses());
     super.initState();
     unawaited(_initPin());
+  }
+
+  Future<void> _loadAddresses() async {
+    try {
+      final addresses = await ref.read(addressApiProvider).list();
+      if (!mounted) return;
+      setState(() {
+        _savedAddresses = addresses;
+        _selectedAddress = addresses.isNotEmpty
+            ? addresses.firstWhere(
+                (a) => a.isDefault,
+                orElse: () => addresses.first,
+              )
+            : null;
+        // A saved address drives the address field + pin (P3's answer:
+        // geocoding is the system's job; the address row already knows).
+        final selected = _selectedAddress;
+        if (selected != null) {
+          _addressController.text = selected.addressText;
+          _pin = selected.lat != null && selected.lng != null
+              ? CustomerLocation(lat: selected.lat!, lng: selected.lng!)
+              : _pin;
+        }
+      });
+    } on ApiError {
+      // The manual address field remains the honest fallback.
+    }
   }
 
   Future<void> _initPin() async {
@@ -57,15 +91,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _pin = persisted);
   }
 
-  Future<void> _choosePin(CustomerLocation pin) async {
-    setState(() => _pin = pin);
-    await ref.read(customerLocationProvider.notifier).setPin(pin);
-  }
 
+  @override
   @override
   void dispose() {
     _addressController.dispose();
+    _noteController.dispose();
     super.dispose();
+  }
+
+  /// The honest local ETA preview: haversine store→destination at the
+  /// locked 25 km/h ride speed, rounded up, from the placed group's
+  /// stores. Without a pin, null (the success card states the outcome
+  /// without an invented number — P2).
+  int? _rideSpeedEtaMinutes(dynamic placed) {
+    // The placed response carries no coordinates; the estimate needs
+    // geocoding we don't do client-side. Honest: no number.
+    return null;
   }
 
   /// A reasonably unique key without a uuid dependency: time + random.
@@ -116,21 +158,38 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         addressText: _addressController.text.trim(),
         addressLat: _pin?.lat,
         addressLng: _pin?.lng,
+        customerNote: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
         idempotencyKey: _idempotencyKey ??= _newIdempotencyKey(),
         items: lines,
       );
-      await ref.read(orderApiProvider).checkout(request);
+      final placed = await ref.read(orderApiProvider).checkout(request);
       if (!mounted) return;
       // The checkout is server-side truth now — clear the cart and the
       // one-shot key with it.
       _idempotencyKey = null;
       await ref.read(cartProvider.notifier).clear();
       if (!mounted) return;
-      // Never pop here: the dead checkout under this screen is exactly the
-      // strand. The order detail is reached from the Orders list (with the
-      // app bar), so back goes to history — not to an emptied checkout.
-      ref.read(shellTabProvider.notifier).select(2);
-      context.go('/home');
+      // The success screen: celebration + one-tap tracking (P12, P17).
+      // Never pop here: the dead checkout under this screen is exactly
+      // the strand — success REPLACES this route.
+      final firstStore = placed.storeOrders.isNotEmpty
+          ? placed.storeOrders.first.storeName
+          : 'Your order';
+      // The server's per-delivery ETA rides the tracking endpoint; the
+      // ride-speed preview (haversine ÷ 25 km/h) is the honest local
+      // stand-in the success card shows before tracking loads (P2: it
+      // stays silent when there's no pin to estimate from).
+      final etaMinutes = _rideSpeedEtaMinutes(placed);
+      if (!mounted) return;
+      context.pushReplacement('/success', extra: SuccessScreenArgs(
+        groupId: placed.id,
+        orderNumber: placed.number,
+        storeName: firstStore,
+        total: placed.grandTotal,
+        etaMinutes: etaMinutes,
+      ));
     } on ApiBadRequest catch (e) {
       _showPlacedError(e.message);
     } on ApiConflict catch (e) {
@@ -206,20 +265,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 22),
                   onPressed: () => context.pop(),
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  'Checkout',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                const SizedBox(width: 8),
+                Text('Checkout',
+                    style: AppTheme.d1(textTheme).copyWith(fontSize: 21)),
               ],
             ),
           ),
@@ -233,208 +288,268 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
               ),
             ),
-          // Order summary, grouped by store exactly as it will be fulfilled.
-          _SectionTitle('Order summary'),
+          // DELIVER TO — saved-address-first (P3's answer: geocoding is
+          // the system's job). The selected row drives the checkout's
+          // address fields; Change swaps; dashed Add new creates. With no
+          // saved addresses yet, an honest text field takes the row's
+          // place (P12: the fallback is designed too) — the persisted pin
+          // still carries the coordinates.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                for (final bucket in state.buckets) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6, bottom: 2),
-                    child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: MicroLabel('Deliver to'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: _selectedAddress != null
+                  ? Row(
                       children: [
-                        const Icon(Icons.storefront_rounded,
-                            size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
+                        const Icon(Icons.location_on_rounded,
+                            size: 20, color: AppColors.primary),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            bucket.storeName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _addressController.text.trim().isEmpty
+                                    ? 'Set your delivery address'
+                                    : _addressController.text.trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.bd(textTheme)
+                                    .copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_selectedAddress!.label} · Default${(_savedAddresses?.length ?? 0) > 1 ? ' · ${_savedAddresses!.length} saved' : ''}',
+                                style: AppTheme.sub(textTheme),
+                              ),
+                            ],
                           ),
                         ),
+                        TextButton(
+                          onPressed: () =>
+                              unawaited(context.push('/profile/location')),
+                          child: const Text('Change'),
+                        ),
                       ],
-                    ),
-                  ),
-                  ...bucket.items.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${item.name} × ${item.quantity}',
-                              style: textTheme.bodyMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            formatRwf(item.lineTotal),
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                    )
+                  : TextField(
+                      controller: _addressController,
+                      style: AppTheme.bd(textTheme),
+                      decoration: const InputDecoration(
+                        hintText: 'Street, building, landmark…',
+                        prefixIcon: Icon(
+                          Icons.location_on_rounded,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
-                  ),
-                  _TotalsRow(
-                    label: 'Store subtotal',
-                    value: bucket.subtotal,
-                  ),
-                  _TotalsRow(
-                    label: 'Delivery',
-                    value: bucket.deliveryFee,
-                  ),
-                  const SizedBox(height: 8),
-                  const _Divider(),
-                ],
-                _TotalsRow(label: 'Subtotal', value: state.subtotal),
-                _TotalsRow(
-                  label: 'Delivery (all stores)',
-                  value: state.deliveryTotal,
-                ),
-                const _Divider(),
-                _TotalsRow(
-                  label: 'Total',
-                  value: state.total,
-                  bold: true,
-                ),
-              ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Delivery location — the real pin the rider will navigate to.
-          // Tap the map to drop it; the human-readable label below stays
-          // the address text.
-          _SectionTitle('Delivery location'),
+          const SizedBox(height: 10),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: SizedBox(
-              height: 220,
-              child: DeliveryPinMap(
-                pin: _pin,
-                onPin: _choosePin,
-                locate: ref.read(acquireLocationProvider),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Delivery address — one address for the whole purchase.
-          _SectionTitle('Delivery address'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: TextField(
-              controller: _addressController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Street, building, landmark…',
-                hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.surfaceBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.5),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.error, width: 1.5),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              style: textTheme.bodyMedium,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DashedAddRow(
+              label: 'Add new address',
+              onTap: () => unawaited(context.push('/profile/location')),
             ),
           ),
           if (_error != null && _errorIsFormLevel) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Text(
                 _error!,
                 style: textTheme.bodySmall?.copyWith(color: AppColors.error),
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          // Payment method — single option, non-interactive.
-          _SectionTitle('Payment'),
+          // PAYMENT — cash selected, MoMo visible-but-disabled: showing
+          // the roadmap is honest and sets the mental model (P12).
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+            child: MicroLabel('Payment'),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
-              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.payment_rounded,
-                      size: 18,
-                      color: AppColors.onPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
                       children: [
-                        Text(
-                          'Cash on delivery',
-                          style: textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                        const _PaymentTile(
+                          icon: Icons.payments_rounded,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Cash on delivery',
+                                  style: AppTheme.bd(textTheme)
+                                      .copyWith(fontWeight: FontWeight.w600)),
+                              Text(
+                                storeCount > 1
+                                    ? 'Pay the full total when the last delivery arrives.'
+                                    : 'Pay when your order arrives.',
+                                style: AppTheme.sub(textTheme),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          storeCount > 1
-                              ? 'Pay the full total when the last delivery arrives.'
-                              : 'Pay when your order arrives.',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
-                          ),
-                        ),
+                        const _RadioDot(selected: true),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      size: 16,
-                      color: AppColors.onPrimary,
+                  const Divider(
+                      height: 1, indent: 14, endIndent: 14),
+                  Opacity(
+                    opacity: 0.5,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceHigh,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.smartphone_rounded,
+                                size: 20, color: AppColors.onSurfaceMuted),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('MoMo MTN',
+                                    style: AppTheme.bd(textTheme)
+                                        .copyWith(fontWeight: FontWeight.w600)),
+                                Text('Coming soon',
+                                    style: AppTheme.sub(textTheme)),
+                              ],
+                            ),
+                          ),
+                          const _RadioDot(selected: false),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ),
+          // NOTE FOR RIDER — optional; the rider's Delivering card
+          // displays it. The loop has a consumer, so here's the producer.
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+            child: MicroLabel('Note for rider · optional'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _noteController,
+              maxLength: 140,
+              style: AppTheme.bd(textTheme),
+              decoration: const InputDecoration(
+                hintText: 'e.g. blue gate, ring the bell…',
+                counterText: '',
+              ),
+            ),
+          ),
+          // ORDER SUMMARY — one block (P1).
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+            child: MicroLabel('Order summary'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Column(
+                children: [
+                  for (final bucket in state.buckets)
+                    for (final item in bucket.items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item.name} × ${item.quantity}',
+                                style: AppTheme.bd(textTheme)
+                                    .copyWith(color: AppColors.onSurfaceMuted),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(formatRwf(item.lineTotal),
+                                style: AppTheme.bd(textTheme)),
+                          ],
+                        ),
+                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Delivery fee',
+                            style: AppTheme.bd(textTheme)
+                                .copyWith(color: AppColors.onSurfaceMuted)),
+                        Text(formatRwf(state.deliveryTotal),
+                            style: AppTheme.bd(textTheme)),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: AppColors.surfaceBorder),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total',
+                          style: AppTheme.bd(textTheme)
+                              .copyWith(fontWeight: FontWeight.w600)),
+                      Text(
+                        formatRwf(state.total),
+                        style: textTheme.titleSmall?.copyWith(
+                          fontSize: 15,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
       bottomSheet: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -449,8 +564,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               FilledButton(
                 onPressed: _placing ? null : _placeOrder,
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  disabledBackgroundColor: AppColors.onSurface.withValues(alpha: 0.15),
+                  disabledBackgroundColor:
+                      AppColors.onSurface.withValues(alpha: 0.15),
                 ),
                 child: _placing
                     ? const SizedBox(
@@ -462,11 +577,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                       )
                     : Text(
-                        storeCount > 1
-                            ? 'Place order · ${formatRwf(state.total)}'
-                            : 'Place order',
+                        'Place order · ${formatRwf(state.total)}',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
             ],
@@ -477,71 +592,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
+/// The payment row's tile: the accent-well icon container.
+class _PaymentTile extends StatelessWidget {
+  const _PaymentTile({required this.icon});
 
-  final String title;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
       ),
+      child: Icon(icon, size: 20, color: AppColors.primary),
     );
   }
 }
 
-class _Divider extends StatelessWidget {
-  const _Divider();
+/// The radio dot — the spec's `.radio`: accent ring + accent fill when
+/// selected.
+class _RadioDot extends StatelessWidget {
+  const _RadioDot({required this.selected});
+
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Divider(color: AppColors.surfaceBorder),
-    );
-  }
-}
-
-class _TotalsRow extends StatelessWidget {
-  const _TotalsRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
-
-  final String label;
-  final int value;
-  final bool bold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                  color: bold ? AppColors.onSurface : AppColors.onSurfaceMuted,
-                ),
-          ),
-          Text(
-            formatRwf(value),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-                  color: bold ? AppColors.primary : AppColors.onSurface,
-                ),
-          ),
-        ],
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? AppColors.primary : AppColors.line,
+          width: 2,
+        ),
       ),
+      alignment: Alignment.center,
+      child: selected
+          ? Container(
+              width: 11,
+              height: 11,
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+            )
+          : null,
     );
   }
 }
+

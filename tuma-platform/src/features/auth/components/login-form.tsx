@@ -1,37 +1,34 @@
+/**
+ * Sign-in (shared by both wings — P16). Email + password; the mutation
+ * lives in use-login (session cookies are set by the server; the hook
+ * seeds the cache and routes to the wing's home). Inline validation,
+ * one accent button, no shadows (P6), designed error state.
+ */
 import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { loginErrorMessage, useLogin } from '@/features/auth/hooks/use-login'
+import { Button, Field, Icon, Input } from '@/components/ds'
+import { loginErrorMessage, useLogin } from '../hooks/use-login'
 
-/**
- * Email + password sign-in for merchants and admins. The mutation lives in
- * `use-login.ts`; this component owns only the form state and presentation.
- * Errors render inline via FieldError (role=alert) — persistent and
- * accessible, the right channel for a failed sign-in — while the button
- * reflects isPending.
- */
 export function LoginForm() {
+  const login = useLogin()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const login = useLogin()
+  const [touched, setTouched] = useState(false)
+
+  const emailInvalid = touched && !/^\S+@\S+\.\S+$/.test(email)
+  const passwordInvalid = touched && password.length === 0
+  const invalid = emailInvalid || passwordInvalid
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    setTouched(true)
+    if (invalid) return
     login.mutate({ body: { email, password } })
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
+    <div className="grid min-h-screen place-items-center bg-background px-4">
+      <div className="w-full max-w-100">
         <div className="mb-8 flex flex-col items-center gap-3">
           <img
             src="/brand/android-chrome-192x192.png"
@@ -39,59 +36,74 @@ export function LoginForm() {
             className="size-14 rounded-2xl"
           />
           <div className="text-center">
-            <h1 className="font-heading text-2xl font-semibold text-foreground">
+            <h1 className="text-[22px] font-extrabold tracking-tight">
               Tuma Platform
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to your account
+            <p className="mt-1 text-sm text-text2">
+              Sign in to run your business — or the platform.
             </p>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign in</CardTitle>
-            <CardDescription>Merchant and admin access</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submit}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                  />
-                </Field>
+        <form
+          onSubmit={submit}
+          className="flex flex-col gap-4 rounded-2xl border border-white/8 bg-surface p-6"
+        >
+          <Field
+            label="Email"
+            error={emailInvalid ? 'Enter your email address.' : undefined}
+          >
+            <Input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setTouched(true)}
+              placeholder="you@example.com"
+              invalid={emailInvalid}
+            />
+          </Field>
+          <Field
+            label="Password"
+            error={passwordInvalid ? 'Enter your password.' : undefined}
+          >
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              invalid={passwordInvalid}
+            />
+          </Field>
 
-                {login.isError ? (
-                  <FieldError>{loginErrorMessage(login.error)}</FieldError>
-                ) : null}
+          {login.isError ? (
+            <div role="alert" className="text-xs font-medium text-danger">
+              {loginErrorMessage(login.error)}
+            </div>
+          ) : null}
 
-                <Button type="submit" disabled={login.isPending} className="w-full">
-                  {login.isPending ? 'Signing in…' : 'Sign in'}
-                </Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
+          <Button
+            type="submit"
+            variant="primary"
+            className="mt-1 w-full"
+            disabled={login.isPending}
+          >
+            {login.isPending ? (
+              'Signing in…'
+            ) : (
+              <>
+                Sign in
+                <Icon name="arrow_forward" label="" size={18} />
+              </>
+            )}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-xs text-text3">
+          Customers order in the Tuma app — this platform is for merchants,
+          riders, and the Tuma team.
+        </p>
       </div>
     </div>
   )

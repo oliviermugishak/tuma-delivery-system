@@ -11,6 +11,8 @@ class RiderDelivery {
   const RiderDelivery({
     required this.deliveryId,
     required this.storeOrderId,
+    required this.number,
+    required this.total,
     required this.storeName,
     this.storeAddress,
     this.storeLat,
@@ -20,6 +22,7 @@ class RiderDelivery {
     this.destinationLng,
     this.customerName,
     this.customerPhone,
+    this.customerNote,
     required this.status,
     this.handoffAt,
     this.routePolyline,
@@ -31,6 +34,12 @@ class RiderDelivery {
 
   final String deliveryId;
   final String storeOrderId;
+
+  /// The customer-facing order number ("Order #8").
+  final int number;
+
+  /// The cash this stop collects (the accent strip's fact, P8).
+  final int total;
   final String storeName;
   final String? storeAddress;
   final double? storeLat;
@@ -40,6 +49,8 @@ class RiderDelivery {
   final double? destinationLng;
   final String? customerName;
   final String? customerPhone;
+  /// The checkout's rider note ("blue gate, ring the bell").
+  final String? customerNote;
   final String status;
   final DateTime? handoffAt;
   final String? routePolyline;
@@ -51,6 +62,8 @@ class RiderDelivery {
   factory RiderDelivery.fromJson(Map<String, dynamic> json) => RiderDelivery(
         deliveryId: json['delivery_id'] as String,
         storeOrderId: json['store_order_id'] as String,
+        number: json['number'] as int,
+        total: json['total'] as int,
         storeName: json['store_name'] as String,
         storeAddress: json['store_address'] as String?,
         storeLat: (json['store_lat'] as num?)?.toDouble(),
@@ -60,6 +73,7 @@ class RiderDelivery {
         destinationLng: (json['destination_lng'] as num?)?.toDouble(),
         customerName: json['customer_name'] as String?,
         customerPhone: json['customer_phone'] as String?,
+        customerNote: json['customer_note'] as String?,
         status: json['status'] as String,
         handoffAt: json['handoff_at'] is String
             ? DateTime.parse(json['handoff_at'] as String)
@@ -95,5 +109,19 @@ class DeliveredResult {
         storeOrderId: json['store_order_id'] as String,
         status: json['status'] as String,
         deliveredAt: DateTime.parse(json['delivered_at'] as String),
+      );
+}
+
+
+/// The rider's day so far — the Waiting card's motivation line.
+class RiderTally {
+  const RiderTally({required this.deliveries, required this.collected});
+
+  final int deliveries;
+  final int collected;
+
+  factory RiderTally.fromJson(Map<String, dynamic> json) => RiderTally(
+        deliveries: json['deliveries'] as int,
+        collected: json['collected'] as int,
       );
 }

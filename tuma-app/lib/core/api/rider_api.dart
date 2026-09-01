@@ -30,6 +30,12 @@ class RiderApi {
     );
   }
 
+  /// The day so far — deliveries + cash collected (the Waiting card).
+  Future<RiderTally> today() async {
+    final response = await _client.get('/deliveries/today');
+    return RiderTally.fromJson(response as Map<String, dynamic>);
+  }
+
   /// The handover: food given, cash received, one real event. The server
   /// advances the store order and settles the delivery's payment
   /// allocation; the delivery leaves the work list.

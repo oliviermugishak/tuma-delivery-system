@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT so.order_group_id,\n               COALESCE(SUM(oi.count), 0)::int8 AS \"items_count!: i64\",\n               (ARRAY_AGG(oi.first_name ORDER BY oi.first_id))[1]\n                   AS first_item_name,\n               MIN(CASE WHEN so.status = 'picked_up' THEN d.eta_target END)\n                   AS \"eta_target: Option<time::OffsetDateTime>\"\n        FROM commerce.store_orders so\n        LEFT JOIN (\n            SELECT store_order_id,\n                   COUNT(*) AS count,\n                   MIN(product_name_snapshot) AS first_name,\n                   (ARRAY_AGG(id ORDER BY id))[1] AS first_id\n            FROM commerce.order_items\n            GROUP BY store_order_id\n        ) oi ON oi.store_order_id = so.id\n        LEFT JOIN commerce.deliveries d ON d.store_order_id = so.id\n        WHERE so.order_group_id = ANY($1)\n        GROUP BY so.order_group_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "order_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "order_group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "items_count!: i64",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_item_name",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "eta_target: Option<time::OffsetDateTime>",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c3e4c53cdee135245ac5e016d85be95878c5ae804bb7da7fea7fa5e5ffb14edc"
+}

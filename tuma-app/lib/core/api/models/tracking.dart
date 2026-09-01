@@ -50,6 +50,9 @@ class DeliveryTracking {
   const DeliveryTracking({
     required this.storeOrderId,
     required this.storeName,
+    this.riderName,
+    this.riderVehicle,
+    this.riderPlate,
     this.storeLat,
     this.storeLng,
     this.storeContactPhone,
@@ -66,6 +69,10 @@ class DeliveryTracking {
 
   final String storeOrderId;
   final String storeName;
+  /// The assigned rider's identity — nullable until a rider exists (P2).
+  final String? riderName;
+  final String? riderVehicle;
+  final String? riderPlate;
   final double? storeLat;
   final double? storeLng;
   final String? storeContactPhone;
@@ -86,6 +93,9 @@ class DeliveryTracking {
       DeliveryTracking(
         storeOrderId: json['store_order_id'] as String,
         storeName: json['store_name'] as String,
+        riderName: json['rider_name'] as String?,
+        riderVehicle: json['rider_vehicle'] as String?,
+        riderPlate: json['rider_plate'] as String?,
         storeLat: (json['store_lat'] as num?)?.toDouble(),
         storeLng: (json['store_lng'] as num?)?.toDouble(),
         storeContactPhone: json['store_contact_phone'] as String?,

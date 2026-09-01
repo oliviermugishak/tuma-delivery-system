@@ -8,6 +8,7 @@ import 'package:tuma_app/features/auth/phone_screen.dart';
 import 'package:tuma_app/features/auth/splash_screen.dart';
 import 'package:tuma_app/features/cart/cart_view.dart';
 import 'package:tuma_app/features/cart/checkout_screen.dart';
+import 'package:tuma_app/features/orders/success_screen.dart';
 import 'package:tuma_app/features/home/app_shell.dart';
 import 'package:tuma_app/features/orders/order_detail_screen.dart';
 import 'package:tuma_app/features/profile/location_screen.dart';
@@ -72,6 +73,19 @@ GoRouter buildRouter() => GoRouter(
     ),
     GoRoute(path: '/cart', builder: (_, _) => const CartScreen()),
     GoRoute(path: '/checkout', builder: (_, _) => const CheckoutScreen()),
+    GoRoute(
+      path: '/success',
+      builder: (_, state) {
+        final args = state.extra! as SuccessScreenArgs;
+        return SuccessScreen(
+          groupId: args.groupId,
+          orderNumber: args.orderNumber,
+          storeName: args.storeName,
+          total: args.total,
+          etaMinutes: args.etaMinutes,
+        );
+      },
+    ),
     GoRoute(
       path: '/orders/:id',
       builder: (_, state) => OrderDetailScreen(

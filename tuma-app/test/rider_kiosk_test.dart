@@ -57,6 +57,8 @@ Map<String, dynamic> _job({
     {
       'delivery_id': deliveryId,
       'store_order_id': 'so-1',
+      'number': 8,
+      'total': 8500,
       'store_name': storeName,
       'store_address': 'KG 7 Ave, Remera',
       'store_lat': -1.9512,
@@ -159,19 +161,13 @@ void main() {
     final script = _Script()..jobs = [_job()];
     await _landOnKiosk(tester, script);
 
-    // Identity + the handoff interface.
-    expect(find.text('#7'), findsOneWidget);
-    // The job card: store, destination, receiver, actions.
+    // The stage card: the stat label, the store stage, the destination,
+    // and Navigate as the primary action.
+    expect(find.textContaining('STOP 1 OF 1 · PICK UP'), findsOneWidget);
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.text('KN 4 Ave, Kigali'), findsOneWidget);
-    expect(find.text('For Chantal'), findsOneWidget);
-    expect(find.text('Call'), findsOneWidget);
-    expect(find.text('Navigate'), findsOneWidget);
-    expect(find.text('Delivered'), findsOneWidget);
-    expect(find.text('Start delivering'), findsOneWidget);
-    // Desktop: the honest map placeholder, not a fake map.
-    expect(find.textContaining('the map renders on your phone'),
-        findsOneWidget);
+    expect(find.text('Navigate to store'), findsOneWidget);
+    expect(find.text('Picked up'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -179,9 +175,11 @@ void main() {
     final script = _Script();
     await _landOnKiosk(tester, script);
 
-    expect(find.textContaining('No deliveries yet'), findsOneWidget);
-    expect(find.text('Start delivering'), findsNothing,
-        reason: 'nothing to push — the action only exists with a job');
+    // The waiting state (screen 07): online, the number explained, and
+    // Start as the way onto the clock.
+    expect(find.text("You're online"), findsOneWidget);
+    expect(find.text('#7'), findsOneWidget);
+    expect(find.text('Start delivering'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -194,7 +192,10 @@ void main() {
       ];
     await _landOnKiosk(tester, script);
 
+    await tester.ensureVisible(find.text('Start delivering'));
+    await tester.pump();
     await tester.tap(find.text('Start delivering'));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 100));
@@ -203,6 +204,7 @@ void main() {
     final pushes = script.requests
         .where((r) => r.url.path.endsWith('/location'))
         .toList();
+
     expect(pushes.length, 4,
         reason: 'immediate push + the 5s tick, for both deliveries');
     final pushed = {
@@ -220,15 +222,25 @@ void main() {
     final script = _Script()..jobs = [_job()];
     await _landOnKiosk(tester, script);
 
-    // The job card extends below the fold — scroll the list so the
-    // Delivered action is actually on screen (built is not visible).
-    await tester.ensureVisible(find.text('Delivered'));
+    // The designed sequence (P11): confirm PICK UP first — the stage
+    // flips to Deliver, the cash strip surfaces, and only then is Mark
+    // delivered reachable (P10: the guard sits at the risky instant).
+    await tester.ensureVisible(find.text('Picked up'));
     await tester.pump();
-    await tester.tap(find.text('Delivered'));
+    await tester.tap(find.text('Picked up'));
     await tester.pump();
-    // The confirmation names the event: food handed over, cash received.
-    expect(find.textContaining('cash is in your hand'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Delivered').last);
+    // The cash strip is the hero of the Deliver stage (P8).
+    expect(find.textContaining('Collect 8,500 RWF cash'), findsOneWidget);
+    await tester.ensureVisible(find.text('Mark delivered'));
+    await tester.pump();
+    await tester.tap(find.text('Mark delivered'));
+    await tester.pump();
+    // The confirmation restates the amount; the confirm verb is the real
+    // event (P9, P10).
+    // The strip AND the dialog both restate it (P8 — money at the
+    // point of decision, twice by design).
+    expect(find.textContaining('8,500 RWF cash'), findsWidgets);
+    await tester.tap(find.text('Cash received'));
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 60));
     }
@@ -239,7 +251,8 @@ void main() {
       isTrue,
     );
     // The work list came back empty — the honest idle state returns.
-    expect(find.textContaining('No deliveries yet'), findsOneWidget);
+    // Back to the Waiting state — the online pill and the number.
+    expect(find.text("You're online"), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

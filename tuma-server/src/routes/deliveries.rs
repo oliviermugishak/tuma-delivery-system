@@ -177,10 +177,45 @@ pub async fn list_rider_deliveries(
     ))
 }
 
+/// The rider's day so far — the Waiting card's "3 deliveries · 12,000
+/// RWF collected" line. Real money, really settled today (P8, P13).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct RiderTallyResponse {
+    pub deliveries: i64,
+    pub collected: i64,
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/deliveries/today",
+    responses(
+        (status = 200, description = "Deliveries + cash settled today (UTC)", body = RiderTallyResponse),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Not a rider"),
+    ),
+    tag = "deliveries"
+)]
+#[tracing::instrument(name = "Rider daily tally", skip_all)]
+pub async fn rider_today(
+    State(app): State<AppState>,
+    Extension(context): Extension<UserContext>,
+) -> AppResult<Json<RiderTallyResponse>> {
+    let rider = rider_id(&context)?;
+    let mut conn = app.db_pool.acquire().await?;
+    let (deliveries, collected) = deliveries::rider_today_tally(&mut conn, rider).await?;
+    Ok(Json(RiderTallyResponse {
+        deliveries,
+        collected,
+    }))
+}
+
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RiderDeliveryResponse {
     pub delivery_id: Uuid,
     pub store_order_id: Uuid,
+    pub number: i64,
+    /// The cash this stop collects — the Delivering card's accent strip.
+    pub total: i64,
     pub store_name: String,
     pub store_address: Option<String>,
     pub store_lat: Option<f64>,
@@ -190,6 +225,8 @@ pub struct RiderDeliveryResponse {
     pub destination_lng: Option<f64>,
     pub customer_name: Option<String>,
     pub customer_phone: Option<String>,
+    /// The checkout's rider note ("blue gate, ring the bell").
+    pub customer_note: Option<String>,
     #[schema(value_type = String)]
     pub status: commerce::OrderStatus,
     #[serde(with = "time::serde::rfc3339::option")]
@@ -208,6 +245,8 @@ impl From<deliveries::ActiveDelivery> for RiderDeliveryResponse {
         Self {
             delivery_id: row.delivery_id,
             store_order_id: row.store_order_id,
+            number: row.number,
+            total: row.total,
             store_name: row.store_name,
             store_address: row.store_address,
             store_lat: row.store_lat,
@@ -217,6 +256,7 @@ impl From<deliveries::ActiveDelivery> for RiderDeliveryResponse {
             destination_lng: row.destination_lng,
             customer_name: row.customer_name,
             customer_phone: row.customer_phone,
+            customer_note: row.customer_note,
             status: row.status,
             handoff_at: row.handoff_at,
             route_polyline: row.route_polyline,
@@ -292,6 +332,9 @@ pub async fn order_tracking(
         .map(|delivery| DeliveryTrackingResponse {
             store_order_id: delivery.store_order_id,
             store_name: delivery.store_name.clone(),
+            rider_name: delivery.rider_name.clone(),
+            rider_vehicle: delivery.rider_vehicle.clone(),
+            rider_plate: delivery.rider_plate.clone(),
             store_lat: delivery.store_lat,
             store_lng: delivery.store_lng,
             store_contact_phone: delivery.store_contact_phone.clone(),
@@ -345,6 +388,11 @@ pub struct DeliveryTrackingResponse {
     /// store orders.
     pub store_order_id: Uuid,
     pub store_name: String,
+    /// The assigned rider's identity for the tracking card ("Amani N. ·
+    /// Moto · MUP 1234") — hidden until a rider exists (P2).
+    pub rider_name: Option<String>,
+    pub rider_vehicle: Option<String>,
+    pub rider_plate: Option<String>,
     pub store_lat: Option<f64>,
     pub store_lng: Option<f64>,
     /// The overdue customer's "call the store" action (D5 surfaces it).

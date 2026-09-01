@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:tuma_app/core/api/models/discovery.dart';
 import 'package:tuma_app/core/api/models/product.dart';
 
 // ---------------------------------------------------------------------------
@@ -197,12 +198,32 @@ class CartNotifier extends AsyncNotifier<CartState> {
 
   /// Add a menu item to its store's bucket (opening the bucket when this
   /// is the first item from that store).
+  /// Add a search/popular hit straight to the cart. The hit carries the
+  /// store id/name and the per-store price — exactly what a line needs.
+  Future<void> addFromHit(ProductHit hit) async {
+    await add(
+      MenuItem(
+        id: hit.storeProductId,
+        name: hit.name,
+        price: hit.price,
+        isAvailable: true,
+        imageUrl: hit.imageUrl,
+      ),
+      storeId: hit.storeId,
+      storeName: hit.storeName,
+      deliveryFee: 0,
+    );
+  }
+
   Future<void> add(
     MenuItem item, {
     required String storeId,
     required String storeName,
     required int deliveryFee,
+    int quantity = 1,
   }) async {
+    assert(quantity >= 1);
+    if (quantity <= 0) return;
     final current = _current;
     final buckets = [...current.buckets];
     final index = buckets.indexWhere((bucket) => bucket.storeId == storeId);
@@ -216,7 +237,9 @@ class CartNotifier extends AsyncNotifier<CartState> {
               for (var i = 0; i < bucket.items.length; i++)
                 i == existing
                     ? bucket.items[i]
-                        .copyWith(quantity: bucket.items[i].quantity + 1)
+                        .copyWith(
+                          quantity: bucket.items[i].quantity + quantity,
+                        )
                     : bucket.items[i],
             ]
           : [

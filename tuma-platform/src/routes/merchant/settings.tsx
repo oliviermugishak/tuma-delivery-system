@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SettingsPanel } from '@/components/settings-panel'
+import { SettingsScreen } from '@/components/settings-screen'
 
 export const Route = createFileRoute('/merchant/settings')({
-  component: SettingsPanel,
+  component: SettingsScreen,
 })

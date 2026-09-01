@@ -1,3 +1,4 @@
+pub mod addresses;
 pub mod admin;
 pub mod auth;
 pub mod catalog;
