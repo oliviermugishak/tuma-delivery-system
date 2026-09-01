@@ -148,8 +148,12 @@ class _DeliveryMapState extends State<DeliveryMap>
       return const SizedBox.shrink();
     }
 
-    final store =
-        LatLng(widget.tracking.storeLat!, widget.tracking.storeLng!);
+    // The store marker is optional — a store without coordinates must
+    // not crash the screen (the old `storeLat!` threw here).
+    final store = widget.tracking.storeLat != null &&
+            widget.tracking.storeLng != null
+        ? LatLng(widget.tracking.storeLat!, widget.tracking.storeLng!)
+        : null;
     final destination =
         LatLng(widget.destinationLat!, widget.destinationLng!);
     final rider = _drawnPosition;
@@ -158,12 +162,13 @@ class _DeliveryMapState extends State<DeliveryMap>
         : decodeGooglePolyline(widget.tracking.routePolyline!);
 
     final markers = <Marker>{
-      Marker(
-        markerId: const MarkerId('store'),
-        position: store,
-        infoWindow: InfoWindow(title: widget.tracking.storeName),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      ),
+      if (store != null)
+        Marker(
+          markerId: const MarkerId('store'),
+          position: store,
+          infoWindow: InfoWindow(title: widget.tracking.storeName),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        ),
       Marker(
         markerId: const MarkerId('destination'),
         position: destination,
@@ -250,15 +255,15 @@ class _DeliveryMapState extends State<DeliveryMap>
     );
   }
 
-  void _fitBounds({required LatLng store, required LatLng destination}) {
+  void _fitBounds({required LatLng? store, required LatLng destination}) {
     final rider = _drawnPosition;
     final targets = [
-      store,
+      ?store,
       destination,
       ?rider,
     ];
     if (targets.length == 1) {
-      _controller?.moveCamera(CameraUpdate.newLatLngZoom(store, 14));
+      _controller?.moveCamera(CameraUpdate.newLatLngZoom(destination, 14));
       return;
     }
     final south = targets.map((t) => t.latitude).reduce(math.min);

@@ -627,6 +627,10 @@ pub struct DeliveryTracking {
     pub last_lat: Option<f64>,
     pub last_lng: Option<f64>,
     pub last_location_at: Option<OffsetDateTime>,
+    /// Straight-line meters from the rider's freshest fix to the
+    /// destination — the customer's "your driver is close" line. Null
+    /// until the rider's phone has checked in at least once.
+    pub rider_distance_m: Option<i64>,
     pub updated_at: OffsetDateTime,
 }
 
@@ -703,9 +707,18 @@ pub async fn tracking_for_user(
                so.status AS "status: OrderStatus",
                d.handoff_at, d.route_polyline, d.eta_target,
                d.last_lat, d.last_lng, d.last_location_at,
+               CASE WHEN d.last_lat IS NOT NULL AND d.last_lng IS NOT NULL
+                         AND og.address_lat IS NOT NULL AND og.address_lng IS NOT NULL
+               THEN (6371000.0 * 2.0 * asin(sqrt(
+                        power(sin(radians(og.address_lat - d.last_lat) / 2.0), 2)
+                      + cos(radians(d.last_lat)) * cos(radians(og.address_lat))
+                        * power(sin(radians(og.address_lng - d.last_lng) / 2.0), 2)
+                    )))::bigint
+               ELSE NULL END AS rider_distance_m,
                so.updated_at
         FROM commerce.store_orders so
         JOIN commerce.deliveries d ON d.store_order_id = so.id
+        JOIN commerce.order_groups og ON og.id = so.order_group_id
         JOIN marketplace.stores s ON s.id = so.store_id
         LEFT JOIN commerce.riders r ON r.id = d.rider_id
         WHERE so.order_group_id = $1

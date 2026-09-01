@@ -440,12 +440,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                 ),
               ),
             ),
-            // The MAP — an asset when the pin exists (screen 04), a
-            // quiet nothing when it doesn't (P2: never a broken promise).
-            ..._mapSliver(order),
-            // The RIDER CARD — who is bringing it, with the call action.
-            // Appears only when a rider exists (P2).
-            ..._riderCardSliver(),
+            // ONE DELIVERY SECTION PER STORE — each store's own status,
+            // rider, and (while moving) its own map. A different driver
+            // per store means each driver gets their own story.
+            ..._deliverySectionSlivers(order),
             // The DELIVER-TO row with the actions beside it (P10: cancel
             // disappears once picked up — it's no longer reversible).
             SliverToBoxAdapter(
@@ -618,12 +616,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(
             children: [
-              StatusRow(
-                color: AppColors.warning,
-                label: ladder.rung == 'ended'
-                    ? 'Ended · contact the store'
-                    : 'Running late',
-                pulsing: false,
+              // Flexible: on a tiny screen the long "Ended" label and the
+              // call action must share, not collide (neither can shrink
+              // in a bare Row).
+              Flexible(
+                child: StatusRow(
+                  color: AppColors.warning,
+                  label: ladder.rung == 'ended'
+                      ? 'Ended · contact the store'
+                      : 'Running late',
+                  pulsing: false,
+                ),
               ),
               const Spacer(),
               if (phone!.isNotEmpty)
@@ -646,124 +649,37 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     ];
   }
 
-  /// The map sliver: when the destination pin exists and the delivery
-  /// is moving, the DeliveryMap (route, trail, rider marker); desktop
-  /// renders the honest placeholder. No pin → nothing (P2).
-  List<Widget> _mapSliver(OrderGroup order) {
+  /// One DELIVERY SECTION per store order (the multi-store rule: one
+  /// rider per store, so one story per store). Each section carries the
+  /// store's own status, its rider card, and — while that store's
+  /// delivery is moving and the order has a pin — its OWN map. A
+  /// two-store order with two different riders shows both, each with
+  /// their map, in fulfillment order.
+  List<Widget> _deliverySectionSlivers(OrderGroup order) {
     final tracking = _tracking;
-    if (tracking == null) return const [];
-    if (order.addressLat == null || order.addressLng == null) {
-      return const [];
-    }
-    final moving =
-        tracking.deliveries.any((d) => d.status == 'picked_up');
-    if (!moving) return const [];
-    final delivery = tracking.deliveries.first;
+    final hasPin = order.addressLat != null && order.addressLng != null;
     return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: DeliveryMap(
-            tracking: delivery,
-            destinationLat: order.addressLat,
-            destinationLng: order.addressLng,
-          ),
+      for (final storeOrder in order.storeOrders)
+        _StoreDeliverySection(
+          storeOrder: storeOrder,
+          tracking: tracking?.forStoreOrder(storeOrder.id),
+          orderNumber: order.number,
+          hasPin: hasPin,
+          destinationLat: order.addressLat,
+          destinationLng: order.addressLng,
+          cancellable: _cancellableStatuses.contains(storeOrder.status),
+          onCancel: () => unawaited(_cancelStoreOrder(storeOrder)),
         ),
-      ),
-    ];
-  }
-
-  /// The rider card sliver — data from the tracking snapshot's new
-  /// identity fields; the first word of the rider's name is what shows.
-  List<Widget> _riderCardSliver() {
-    final tracking = _tracking;
-    if (tracking == null) return const [];
-    final withRider = tracking.deliveries
-        .where((d) => d.riderName != null && d.riderName!.isNotEmpty)
-        .toList();
-    if (withRider.isEmpty) {
-      // Before assignment: one quiet row, not a dead placeholder (P2).
-      if (_effectiveInFlight) {
-        return [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surfaceBorder),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_outline_rounded,
-                        size: 20, color: AppColors.onSurfaceMuted),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'A rider will be assigned as soon as the store hands your order over.',
-                        style: AppTheme.sub(Theme.of(context).textTheme),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ];
-      }
-      return const [];
-    }
-    final delivery = withRider.first;
-    // The card tells the truth about where the rider is: present tense
-    // only while the food is actually moving. A delivered stop reads as
-    // the past — never "on the way" (the founder's misleading-screen bug).
-    if (delivery.status == 'delivered') {
-      final when = ' · ${_clockTime(delivery.updatedAt)}';
-      return [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: _RiderCard(
-              avatarText: delivery.riderName!,
-              title: 'Delivered$when by ${delivery.riderName!.split(' ').first}',
-              subtitle: [
-                ?delivery.riderVehicle,
-                ?delivery.riderPlate,
-              ].join(' · '),
-            ),
-          ),
-        ),
-      ];
-    }
-    if (delivery.status == 'cancelled') return const [];
-    final firstName = delivery.riderName!.split(' ').first;
-    final vehicleLine = [
-      ?delivery.riderVehicle,
-      ?delivery.riderPlate,
-    ].join(' · ');
-    final phone = delivery.storeContactPhone;
-    return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: _RiderCard(
-            avatarText: delivery.riderName!,
-            title: '$firstName is on the way',
-            subtitle: vehicleLine,
-            phone: phone,
-          ),
-        ),
-      ),
     ];
   }
 
   /// The actions row: what this status allows (P10).
   Widget _actionsRow(OrderGroup order) {
-    final cancellable =
-        order.storeOrders.any((so) => _cancellableStatuses.contains(so.status));
+    // Cancel lives INSIDE each store's delivery section now (per-store
+    // cancel — the second store's order is reachable too). This row is
+    // the whole-purchase actions: reach the store always, reorder when
+    // done. Get help NEVER disappears — delivered orders still need the
+    // store's contact.
     final settled =
         _effectiveGroupStatus == 'completed' || _effectiveGroupStatus == 'cancelled';
     return Column(
@@ -782,32 +698,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
           ),
           const SizedBox(height: 10),
         ],
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => unawaited(_showContactSheet(order)),
-                child: const Text('Get help'),
-              ),
-            ),
-            if (cancellable) ...[
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => unawaited(
-                    _cancelStoreOrder(order.storeOrders.first),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: BorderSide(
-                      color: AppColors.error.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: const Text('Cancel order'),
-                ),
-              ),
-            ],
-          ],
+        OutlinedButton(
+          onPressed: () => unawaited(_showContactSheet(order)),
+          child: const Text('Get help'),
         ),
       ],
     );
@@ -1001,12 +894,14 @@ class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                widget.effectivePaymentStatus == 'pending'
-                    ? 'Total · pay cash on delivery'
-                    : 'Total · paid',
-                style: AppTheme.bd(textTheme).copyWith(
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  widget.effectivePaymentStatus == 'pending'
+                      ? 'Total · pay cash on delivery'
+                      : 'Total · paid',
+                  style: AppTheme.bd(textTheme).copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
@@ -1022,5 +917,253 @@ class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
         ],
       ),
     );
+  }
+}
+
+/// One store's delivery section — the multi-store rule made visible: one
+/// rider per store, so one story per store. The header carries the
+/// store's name, its total, and its own status dot; a moving delivery
+/// with a pin gets ITS OWN map (a different driver per store means each
+/// driver shows on their own map); the rider card tells the truth about
+/// that rider; the closeness line ("your driver is close") comes from the
+/// server's straight-line meters; cancel lives here while reversible.
+class _StoreDeliverySection extends StatelessWidget {
+  const _StoreDeliverySection({
+    required this.storeOrder,
+    required this.tracking,
+    required this.orderNumber,
+    required this.hasPin,
+    required this.destinationLat,
+    required this.destinationLng,
+    required this.cancellable,
+    required this.onCancel,
+  });
+
+  final StoreOrder storeOrder;
+  final DeliveryTracking? tracking;
+  final int orderNumber;
+  final bool hasPin;
+  final double? destinationLat;
+  final double? destinationLng;
+  final bool cancellable;
+  final VoidCallback onCancel;
+
+  /// The store-order's own status story — same shape as the group one
+  /// but scoped to THIS store's delivery.
+  ({Color color, String label, bool pulsing}) get _status {
+    final status = tracking?.status ?? storeOrder.status;
+    return switch (status) {
+      'picked_up' => (
+        color: AppColors.success,
+        label: 'On the way',
+        pulsing: true,
+      ),
+      'delivered' => (
+        color: AppColors.success,
+        label: 'Delivered',
+        pulsing: false,
+      ),
+      'cancelled' => (
+        color: AppColors.error,
+        label: 'Cancelled',
+        pulsing: false,
+      ),
+      'preparing' => (
+        color: AppColors.primary,
+        label: 'Preparing',
+        pulsing: false,
+      ),
+      'accepted' => (
+        color: AppColors.primary,
+        label: 'Accepted',
+        pulsing: false,
+      ),
+      _ => (
+        color: AppColors.primary,
+        label: 'Placed',
+        pulsing: false,
+      ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final delivery = tracking;
+    final moving = delivery?.status == 'picked_up';
+    final riderName = (delivery?.riderName?.isNotEmpty ?? false)
+        ? delivery!.riderName!
+        : null;
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.surfaceBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The header: who is fulfilling this slice, for how much,
+              // and where it stands.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        storeOrder.storeName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      formatRwf(storeOrder.total),
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 14,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 5, 14, 0),
+                child: StatusRow(
+                  color: _status.color,
+                  label: _status.label,
+                  pulsing: _status.pulsing,
+                ),
+              ),
+              // THE MAP — this store's own delivery, its own map while
+              // moving. No pin → the quiet nothing (P2), with the reason
+              // said out loud only while the story is alive.
+              if (moving) ...[
+                if (hasPin && destinationLat != null && destinationLng != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                    child: DeliveryMap(
+                      tracking: delivery!,
+                      destinationLat: destinationLat,
+                      destinationLng: destinationLng,
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                    child: Text(
+                      'Your delivery is on the way — add a delivery location next order to watch it move.',
+                      style: AppTheme.sub(textTheme),
+                    ),
+                  ),
+                // The closeness line: the server's straight-line meters,
+                // never client math. "Delivery started" until it's close.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        (delivery?.riderDistanceM ?? 1 << 62) <= 500
+                            ? Icons.near_me_rounded
+                            : Icons.local_shipping_rounded,
+                        size: 15,
+                        color: AppColors.success,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _closenessLine(),
+                          style: AppTheme.sub(textTheme)
+                              .copyWith(color: AppColors.success),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              // The rider card — THIS store's rider only.
+              if (riderName != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                  child: _RiderCard(
+                    avatarText: riderName,
+                    title: delivery!.status == 'delivered'
+                        ? 'Delivered · ${_clockTimeOf(delivery)} by ${riderName.split(' ').first}'
+                        : '${riderName.split(' ').first} is on the way',
+                    subtitle: [
+                      ?delivery.riderVehicle,
+                      ?delivery.riderPlate,
+                    ].join(' · '),
+                    phone: delivery.storeContactPhone,
+                  ),
+                )
+              else if (moving || storeOrder.status == 'placed' || storeOrder.status == 'accepted' || storeOrder.status == 'preparing')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_outline_rounded,
+                          size: 18, color: AppColors.onSurfaceMuted),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'A rider will be assigned when the store hands your order over.',
+                          style: AppTheme.sub(textTheme),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // Cancel — per store, while the store's order is reversible.
+              if (cancellable)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: onCancel,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(
+                          color: AppColors.error.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel ${storeOrder.storeName.split(' ').first} order',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _closenessLine() {
+    final meters = tracking?.riderDistanceM;
+    if (meters == null) return 'Delivery started — you will see the rider move once their phone checks in.';
+    if (meters <= 500) return 'Your driver is close — about $meters m away.';
+    return 'Delivery started — about ${(meters / 1000).toStringAsFixed(1)} km away.';
+  }
+
+  String _clockTimeOf(DeliveryTracking delivery) {
+    final local = delivery.updatedAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }

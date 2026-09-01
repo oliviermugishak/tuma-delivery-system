@@ -594,9 +594,11 @@ class _StoresTab extends StatelessWidget {
             : 'Try another name or category.',
       );
     }
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       itemCount: stores.length,
+      // The tiny gap: the rounded rows sat flush against each other.
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) =>
           _StoreRow(store: stores[index], onTap: () {
         context.push('/stores/${stores[index].id}');

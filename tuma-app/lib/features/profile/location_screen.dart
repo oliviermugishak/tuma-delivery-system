@@ -354,11 +354,14 @@ class _DeliveryLocationScreenState
             ),
 
           // BOTTOM SECTION — my-location FAB + the "map moves" pill + the
-          // save card.
+          // save card. The card rises above the keyboard (viewInsets) so
+          // Save stays reachable while typing the address or note — the
+          // map stays full-bleed behind it (resizeToAvoidBottomInset is
+          // false on purpose).
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
             child: Column(
               children: [
                 Stack(
@@ -673,16 +676,19 @@ class _SaveCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            // Wrap, not Row: three intrinsic-width chips overflow a
+            // 320dp phone by a few px and the stripe painted over the
+            // "Other" button (the founder's small-phone overflow).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final entry in _kindLabels.entries) ...[
-                  if (entry.key != 'home') const SizedBox(width: 8),
+                for (final entry in _kindLabels.entries)
                   _KindChip(
                     label: entry.value,
                     selected: kind == entry.key,
                     onTap: () => onKind(entry.key),
                   ),
-                ],
               ],
             ),
             const SizedBox(height: 12),

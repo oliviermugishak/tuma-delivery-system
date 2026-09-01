@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- LAN device testing: the baked API base is plain http://192.168.1.100:8080
+         (dev server, no TLS). Android 9+ blocks cleartext by default, which on
+         the phone reads as every request failing. Debug-only — release keeps
+         Android's default and ships HTTPS. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

@@ -173,10 +173,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: AppColors.surface,
+      // Scroll-safe, same as the phone screen: the keyboard must never
+      // stripe the fixed content on a small phone.
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height -
+                  MediaQuery.paddingOf(context).vertical,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Align(
@@ -276,7 +284,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
                         child: Text(_resending ? 'Sending…' : 'Resend code'),
                       ),
               ),
-              const Spacer(),
+              // The flexible tail the Spacer owned — scrolls away under
+              // the keyboard instead of striping.
+              const SizedBox(height: 48),
               if (_submitting)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 32),
@@ -293,6 +303,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
                 ),
               const SizedBox(height: 16),
             ],
+          ),
+        ),
           ),
         ),
       ),

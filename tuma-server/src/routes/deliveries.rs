@@ -398,6 +398,7 @@ pub async fn order_tracking(
             last_lat: delivery.last_lat,
             last_lng: delivery.last_lng,
             last_location_at: delivery.last_location_at,
+            rider_distance_m: delivery.rider_distance_m,
             updated_at: delivery.updated_at,
             trail: tracking
                 .trails
@@ -464,6 +465,10 @@ pub struct DeliveryTrackingResponse {
     pub last_lng: Option<f64>,
     #[serde(with = "time::serde::rfc3339::option")]
     pub last_location_at: Option<OffsetDateTime>,
+    /// Straight-line meters from the rider's freshest fix to the
+    /// destination — the customer's "your driver is close" line. Null
+    /// until the rider's phone has checked in.
+    pub rider_distance_m: Option<i64>,
     /// The delivery's last write — for a settled delivery, the delivered
     /// moment the customer's "Delivered · time" line shows (D5).
     #[serde(with = "time::serde::rfc3339")]

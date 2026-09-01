@@ -3225,6 +3225,14 @@
             ],
             "format": "date-time"
           },
+          "rider_distance_m": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Straight-line meters from the rider's freshest fix to the\ndestination — the customer's \"your driver is close\" line. Null\nuntil the rider's phone has checked in."
+          },
           "rider_name": {
             "type": [
               "string",

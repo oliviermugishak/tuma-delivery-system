@@ -23,17 +23,25 @@ class StatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The words give back width when the parent squeezes (ellipsis):
+    // inside a tight Row — the order-detail ladder line beside "Call
+    // store" — an unshrinkable Text overflowed the screen by 41px on a
+    // 320dp phone (the ended world caught it).
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         PulsingDot(color: color, pulsing: pulsing),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: AppTheme.sub(context.textTheme).copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 12.5,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sub(context.textTheme).copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+            ),
           ),
         ),
       ],
@@ -322,7 +330,9 @@ class _Step extends StatelessWidget {
         ),
         const SizedBox(height: 7),
         SizedBox(
-          width: 54,
+          // 48px, not 54: five labels + connectors must fit a 320dp
+          // phone with visible connector lines between them.
+          width: 48,
           child: Text(
             label,
             textAlign: TextAlign.center,

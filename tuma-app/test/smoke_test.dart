@@ -873,16 +873,20 @@ void main() {
     await _settle(tester);
 
     // The Moving world: the HERO status narrates, the stepper shows
-    // position, the map panel is present (desktop: the honest data
-    // placeholder — the real map is a phone verification).
+    // position, the store section carries the same story with its own
+    // map panel (desktop: the honest data placeholder — the real map is
+    // a phone verification).
     expect(find.text('Out for delivery'), findsOneWidget);
     expect(find.textContaining('Arriving in about'), findsOneWidget);
-    expect(find.text('On the way'), findsOneWidget,
-        reason: 'the stepper marks position in the story');
+    expect(find.text('On the way'), findsWidgets,
+        reason: 'the stepper AND the store section both mark position');
     expect(find.textContaining('the map renders on your phone'),
         findsOneWidget);
     // The rider card tells the present-tense truth while moving.
     expect(find.textContaining('Billie is on the way'), findsOneWidget);
+    // The delivery-started line — the founder's simplification: position
+    // + closeness + status, no fake motion promises.
+    expect(find.textContaining('Delivery started'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -950,13 +954,13 @@ void main() {
     await tester.tap(find.text("Aline's Kitchen").first);
     await _settle(tester);
 
-    // Scroll to the actions and open the sheet.
-    await tester.scrollUntilVisible(
-      find.text('Get help'),
-      200,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.tap(find.text('Get help'));
+    // Scroll to the actions and open the sheet. The settled section
+    // list is short — the button may already be fully on screen, and
+    // drag-until-visible gets flaky when there is nothing to drag.
+    final getHelp = find.text('Get help');
+    await tester.ensureVisible(getHelp);
+    await tester.pump();
+    await tester.tap(getHelp);
     await tester.pumpAndSettle();
 
     // The sheet carries the store's real contact surface.

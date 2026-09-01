@@ -239,7 +239,11 @@ class _ActiveOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final store = group.stores.isNotEmpty ? group.stores.first : 'Your order';
+    // Every fulfilling store, joined — a multi-store order shows all of
+    // them (one rider per store means several stories on one purchase).
+    final store = group.stores.isEmpty
+        ? 'Your order'
+        : group.stores.join(' · ');
     final story = activeOrderStory(group);
     final color = story.color;
     final label = story.label;
@@ -386,12 +390,11 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final stores = group.stores.join(' · ');
-    final extra = group.stores.length > 1 ? ' · +${group.stores.length - 1} store' : '';
+    // All the stores, joined — no redundant "+N store" after the names.
+    final name = group.stores.isEmpty ? 'Your order' : group.stores.join(' · ');
     final story = _historyStatus(group.status);
     final color = story.color;
     final label = story.label;
-    final name = '$stores$extra';
 
     return Material(
       color: AppColors.surfaceAlt,

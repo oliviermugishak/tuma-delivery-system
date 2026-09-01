@@ -590,6 +590,8 @@ async fn tracking_answers_204_when_nothing_changed(pool: PgPool) {
     assert_eq!(body["group_id"], group_id);
     assert_eq!(body["deliveries"][0]["store_name"], "Aline Remera");
     assert_eq!(body["deliveries"][0]["status"], "picked_up");
+    // No rider fix yet — the closeness fact is honestly absent, not zero.
+    assert!(body["deliveries"][0]["rider_distance_m"].is_null());
     let changed_at = body["changed_at"].as_str().unwrap().to_string();
 
     // The same changed_at echoed back: nothing moved — 204. A `+` in the
@@ -625,6 +627,11 @@ async fn tracking_answers_204_when_nothing_changed(pool: PgPool) {
     let body: Value = response.json().await.unwrap();
     assert_eq!(body["deliveries"][0]["last_lat"], -1.9499);
     assert_eq!(body["deliveries"][0]["trail"].as_array().unwrap().len(), 1);
+    // The rider has checked in: the straight-line distance to the
+    // destination is a real number now (this world's rider stands ON the
+    // destination — zero meters is the honest answer, not an absence).
+    let distance = body["deliveries"][0]["rider_distance_m"].as_i64().unwrap();
+    assert!(distance >= 0, "closeness is meters to the destination");
 
     // Anti-probe: another customer's tracking is a 404; a rider asking is
     // a 403.

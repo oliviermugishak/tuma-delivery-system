@@ -63,6 +63,7 @@ class DeliveryTracking {
     this.lastLat,
     this.lastLng,
     this.lastLocationAt,
+    this.riderDistanceM,
     required this.updatedAt,
     required this.trail,
   });
@@ -83,6 +84,11 @@ class DeliveryTracking {
   final double? lastLat;
   final double? lastLng;
   final DateTime? lastLocationAt;
+
+  /// Straight-line meters from the rider's freshest fix to the
+  /// destination — the "your driver is close" line. Null until the
+  /// rider's phone has checked in; the client never computes it.
+  final int? riderDistanceM;
 
   /// The delivery's last write — for a settled delivery, the delivered
   /// moment the "Delivered · time" line shows.
@@ -112,6 +118,7 @@ class DeliveryTracking {
         lastLocationAt: json['last_location_at'] is String
             ? DateTime.parse(json['last_location_at'] as String)
             : null,
+        riderDistanceM: (json['rider_distance_m'] as num?)?.toInt(),
         updatedAt: DateTime.parse(json['updated_at'] as String),
         trail: (json['trail'] as List? ?? [])
             .whereType<Map<String, dynamic>>()

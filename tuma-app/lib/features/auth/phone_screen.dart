@@ -122,75 +122,96 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: AppColors.surface,
+      // Scroll-safe (the keyboard overflow on small phones): the fixed
+      // content + keyboard exceed the shrunken body, so the column lives
+      // in a scroll view with a minimum height — the Spacer breathes on
+      // tall screens, scrolls on short ones, never stripes.
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 48),
-              const Center(child: BrandMark(size: 72, borderRadius: 16)),
-              const SizedBox(height: 24),
-              Text(
-                'Welcome to Tuma',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Everything you crave, delivered.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
-              ),
-              const SizedBox(height: 48),
-              Text(
-                'Phone number',
-                style: textTheme.labelLarge?.copyWith(color: AppColors.onSurface),
-              ),
-              const SizedBox(height: 8),
-              Row(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height -
+                  MediaQuery.paddingOf(context).vertical,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _CountryChip(country: _country, onTap: _pickCountry),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      autofocus: true,
-                      style: textTheme.bodyLarge?.copyWith(color: AppColors.onSurface),
-                      decoration: const InputDecoration(hintText: '7XX XXX XXX'),
-                      onChanged: (_) {
-                        if (_error != null) setState(() => _error = null);
-                      },
-                      onSubmitted: (_) => _continue(),
+                  const SizedBox(height: 48),
+                  const Center(child: BrandMark(size: 72, borderRadius: 16)),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Welcome to Tuma',
+                    textAlign: TextAlign.center,
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Everything you crave, delivered.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceMuted),
+                  ),
+                  const SizedBox(height: 48),
+                  Text(
+                    'Phone number',
+                    style:
+                        textTheme.labelLarge?.copyWith(color: AppColors.onSurface),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _CountryChip(country: _country, onTap: _pickCountry),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          autofocus: true,
+                          style: textTheme.bodyLarge
+                              ?.copyWith(color: AppColors.onSurface),
+                          decoration:
+                              const InputDecoration(hintText: '7XX XXX XXX'),
+                          onChanged: (_) {
+                            if (_error != null) setState(() => _error = null);
+                          },
+                          onSubmitted: (_) => _continue(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: AppColors.error),
+                    ),
+                  ],
+                  // The flexible gap the Spacer used to own — inside the
+                  // min-height box it still pushes the button down on
+                  // tall screens, but it scrolls away under a keyboard.
+                  const SizedBox(height: 48),
+                  PrimaryButton(
+                    label: 'Continue',
+                    loading: _submitting,
+                    onPressed: _submitting ? null : _continue,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'By continuing you agree to Tuma\'s Terms and Privacy Policy.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: AppColors.onSurfaceMuted),
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: textTheme.bodySmall?.copyWith(color: AppColors.error),
-                ),
-              ],
-              const Spacer(),
-              PrimaryButton(
-                label: 'Continue',
-                loading: _submitting,
-                onPressed: _submitting ? null : _continue,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'By continuing you agree to Tuma\'s Terms and Privacy Policy.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodySmall?.copyWith(color: AppColors.onSurfaceMuted),
-              ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
       ),

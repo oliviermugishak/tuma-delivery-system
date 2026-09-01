@@ -129,26 +129,25 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                 const Icon(Icons.badge_rounded,
                     size: 26, color: AppColors.primary),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const MicroLabel('Your rider number'),
-                    const SizedBox(height: 2),
-                    Text(
-                      '#${rider?.riderNumber ?? '—'}',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
+                // Expanded: the number never overflows the card on a
+                // narrow screen (the trailing caption is gone — everyone
+                // knows what the rider number is for).
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const MicroLabel('Your rider number'),
+                      const SizedBox(height: 2),
+                      Text(
+                        '#${rider?.riderNumber ?? '—'}',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  'Show this at handoff',
-                  style: AppTheme.cap(textTheme),
-                  textAlign: TextAlign.end,
+                    ],
+                  ),
                 ),
               ],
             ),

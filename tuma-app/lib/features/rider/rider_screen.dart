@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -14,6 +15,23 @@ import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
+
+/// The honest line for a location failure — the rider must know whether
+/// to fix their phone (permission, services, GPS signal) or their
+/// connection. geolocator throws its own exception types; every one maps
+/// to a named fix, never a generic "server" blame.
+String gpsFailureReason(Object error) {
+  if (error is PermissionDeniedException) {
+    return 'Location permission is off — allow it in Settings, then try again.';
+  }
+  if (error is LocationServiceDisabledException) {
+    return 'Location services are off — turn on GPS, then try again.';
+  }
+  if (error is TimeoutException) {
+    return 'Getting your position took too long — step outside or try again.';
+  }
+  return 'Could not get your position — check location and connection, then try again.';
+}
 
 /// The delivery kiosk (tracking doc §5): the rider's whole working day on
 /// one screen. A store hands an order over by typing the rider number —
@@ -196,12 +214,16 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _starting = false);
-      // The failure names itself: geolocator throws plain StateErrors —
-      // "location services are off" vs "permission not granted" — while
-      // network noise carries anything else.
-      final reason = error is StateError
-          ? 'GPS: ${error.message}. Enable location and try again.'
-          : 'Could not reach the server — check your connection and try again.';
+      // The failure names itself. On a real phone geolocator throws its
+      // OWN exception types — PermissionDeniedException,
+      // LocationServiceDisabledException, TimeoutException — none of
+      // which are StateError, so they all used to fall into a lying
+      // "could not reach the server" (the founder's big red error with
+      // no server call anywhere). Every type gets its honest line.
+      final reason = switch (error) {
+        StateError(:final message) => 'GPS: $message. Enable location and try again.',
+        _ => gpsFailureReason(error),
+      };
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -481,31 +503,32 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: online
-                        ? () => unawaited(_stopDelivering())
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 15, vertical: 7),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.35),
+                  // The off switch, ONLY when on the clock. Offline, the
+                  // bottom Start button is the way onto the clock — a
+                  // grey fake Stop beside it was the founder's
+                  // "irrelevant redundant buttons" complaint.
+                  if (online)
+                    GestureDetector(
+                      onTap: () => unawaited(_stopDelivering()),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 15, vertical: 7),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.35),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'Stop',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: online
-                              ? AppColors.error
-                              : AppColors.onSurfaceMuted,
+                        child: const Text(
+                          'Stop',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.error,
+                          ),
                         ),
                       ),
                     ),
-                  ),
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: () => context.push('/rider/profile'),

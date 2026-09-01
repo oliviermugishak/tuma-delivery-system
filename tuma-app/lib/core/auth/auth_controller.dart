@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
@@ -123,7 +124,16 @@ class SessionNotifier extends AsyncNotifier<SessionState> {
 
   void _set(SessionState value) {
     state = AsyncData(value);
-    sessionRouterRefresher.notify();
+    // The router refresh is deferred one frame: notifying DURING the
+    // setState that flipped the session tears the widget tree down
+    // mid-frame while inherited dependents are still subscribed — a
+    // crash on device ("failed assertion … is empty is not true",
+    // framework.dart's debugDeactivated). A post-frame notify lets the
+    // frame finish, then the redirect swaps the location over a stable
+    // tree.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      sessionRouterRefresher.notify();
+    });
   }
 
   Future<void> bootstrap() async {
