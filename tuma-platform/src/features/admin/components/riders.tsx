@@ -37,8 +37,7 @@ import {
   Toolbar,
   type Column,
 } from '@/components/ds'
-import { demoRiderStats } from '@/features/demo/seed'
-import { date, initials, num, phone } from '@/lib/format'
+import { date, initials, phone } from '@/lib/format'
 import { riderStatusLabel, riderStatusTone } from '@/lib/status'
 import { ApiError } from '@/api/client'
 
@@ -122,36 +121,24 @@ export function RidersPage() {
       key: 'today',
       header: 'Deliveries today',
       numeric: true,
-      // BACKEND GAP (G10): GET /v1/admin/riders/stats
-      cell: (r) =>
-        demoRiderStats[String(r.rider_number)] ? (
-          num(demoRiderStats[String(r.rider_number)].deliveriesToday)
-        ) : (
-          <span className="text-text3">No deliveries yet</span>
-        ),
+      // BACKEND GAP (G10): GET /v1/admin/riders/stats — until it lands,
+      // words, never invented numbers (P2).
+      cell: () => <span className="text-text3">First runs paint this</span>,
     },
     {
       key: 'ontime',
       header: 'On-time %',
       numeric: true,
       // BACKEND GAP (G10).
-      cell: (r) =>
-        demoRiderStats[String(r.rider_number)] ? (
-          `${demoRiderStats[String(r.rider_number)].onTimePct}%`
-        ) : (
-          <span className="text-text3">Not enough runs</span>
-        ),
+      cell: () => <span className="text-text3">Not enough runs</span>,
     },
     {
       key: 'status',
       header: 'Status',
       cell: (r) => {
-        const onDelivery = demoRiderStats[String(r.rider_number)]?.onDelivery
         return (
-          <Status
-            tone={onDelivery ? 'accent' : riderStatusTone(r.is_active)}
-          >
-            {onDelivery ? 'On delivery' : riderStatusLabel(r.is_active)}
+          <Status tone={riderStatusTone(r.is_active)}>
+            {riderStatusLabel(r.is_active)}
           </Status>
         )
       },
@@ -241,7 +228,11 @@ export function RidersPage() {
       <GuardDialog
         open={deactivateTarget != null}
         onClose={() => setDeactivateTarget(null)}
-        title={`Deactivate ${deactivateTarget?.name ?? ''}?`}
+        title={
+          deactivateTarget
+            ? `Deactivate ${deactivateTarget.name}?`
+            : 'Deactivate rider?'
+        }
         confirmLabel="Deactivate rider"
         onConfirm={() => {
           if (deactivateTarget) {
@@ -262,7 +253,7 @@ export function RidersPage() {
       <GuardDialog
         open={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title={`Delete ${deleteTarget?.name ?? ''}?`}
+        title={deleteTarget ? `Delete ${deleteTarget.name}?` : 'Delete rider?'}
         confirmLabel="Delete rider"
         pending={removeRider.isPending}
         onConfirm={() => {
@@ -296,7 +287,6 @@ function RiderDrawer({
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   if (!rider) return null
-  const stats = demoRiderStats[String(rider.rider_number)]
 
   const startEdit = () => {
     setName(rider.name)
@@ -379,25 +369,19 @@ function RiderDrawer({
         <>
           <DrawerSection label="Current order">
             {/* BACKEND GAP (G10): the rider's live delivery needs
-                GET /v1/admin/riders/{id}/current-delivery. */}
-            {stats?.onDelivery ? (
-              <div className="text-[13px] text-text2">
-                On delivery right now — live tracking lives with the order.
-              </div>
-            ) : (
-              <div className="text-[13px] text-text2">
-                {rider.is_active
-                  ? 'Waiting for a hand-off — no order in their hands.'
-                  : 'Off duty — not receiving hand-offs.'}
-              </div>
-            )}
+                GET /v1/admin/riders/{id}/current-delivery — until then,
+                words only, never invented state. */}
+            <div className="text-[13px] text-text2">
+              {rider.is_active
+                ? 'Available for hand-offs — their current delivery shows with the order.'
+                : 'Off duty — not receiving hand-offs.'}
+            </div>
           </DrawerSection>
 
-          <DrawerSection label="Recent deliveries">
+          <DrawerSection label="Delivery history">
             <div className="text-[13px] text-text2">
-              {stats
-                ? `${stats.deliveriesToday} deliveries today · ${stats.onTimePct}% on time.`
-                : 'No completed deliveries recorded yet — history appears after their first run.'}
+              Delivery counts and on-time numbers arrive with the rider
+              stats slice (BACKEND-GAPS.md G10) — after their first run.
             </div>
           </DrawerSection>
 

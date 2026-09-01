@@ -39,39 +39,33 @@ endpoint on anymore.
   `{ outcome: 'refund' | 'partial' | 'reject', amount?, reason }`
 
 Used by: **Admin → Disputes & Refunds** queue, trail drawer, and the
-Resolve page (a page per P18). Resolutions must land in the audit log (G6).
+Resolve page (a page per P18). Resolutions must land in a server-side
+audit trail when one exists (former G6).
 
-## G4 · Payouts (admin approval + merchant earnings)
+## G4 · Payouts (merchant earnings)
 
 **Needed:**
-- `GET /v1/admin/payouts?status=pending` → approval queue
-  ("Needs attention" on the admin Overview; approve CTA carries the amount)
-- `POST /v1/admin/payouts/{id}/approve` → processing → paid
 - `GET /v1/merchant/earnings/balance` → `{ available, held_for_open_orders }`
 - `GET /v1/merchant/payouts` → payout history (failed row needs
   `failure_reason` for the Retry affordance)
 - `POST /v1/merchant/payouts` (request) · `POST /v1/merchant/payouts/{id}/retry`
 
-Used by: Admin Overview needs-attention, Merchant → Earnings & Payouts
-(hero balance, request guard, payout table, failed-retry).
+Used by: Merchant → Earnings & Payouts (hero balance, request guard,
+payout table, failed-retry). A merchant payout request would surface for
+admin review wherever the founder places it (no admin payout page exists —
+removed by founder direction, see G5/G6).
 
-## G5 · Platform fees & categories
+## G5 · ~~Platform fees & categories~~ — RETIRED (founder direction, 2026-09-01)
 
-**Needed:**
-- `GET /v1/admin/platform-settings` → `{ platform_fee_pct, categories[]:
-  { name, product_count, delivery_fee_default }, last_edited_by,
-  last_edited_at }`
-- `PUT /v1/admin/platform-settings` (dirty-save writes)
+The Fees & Categories page and its nav entry were removed. When platform
+fees become a real product need, the endpoints land as a normal slice
+alongside a rebuilt page.
 
-Used by: **Admin → Fees & Categories**. The page renders real structure
-with Save honestly refusing until this lands — never fake persistence.
+## G6 · ~~Audit log~~ — RETIRED (founder direction, 2026-09-01)
 
-## G6 · Audit log
-
-**Needed:** `GET /v1/admin/audit?type=&actor=&from=&to=&limit=&offset=` →
-append-only rows `{ actor, action, target_type, target_id, at }`. No write
-endpoint — it's a record (P1: no row actions). Refunds, suspensions,
-payout approvals, and settings writes should append here server-side.
+The Audit log page and its nav entry were removed. The disputes-resolve
+flow no longer promises audit-log writes; if a server-side trail is added
+later, it should live entirely server-side.
 
 ## G7 · Reviews
 

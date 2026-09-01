@@ -9,7 +9,7 @@
  * designed empty state in words until it lands; the live strip and the
  * chart are built from real orders.
  */
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -24,7 +24,6 @@ import {
 import {
   Button,
   ChartCard,
-  Chip,
   EmptyState,
   ErrorState,
   Freshness,
@@ -44,7 +43,6 @@ import { ApiError } from '@/api/client'
 
 export function MerchantOverview() {
   const queryClient = useQueryClient()
-  const [range, setRange] = useState<'today' | '7d' | '30d'>('today')
   const stores = useQuery({ ...listOwnStoresOptions(), staleTime: 60_000 })
   const orders = useQuery({
     ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
@@ -89,13 +87,6 @@ export function MerchantOverview() {
             </span>
           </>
         }
-        actions={
-          <>
-            <Chip on={range === 'today'} onClick={() => setRange('today')}>Today</Chip>
-            <Chip on={range === '7d'} onClick={() => setRange('7d')}>7 days</Chip>
-            <Chip on={range === '30d'} onClick={() => setRange('30d')}>30 days</Chip>
-          </>
-        }
       />
 
       {/* BACKEND GAP (G9): merchant KPI aggregates — until
@@ -116,11 +107,19 @@ export function MerchantOverview() {
           />
           <KpiCard
             label="Newest order"
-            value={newest ? `#${newest.number}` : '—'}
+            value={newest ? `#${newest.number}` : 'None yet'}
             vs={newest ? rwf(newest.total) : 'nothing waiting'}
           />
-          <KpiCard label="Orders today" value="0" vs="daily totals land with merchant metrics" />
-          <KpiCard label="Revenue today" value="0" unit="RWF" vs="daily totals land with merchant metrics" />
+          <KpiCard
+            label="Orders today"
+            value="Pending"
+            vs="daily totals land with the merchant metrics slice"
+          />
+          <KpiCard
+            label="Revenue today"
+            value="Pending"
+            vs="daily totals land with the merchant metrics slice"
+          />
         </KpiGrid>
       )}
 

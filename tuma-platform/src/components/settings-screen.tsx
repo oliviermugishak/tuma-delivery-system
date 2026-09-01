@@ -19,27 +19,23 @@ import { useSession } from '@/hooks/use-session'
 export function SettingsScreen() {
   const { data: user } = useSession()
   const isMerchantOperator = (user?.merchant_memberships.length ?? 0) > 0 && !user?.admin
-  const email = user?.email ?? ''
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHead
-        title="Settings"
-        sub={email ? undefined : undefined}
-      />
+      <PageHead title="Settings" />
       {isMerchantOperator ? (
         <>
           <Card>
             <div className="text-[17px] font-bold">Identity</div>
             <p className="mt-1 text-sm text-text2">
-              You sign in as {email}. A merchant operator's identity on Tuma
-              is the business — there's no separate display name to edit.
+              You sign in as {user?.email}. A merchant operator's identity on
+              Tuma is the business — there's no separate display name to edit.
             </p>
           </Card>
           <PasswordCard />
         </>
       ) : (
-        <ProfileCard email={email} />
+        <ProfileCard email={user?.email ?? ''} />
       )}
     </div>
   )

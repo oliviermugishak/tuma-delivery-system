@@ -16,10 +16,11 @@ export const Route = createFileRoute('/admin')({
 })
 
 /**
- * Admin nav (constitution Part 4): OPERATE / NETWORK / PLATFORM. Founders'
- * call (2026-09-01): admins never see orders — merchants own the order
- * lifecycle; the admin wing manages the network (merchants, riders,
- * customers) and the platform. Settings lives under the avatar.
+ * Admin nav (constitution Part 4): OPERATE / NETWORK. Founders' calls
+ * (2026-09-01): admins never see orders — merchants own the order
+ * lifecycle; Fees and Audit log were removed with the founder's product
+ * direction (BACKEND-GAPS.md G5/G6 retired). Settings lives under the
+ * avatar.
  */
 const navGroups: NavGroup[] = [
   {
@@ -41,13 +42,6 @@ const navGroups: NavGroup[] = [
       { to: '/admin/customers', label: 'Customers', icon: 'groups' },
     ],
   },
-  {
-    title: 'Platform',
-    items: [
-      { to: '/admin/fees', label: 'Fees & Categories', icon: 'sell' },
-      { to: '/admin/audit', label: 'Audit log', icon: 'history' },
-    ],
-  },
 ]
 
 const staticPalette: PaletteItem[] = [
@@ -56,8 +50,6 @@ const staticPalette: PaletteItem[] = [
   { id: 'nav-merchants', group: 'Go to', label: 'Merchants', icon: 'storefront', to: '/admin/merchants' },
   { id: 'nav-riders', group: 'Go to', label: 'Riders', icon: 'two_wheeler', to: '/admin/riders' },
   { id: 'nav-customers', group: 'Go to', label: 'Customers', icon: 'groups', to: '/admin/customers' },
-  { id: 'nav-fees', group: 'Go to', label: 'Fees & Categories', icon: 'sell', to: '/admin/fees' },
-  { id: 'nav-audit', group: 'Go to', label: 'Audit log', icon: 'history', to: '/admin/audit' },
 ]
 
 function AdminWing() {

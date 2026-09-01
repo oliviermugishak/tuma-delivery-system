@@ -38,6 +38,7 @@ import { num, rwf } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
 const editRouteApi = getRouteApi('/merchant/menu/$productId')
+const newRouteApi = getRouteApi('/merchant/menu/new')
 
 export function ProductNewPage() {
   return <AttachProductForm />
@@ -55,11 +56,13 @@ export function ProductEditPage() {
 function AttachProductForm() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Catalog's "Sell it in a store" deep-links here with ?product=.
+  const { product: preselected } = newRouteApi.useSearch()
   const stores = useQuery(listOwnStoresOptions())
   const catalog = useQuery(listProductsOptions())
   const assortment = useQuery(listStoreProductsOptions())
 
-  const [productId, setProductId] = useState('')
+  const [productId, setProductId] = useState(preselected ?? '')
   const [storeId, setStoreId] = useState('')
   const [price, setPrice] = useState('')
   const [stockMode, setStockMode] = useState<'untracked' | 'count'>('untracked')

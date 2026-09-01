@@ -157,7 +157,6 @@ function MerchantForm({
             <Field
               label="Business email"
               help="Optional — the public contact on the store"
-              error={errors.businessEmail}
             >
               <Input
                 type="email"

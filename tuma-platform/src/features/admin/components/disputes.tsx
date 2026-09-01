@@ -152,7 +152,11 @@ export function DisputesQueue() {
       <Drawer
         open={trail != null}
         onClose={() => setTrail(null)}
-        title={`Dispute #${trail?.number ?? ''} · Order #${trail?.orderNumber ?? ''}`}
+        title={
+          trail
+            ? `Dispute #${trail.number} · Order #${trail.orderNumber}`
+            : 'Dispute'
+        }
         subtitle={trail ? `${trail.store} · ${trail.customer}` : undefined}
         status={
           trail ? (

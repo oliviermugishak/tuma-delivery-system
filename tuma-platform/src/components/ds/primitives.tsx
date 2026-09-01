@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from '@tanstack/react-router'
 
 import { cn } from '@/lib/utils'
 import type { Tone } from '@/lib/status'
@@ -176,11 +177,13 @@ export interface ButtonProps
 export function Button({
   variant = 'outline',
   small = false,
+  type = 'button',
   className,
   ...props
 }: ButtonProps) {
   return (
     <button
+      type={type}
       {...props}
       className={cn(
         btnBase,
@@ -816,13 +819,13 @@ export function PageHead({
   return (
     <div>
       {back ? (
-        <a
-          href={back.to}
+        <Link
+          to={back.to}
           className="mb-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-text2 hover:text-foreground"
         >
           <Icon name="arrow_back" label="" size={16} />
           {back.label}
-        </a>
+        </Link>
       ) : null}
       <div className="flex flex-wrap items-start gap-6">
         <div className="min-w-0 flex-1">

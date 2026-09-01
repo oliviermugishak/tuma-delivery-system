@@ -14,32 +14,36 @@ import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MerchantRouteRouteImport } from './routes/merchant/route'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminAuditRouteImport } from './routes/admin/audit'
-import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
-import { Route as AdminDisputesRouteImport } from './routes/admin/disputes'
-import { Route as AdminFeesRouteImport } from './routes/admin/fees'
-import { Route as AdminRidersRouteImport } from './routes/admin/riders'
-import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminDisputesRouteRouteImport } from './routes/admin/disputes/route'
+import { Route as AdminMerchantsRouteRouteImport } from './routes/admin/merchants/route'
+import { Route as AdminRidersRouteRouteImport } from './routes/admin/riders/route'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
-import { Route as MerchantCatalogRouteImport } from './routes/merchant/catalog'
-import { Route as MerchantEarningsRouteImport } from './routes/merchant/earnings'
-import { Route as MerchantMenuRouteImport } from './routes/merchant/menu'
-import { Route as MerchantOrdersRouteImport } from './routes/merchant/orders'
-import { Route as MerchantReviewsRouteImport } from './routes/merchant/reviews'
-import { Route as MerchantSettingsRouteImport } from './routes/merchant/settings'
-import { Route as AdminDisputesDisputeIdRouteImport } from './routes/admin/disputes.$disputeId'
-import { Route as AdminMerchantsIndexRouteImport } from './routes/admin/merchants.index'
-import { Route as AdminMerchantsMerchantIdRouteImport } from './routes/admin/merchants.$merchantId'
-import { Route as AdminMerchantsNewRouteImport } from './routes/admin/merchants.new'
-import { Route as AdminRidersNewRouteImport } from './routes/admin/riders.new'
-import { Route as MerchantCatalogProductIdRouteImport } from './routes/merchant/catalog.$productId'
-import { Route as MerchantCatalogNewRouteImport } from './routes/merchant/catalog.new'
-import { Route as MerchantMenuProductIdRouteImport } from './routes/merchant/menu.$productId'
-import { Route as MerchantMenuNewRouteImport } from './routes/merchant/menu.new'
-import { Route as MerchantStoreIndexRouteImport } from './routes/merchant/store.index'
-import { Route as MerchantStoreStoreIdRouteImport } from './routes/merchant/store.$storeId'
-import { Route as MerchantStoreNewRouteImport } from './routes/merchant/store.new'
-import { Route as AdminMerchantsMerchantIdEditRouteImport } from './routes/admin/merchants.$merchantId.edit'
+import { Route as MerchantCatalogRouteRouteImport } from './routes/merchant/catalog/route'
+import { Route as MerchantMenuRouteRouteImport } from './routes/merchant/menu/route'
+import { Route as MerchantStoreRouteRouteImport } from './routes/merchant/store/route'
+import { Route as AdminCustomersIndexRouteImport } from './routes/admin/customers/index'
+import { Route as AdminDisputesIndexRouteImport } from './routes/admin/disputes/index'
+import { Route as AdminDisputesDisputeIdRouteImport } from './routes/admin/disputes/$disputeId'
+import { Route as AdminMerchantsIndexRouteImport } from './routes/admin/merchants/index'
+import { Route as AdminMerchantsMerchantIdRouteImport } from './routes/admin/merchants/$merchantId'
+import { Route as AdminMerchantsNewRouteImport } from './routes/admin/merchants/new'
+import { Route as AdminRidersIndexRouteImport } from './routes/admin/riders/index'
+import { Route as AdminRidersNewRouteImport } from './routes/admin/riders/new'
+import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
+import { Route as MerchantCatalogIndexRouteImport } from './routes/merchant/catalog/index'
+import { Route as MerchantCatalogProductIdRouteImport } from './routes/merchant/catalog/$productId'
+import { Route as MerchantCatalogNewRouteImport } from './routes/merchant/catalog/new'
+import { Route as MerchantEarningsIndexRouteImport } from './routes/merchant/earnings/index'
+import { Route as MerchantMenuIndexRouteImport } from './routes/merchant/menu/index'
+import { Route as MerchantMenuProductIdRouteImport } from './routes/merchant/menu/$productId'
+import { Route as MerchantMenuNewRouteImport } from './routes/merchant/menu/new'
+import { Route as MerchantOrdersIndexRouteImport } from './routes/merchant/orders/index'
+import { Route as MerchantReviewsIndexRouteImport } from './routes/merchant/reviews/index'
+import { Route as MerchantSettingsIndexRouteImport } from './routes/merchant/settings/index'
+import { Route as MerchantStoreIndexRouteImport } from './routes/merchant/store/index'
+import { Route as MerchantStoreStoreIdRouteImport } from './routes/merchant/store/$storeId'
+import { Route as MerchantStoreNewRouteImport } from './routes/merchant/store/new'
+import { Route as AdminMerchantsMerchantIdEditRouteImport } from './routes/admin/merchants/$merchantId.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,34 +70,19 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminAuditRoute = AdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AdminRouteRoute,
-} as any)
-const AdminCustomersRoute = AdminCustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
-  getParentRoute: () => AdminRouteRoute,
-} as any)
-const AdminDisputesRoute = AdminDisputesRouteImport.update({
+const AdminDisputesRouteRoute = AdminDisputesRouteRouteImport.update({
   id: '/disputes',
   path: '/disputes',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminFeesRoute = AdminFeesRouteImport.update({
-  id: '/fees',
-  path: '/fees',
+const AdminMerchantsRouteRoute = AdminMerchantsRouteRouteImport.update({
+  id: '/merchants',
+  path: '/merchants',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminRidersRoute = AdminRidersRouteImport.update({
+const AdminRidersRouteRoute = AdminRidersRouteRouteImport.update({
   id: '/riders',
   path: '/riders',
-  getParentRoute: () => AdminRouteRoute,
-} as any)
-const AdminSettingsRoute = AdminSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const MerchantIndexRoute = MerchantIndexRouteImport.update({
@@ -101,97 +90,132 @@ const MerchantIndexRoute = MerchantIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
-const MerchantCatalogRoute = MerchantCatalogRouteImport.update({
+const MerchantCatalogRouteRoute = MerchantCatalogRouteRouteImport.update({
   id: '/catalog',
   path: '/catalog',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
-const MerchantEarningsRoute = MerchantEarningsRouteImport.update({
-  id: '/earnings',
-  path: '/earnings',
-  getParentRoute: () => MerchantRouteRoute,
-} as any)
-const MerchantMenuRoute = MerchantMenuRouteImport.update({
+const MerchantMenuRouteRoute = MerchantMenuRouteRouteImport.update({
   id: '/menu',
   path: '/menu',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
-const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
-  id: '/orders',
-  path: '/orders',
+const MerchantStoreRouteRoute = MerchantStoreRouteRouteImport.update({
+  id: '/store',
+  path: '/store',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
-const MerchantReviewsRoute = MerchantReviewsRouteImport.update({
-  id: '/reviews',
-  path: '/reviews',
-  getParentRoute: () => MerchantRouteRoute,
+const AdminCustomersIndexRoute = AdminCustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => AdminRouteRoute,
 } as any)
-const MerchantSettingsRoute = MerchantSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => MerchantRouteRoute,
+const AdminDisputesIndexRoute = AdminDisputesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminDisputesRouteRoute,
 } as any)
 const AdminDisputesDisputeIdRoute = AdminDisputesDisputeIdRouteImport.update({
   id: '/$disputeId',
   path: '/$disputeId',
-  getParentRoute: () => AdminDisputesRoute,
+  getParentRoute: () => AdminDisputesRouteRoute,
 } as any)
 const AdminMerchantsIndexRoute = AdminMerchantsIndexRouteImport.update({
-  id: '/merchants/',
-  path: '/merchants/',
-  getParentRoute: () => AdminRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminMerchantsRouteRoute,
 } as any)
 const AdminMerchantsMerchantIdRoute =
   AdminMerchantsMerchantIdRouteImport.update({
-    id: '/merchants/$merchantId',
-    path: '/merchants/$merchantId',
-    getParentRoute: () => AdminRouteRoute,
+    id: '/$merchantId',
+    path: '/$merchantId',
+    getParentRoute: () => AdminMerchantsRouteRoute,
   } as any)
 const AdminMerchantsNewRoute = AdminMerchantsNewRouteImport.update({
-  id: '/merchants/new',
-  path: '/merchants/new',
-  getParentRoute: () => AdminRouteRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AdminMerchantsRouteRoute,
+} as any)
+const AdminRidersIndexRoute = AdminRidersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRidersRouteRoute,
 } as any)
 const AdminRidersNewRoute = AdminRidersNewRouteImport.update({
   id: '/new',
   path: '/new',
-  getParentRoute: () => AdminRidersRoute,
+  getParentRoute: () => AdminRidersRouteRoute,
+} as any)
+const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const MerchantCatalogIndexRoute = MerchantCatalogIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MerchantCatalogRouteRoute,
 } as any)
 const MerchantCatalogProductIdRoute =
   MerchantCatalogProductIdRouteImport.update({
     id: '/$productId',
     path: '/$productId',
-    getParentRoute: () => MerchantCatalogRoute,
+    getParentRoute: () => MerchantCatalogRouteRoute,
   } as any)
 const MerchantCatalogNewRoute = MerchantCatalogNewRouteImport.update({
   id: '/new',
   path: '/new',
-  getParentRoute: () => MerchantCatalogRoute,
+  getParentRoute: () => MerchantCatalogRouteRoute,
+} as any)
+const MerchantEarningsIndexRoute = MerchantEarningsIndexRouteImport.update({
+  id: '/earnings/',
+  path: '/earnings/',
+  getParentRoute: () => MerchantRouteRoute,
+} as any)
+const MerchantMenuIndexRoute = MerchantMenuIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MerchantMenuRouteRoute,
 } as any)
 const MerchantMenuProductIdRoute = MerchantMenuProductIdRouteImport.update({
   id: '/$productId',
   path: '/$productId',
-  getParentRoute: () => MerchantMenuRoute,
+  getParentRoute: () => MerchantMenuRouteRoute,
 } as any)
 const MerchantMenuNewRoute = MerchantMenuNewRouteImport.update({
   id: '/new',
   path: '/new',
-  getParentRoute: () => MerchantMenuRoute,
+  getParentRoute: () => MerchantMenuRouteRoute,
+} as any)
+const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => MerchantRouteRoute,
+} as any)
+const MerchantReviewsIndexRoute = MerchantReviewsIndexRouteImport.update({
+  id: '/reviews/',
+  path: '/reviews/',
+  getParentRoute: () => MerchantRouteRoute,
+} as any)
+const MerchantSettingsIndexRoute = MerchantSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => MerchantRouteRoute,
 } as any)
 const MerchantStoreIndexRoute = MerchantStoreIndexRouteImport.update({
-  id: '/store/',
-  path: '/store/',
-  getParentRoute: () => MerchantRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => MerchantStoreRouteRoute,
 } as any)
 const MerchantStoreStoreIdRoute = MerchantStoreStoreIdRouteImport.update({
-  id: '/store/$storeId',
-  path: '/store/$storeId',
-  getParentRoute: () => MerchantRouteRoute,
+  id: '/$storeId',
+  path: '/$storeId',
+  getParentRoute: () => MerchantStoreRouteRoute,
 } as any)
 const MerchantStoreNewRoute = MerchantStoreNewRouteImport.update({
-  id: '/store/new',
-  path: '/store/new',
-  getParentRoute: () => MerchantRouteRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => MerchantStoreRouteRoute,
 } as any)
 const AdminMerchantsMerchantIdEditRoute =
   AdminMerchantsMerchantIdEditRouteImport.update({
@@ -205,18 +229,12 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteRouteWithChildren
   '/merchant': typeof MerchantRouteRouteWithChildren
   '/login': typeof LoginRoute
-  '/admin/audit': typeof AdminAuditRoute
-  '/admin/customers': typeof AdminCustomersRoute
-  '/admin/disputes': typeof AdminDisputesRouteWithChildren
-  '/admin/fees': typeof AdminFeesRoute
-  '/admin/riders': typeof AdminRidersRouteWithChildren
-  '/admin/settings': typeof AdminSettingsRoute
-  '/merchant/catalog': typeof MerchantCatalogRouteWithChildren
-  '/merchant/earnings': typeof MerchantEarningsRoute
-  '/merchant/menu': typeof MerchantMenuRouteWithChildren
-  '/merchant/orders': typeof MerchantOrdersRoute
-  '/merchant/reviews': typeof MerchantReviewsRoute
-  '/merchant/settings': typeof MerchantSettingsRoute
+  '/admin/disputes': typeof AdminDisputesRouteRouteWithChildren
+  '/admin/merchants': typeof AdminMerchantsRouteRouteWithChildren
+  '/admin/riders': typeof AdminRidersRouteRouteWithChildren
+  '/merchant/catalog': typeof MerchantCatalogRouteRouteWithChildren
+  '/merchant/menu': typeof MerchantMenuRouteRouteWithChildren
+  '/merchant/store': typeof MerchantStoreRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
@@ -229,25 +247,23 @@ export interface FileRoutesByFullPath {
   '/merchant/menu/new': typeof MerchantMenuNewRoute
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
+  '/admin/customers/': typeof AdminCustomersIndexRoute
+  '/admin/disputes/': typeof AdminDisputesIndexRoute
   '/admin/merchants/': typeof AdminMerchantsIndexRoute
+  '/admin/riders/': typeof AdminRidersIndexRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/merchant/catalog/': typeof MerchantCatalogIndexRoute
+  '/merchant/earnings/': typeof MerchantEarningsIndexRoute
+  '/merchant/menu/': typeof MerchantMenuIndexRoute
+  '/merchant/orders/': typeof MerchantOrdersIndexRoute
+  '/merchant/reviews/': typeof MerchantReviewsIndexRoute
+  '/merchant/settings/': typeof MerchantSettingsIndexRoute
   '/merchant/store/': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/admin/audit': typeof AdminAuditRoute
-  '/admin/customers': typeof AdminCustomersRoute
-  '/admin/disputes': typeof AdminDisputesRouteWithChildren
-  '/admin/fees': typeof AdminFeesRoute
-  '/admin/riders': typeof AdminRidersRouteWithChildren
-  '/admin/settings': typeof AdminSettingsRoute
-  '/merchant/catalog': typeof MerchantCatalogRouteWithChildren
-  '/merchant/earnings': typeof MerchantEarningsRoute
-  '/merchant/menu': typeof MerchantMenuRouteWithChildren
-  '/merchant/orders': typeof MerchantOrdersRoute
-  '/merchant/reviews': typeof MerchantReviewsRoute
-  '/merchant/settings': typeof MerchantSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
@@ -260,7 +276,17 @@ export interface FileRoutesByTo {
   '/merchant/menu/new': typeof MerchantMenuNewRoute
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
+  '/admin/customers': typeof AdminCustomersIndexRoute
+  '/admin/disputes': typeof AdminDisputesIndexRoute
   '/admin/merchants': typeof AdminMerchantsIndexRoute
+  '/admin/riders': typeof AdminRidersIndexRoute
+  '/admin/settings': typeof AdminSettingsIndexRoute
+  '/merchant/catalog': typeof MerchantCatalogIndexRoute
+  '/merchant/earnings': typeof MerchantEarningsIndexRoute
+  '/merchant/menu': typeof MerchantMenuIndexRoute
+  '/merchant/orders': typeof MerchantOrdersIndexRoute
+  '/merchant/reviews': typeof MerchantReviewsIndexRoute
+  '/merchant/settings': typeof MerchantSettingsIndexRoute
   '/merchant/store': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
 }
@@ -270,18 +296,12 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteRouteWithChildren
   '/merchant': typeof MerchantRouteRouteWithChildren
   '/login': typeof LoginRoute
-  '/admin/audit': typeof AdminAuditRoute
-  '/admin/customers': typeof AdminCustomersRoute
-  '/admin/disputes': typeof AdminDisputesRouteWithChildren
-  '/admin/fees': typeof AdminFeesRoute
-  '/admin/riders': typeof AdminRidersRouteWithChildren
-  '/admin/settings': typeof AdminSettingsRoute
-  '/merchant/catalog': typeof MerchantCatalogRouteWithChildren
-  '/merchant/earnings': typeof MerchantEarningsRoute
-  '/merchant/menu': typeof MerchantMenuRouteWithChildren
-  '/merchant/orders': typeof MerchantOrdersRoute
-  '/merchant/reviews': typeof MerchantReviewsRoute
-  '/merchant/settings': typeof MerchantSettingsRoute
+  '/admin/disputes': typeof AdminDisputesRouteRouteWithChildren
+  '/admin/merchants': typeof AdminMerchantsRouteRouteWithChildren
+  '/admin/riders': typeof AdminRidersRouteRouteWithChildren
+  '/merchant/catalog': typeof MerchantCatalogRouteRouteWithChildren
+  '/merchant/menu': typeof MerchantMenuRouteRouteWithChildren
+  '/merchant/store': typeof MerchantStoreRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
@@ -294,7 +314,17 @@ export interface FileRoutesById {
   '/merchant/menu/new': typeof MerchantMenuNewRoute
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
+  '/admin/customers/': typeof AdminCustomersIndexRoute
+  '/admin/disputes/': typeof AdminDisputesIndexRoute
   '/admin/merchants/': typeof AdminMerchantsIndexRoute
+  '/admin/riders/': typeof AdminRidersIndexRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/merchant/catalog/': typeof MerchantCatalogIndexRoute
+  '/merchant/earnings/': typeof MerchantEarningsIndexRoute
+  '/merchant/menu/': typeof MerchantMenuIndexRoute
+  '/merchant/orders/': typeof MerchantOrdersIndexRoute
+  '/merchant/reviews/': typeof MerchantReviewsIndexRoute
+  '/merchant/settings/': typeof MerchantSettingsIndexRoute
   '/merchant/store/': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
 }
@@ -305,18 +335,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/login'
-    | '/admin/audit'
-    | '/admin/customers'
     | '/admin/disputes'
-    | '/admin/fees'
+    | '/admin/merchants'
     | '/admin/riders'
-    | '/admin/settings'
     | '/merchant/catalog'
-    | '/merchant/earnings'
     | '/merchant/menu'
-    | '/merchant/orders'
-    | '/merchant/reviews'
-    | '/merchant/settings'
+    | '/merchant/store'
     | '/admin/'
     | '/merchant/'
     | '/admin/disputes/$disputeId'
@@ -329,25 +353,23 @@ export interface FileRouteTypes {
     | '/merchant/menu/new'
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
+    | '/admin/customers/'
+    | '/admin/disputes/'
     | '/admin/merchants/'
+    | '/admin/riders/'
+    | '/admin/settings/'
+    | '/merchant/catalog/'
+    | '/merchant/earnings/'
+    | '/merchant/menu/'
+    | '/merchant/orders/'
+    | '/merchant/reviews/'
+    | '/merchant/settings/'
     | '/merchant/store/'
     | '/admin/merchants/$merchantId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
-    | '/admin/audit'
-    | '/admin/customers'
-    | '/admin/disputes'
-    | '/admin/fees'
-    | '/admin/riders'
-    | '/admin/settings'
-    | '/merchant/catalog'
-    | '/merchant/earnings'
-    | '/merchant/menu'
-    | '/merchant/orders'
-    | '/merchant/reviews'
-    | '/merchant/settings'
     | '/admin'
     | '/merchant'
     | '/admin/disputes/$disputeId'
@@ -360,7 +382,17 @@ export interface FileRouteTypes {
     | '/merchant/menu/new'
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
+    | '/admin/customers'
+    | '/admin/disputes'
     | '/admin/merchants'
+    | '/admin/riders'
+    | '/admin/settings'
+    | '/merchant/catalog'
+    | '/merchant/earnings'
+    | '/merchant/menu'
+    | '/merchant/orders'
+    | '/merchant/reviews'
+    | '/merchant/settings'
     | '/merchant/store'
     | '/admin/merchants/$merchantId/edit'
   id:
@@ -369,18 +401,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/login'
-    | '/admin/audit'
-    | '/admin/customers'
     | '/admin/disputes'
-    | '/admin/fees'
+    | '/admin/merchants'
     | '/admin/riders'
-    | '/admin/settings'
     | '/merchant/catalog'
-    | '/merchant/earnings'
     | '/merchant/menu'
-    | '/merchant/orders'
-    | '/merchant/reviews'
-    | '/merchant/settings'
+    | '/merchant/store'
     | '/admin/'
     | '/merchant/'
     | '/admin/disputes/$disputeId'
@@ -393,7 +419,17 @@ export interface FileRouteTypes {
     | '/merchant/menu/new'
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
+    | '/admin/customers/'
+    | '/admin/disputes/'
     | '/admin/merchants/'
+    | '/admin/riders/'
+    | '/admin/settings/'
+    | '/merchant/catalog/'
+    | '/merchant/earnings/'
+    | '/merchant/menu/'
+    | '/merchant/orders/'
+    | '/merchant/reviews/'
+    | '/merchant/settings/'
     | '/merchant/store/'
     | '/admin/merchants/$merchantId/edit'
   fileRoutesById: FileRoutesById
@@ -442,46 +478,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/admin/audit': {
-      id: '/admin/audit'
-      path: '/audit'
-      fullPath: '/admin/audit'
-      preLoaderRoute: typeof AdminAuditRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
-    '/admin/customers': {
-      id: '/admin/customers'
-      path: '/customers'
-      fullPath: '/admin/customers'
-      preLoaderRoute: typeof AdminCustomersRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
     '/admin/disputes': {
       id: '/admin/disputes'
       path: '/disputes'
       fullPath: '/admin/disputes'
-      preLoaderRoute: typeof AdminDisputesRouteImport
+      preLoaderRoute: typeof AdminDisputesRouteRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/admin/fees': {
-      id: '/admin/fees'
-      path: '/fees'
-      fullPath: '/admin/fees'
-      preLoaderRoute: typeof AdminFeesRouteImport
+    '/admin/merchants': {
+      id: '/admin/merchants'
+      path: '/merchants'
+      fullPath: '/admin/merchants'
+      preLoaderRoute: typeof AdminMerchantsRouteRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/riders': {
       id: '/admin/riders'
       path: '/riders'
       fullPath: '/admin/riders'
-      preLoaderRoute: typeof AdminRidersRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
-    '/admin/settings': {
-      id: '/admin/settings'
-      path: '/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AdminSettingsRouteImport
+      preLoaderRoute: typeof AdminRidersRouteRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/merchant/': {
@@ -495,127 +510,176 @@ declare module '@tanstack/react-router' {
       id: '/merchant/catalog'
       path: '/catalog'
       fullPath: '/merchant/catalog'
-      preLoaderRoute: typeof MerchantCatalogRouteImport
-      parentRoute: typeof MerchantRouteRoute
-    }
-    '/merchant/earnings': {
-      id: '/merchant/earnings'
-      path: '/earnings'
-      fullPath: '/merchant/earnings'
-      preLoaderRoute: typeof MerchantEarningsRouteImport
+      preLoaderRoute: typeof MerchantCatalogRouteRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
     '/merchant/menu': {
       id: '/merchant/menu'
       path: '/menu'
       fullPath: '/merchant/menu'
-      preLoaderRoute: typeof MerchantMenuRouteImport
+      preLoaderRoute: typeof MerchantMenuRouteRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
-    '/merchant/orders': {
-      id: '/merchant/orders'
-      path: '/orders'
-      fullPath: '/merchant/orders'
-      preLoaderRoute: typeof MerchantOrdersRouteImport
+    '/merchant/store': {
+      id: '/merchant/store'
+      path: '/store'
+      fullPath: '/merchant/store'
+      preLoaderRoute: typeof MerchantStoreRouteRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
-    '/merchant/reviews': {
-      id: '/merchant/reviews'
-      path: '/reviews'
-      fullPath: '/merchant/reviews'
-      preLoaderRoute: typeof MerchantReviewsRouteImport
-      parentRoute: typeof MerchantRouteRoute
+    '/admin/customers/': {
+      id: '/admin/customers/'
+      path: '/customers'
+      fullPath: '/admin/customers/'
+      preLoaderRoute: typeof AdminCustomersIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
-    '/merchant/settings': {
-      id: '/merchant/settings'
-      path: '/settings'
-      fullPath: '/merchant/settings'
-      preLoaderRoute: typeof MerchantSettingsRouteImport
-      parentRoute: typeof MerchantRouteRoute
+    '/admin/disputes/': {
+      id: '/admin/disputes/'
+      path: '/'
+      fullPath: '/admin/disputes/'
+      preLoaderRoute: typeof AdminDisputesIndexRouteImport
+      parentRoute: typeof AdminDisputesRouteRoute
     }
     '/admin/disputes/$disputeId': {
       id: '/admin/disputes/$disputeId'
       path: '/$disputeId'
       fullPath: '/admin/disputes/$disputeId'
       preLoaderRoute: typeof AdminDisputesDisputeIdRouteImport
-      parentRoute: typeof AdminDisputesRoute
+      parentRoute: typeof AdminDisputesRouteRoute
     }
     '/admin/merchants/': {
       id: '/admin/merchants/'
-      path: '/merchants'
+      path: '/'
       fullPath: '/admin/merchants/'
       preLoaderRoute: typeof AdminMerchantsIndexRouteImport
-      parentRoute: typeof AdminRouteRoute
+      parentRoute: typeof AdminMerchantsRouteRoute
     }
     '/admin/merchants/$merchantId': {
       id: '/admin/merchants/$merchantId'
-      path: '/merchants/$merchantId'
+      path: '/$merchantId'
       fullPath: '/admin/merchants/$merchantId'
       preLoaderRoute: typeof AdminMerchantsMerchantIdRouteImport
-      parentRoute: typeof AdminRouteRoute
+      parentRoute: typeof AdminMerchantsRouteRoute
     }
     '/admin/merchants/new': {
       id: '/admin/merchants/new'
-      path: '/merchants/new'
+      path: '/new'
       fullPath: '/admin/merchants/new'
       preLoaderRoute: typeof AdminMerchantsNewRouteImport
-      parentRoute: typeof AdminRouteRoute
+      parentRoute: typeof AdminMerchantsRouteRoute
+    }
+    '/admin/riders/': {
+      id: '/admin/riders/'
+      path: '/'
+      fullPath: '/admin/riders/'
+      preLoaderRoute: typeof AdminRidersIndexRouteImport
+      parentRoute: typeof AdminRidersRouteRoute
     }
     '/admin/riders/new': {
       id: '/admin/riders/new'
       path: '/new'
       fullPath: '/admin/riders/new'
       preLoaderRoute: typeof AdminRidersNewRouteImport
-      parentRoute: typeof AdminRidersRoute
+      parentRoute: typeof AdminRidersRouteRoute
+    }
+    '/admin/settings/': {
+      id: '/admin/settings/'
+      path: '/settings'
+      fullPath: '/admin/settings/'
+      preLoaderRoute: typeof AdminSettingsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/merchant/catalog/': {
+      id: '/merchant/catalog/'
+      path: '/'
+      fullPath: '/merchant/catalog/'
+      preLoaderRoute: typeof MerchantCatalogIndexRouteImport
+      parentRoute: typeof MerchantCatalogRouteRoute
     }
     '/merchant/catalog/$productId': {
       id: '/merchant/catalog/$productId'
       path: '/$productId'
       fullPath: '/merchant/catalog/$productId'
       preLoaderRoute: typeof MerchantCatalogProductIdRouteImport
-      parentRoute: typeof MerchantCatalogRoute
+      parentRoute: typeof MerchantCatalogRouteRoute
     }
     '/merchant/catalog/new': {
       id: '/merchant/catalog/new'
       path: '/new'
       fullPath: '/merchant/catalog/new'
       preLoaderRoute: typeof MerchantCatalogNewRouteImport
-      parentRoute: typeof MerchantCatalogRoute
+      parentRoute: typeof MerchantCatalogRouteRoute
+    }
+    '/merchant/earnings/': {
+      id: '/merchant/earnings/'
+      path: '/earnings'
+      fullPath: '/merchant/earnings/'
+      preLoaderRoute: typeof MerchantEarningsIndexRouteImport
+      parentRoute: typeof MerchantRouteRoute
+    }
+    '/merchant/menu/': {
+      id: '/merchant/menu/'
+      path: '/'
+      fullPath: '/merchant/menu/'
+      preLoaderRoute: typeof MerchantMenuIndexRouteImport
+      parentRoute: typeof MerchantMenuRouteRoute
     }
     '/merchant/menu/$productId': {
       id: '/merchant/menu/$productId'
       path: '/$productId'
       fullPath: '/merchant/menu/$productId'
       preLoaderRoute: typeof MerchantMenuProductIdRouteImport
-      parentRoute: typeof MerchantMenuRoute
+      parentRoute: typeof MerchantMenuRouteRoute
     }
     '/merchant/menu/new': {
       id: '/merchant/menu/new'
       path: '/new'
       fullPath: '/merchant/menu/new'
       preLoaderRoute: typeof MerchantMenuNewRouteImport
-      parentRoute: typeof MerchantMenuRoute
+      parentRoute: typeof MerchantMenuRouteRoute
+    }
+    '/merchant/orders/': {
+      id: '/merchant/orders/'
+      path: '/orders'
+      fullPath: '/merchant/orders/'
+      preLoaderRoute: typeof MerchantOrdersIndexRouteImport
+      parentRoute: typeof MerchantRouteRoute
+    }
+    '/merchant/reviews/': {
+      id: '/merchant/reviews/'
+      path: '/reviews'
+      fullPath: '/merchant/reviews/'
+      preLoaderRoute: typeof MerchantReviewsIndexRouteImport
+      parentRoute: typeof MerchantRouteRoute
+    }
+    '/merchant/settings/': {
+      id: '/merchant/settings/'
+      path: '/settings'
+      fullPath: '/merchant/settings/'
+      preLoaderRoute: typeof MerchantSettingsIndexRouteImport
+      parentRoute: typeof MerchantRouteRoute
     }
     '/merchant/store/': {
       id: '/merchant/store/'
-      path: '/store'
+      path: '/'
       fullPath: '/merchant/store/'
       preLoaderRoute: typeof MerchantStoreIndexRouteImport
-      parentRoute: typeof MerchantRouteRoute
+      parentRoute: typeof MerchantStoreRouteRoute
     }
     '/merchant/store/$storeId': {
       id: '/merchant/store/$storeId'
-      path: '/store/$storeId'
+      path: '/$storeId'
       fullPath: '/merchant/store/$storeId'
       preLoaderRoute: typeof MerchantStoreStoreIdRouteImport
-      parentRoute: typeof MerchantRouteRoute
+      parentRoute: typeof MerchantStoreRouteRoute
     }
     '/merchant/store/new': {
       id: '/merchant/store/new'
-      path: '/store/new'
+      path: '/new'
       fullPath: '/merchant/store/new'
       preLoaderRoute: typeof MerchantStoreNewRouteImport
-      parentRoute: typeof MerchantRouteRoute
+      parentRoute: typeof MerchantStoreRouteRoute
     }
     '/admin/merchants/$merchantId/edit': {
       id: '/admin/merchants/$merchantId/edit'
@@ -627,29 +691,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AdminDisputesRouteChildren {
+interface AdminDisputesRouteRouteChildren {
   AdminDisputesDisputeIdRoute: typeof AdminDisputesDisputeIdRoute
+  AdminDisputesIndexRoute: typeof AdminDisputesIndexRoute
 }
 
-const AdminDisputesRouteChildren: AdminDisputesRouteChildren = {
+const AdminDisputesRouteRouteChildren: AdminDisputesRouteRouteChildren = {
   AdminDisputesDisputeIdRoute: AdminDisputesDisputeIdRoute,
+  AdminDisputesIndexRoute: AdminDisputesIndexRoute,
 }
 
-const AdminDisputesRouteWithChildren = AdminDisputesRoute._addFileChildren(
-  AdminDisputesRouteChildren,
-)
-
-interface AdminRidersRouteChildren {
-  AdminRidersNewRoute: typeof AdminRidersNewRoute
-}
-
-const AdminRidersRouteChildren: AdminRidersRouteChildren = {
-  AdminRidersNewRoute: AdminRidersNewRoute,
-}
-
-const AdminRidersRouteWithChildren = AdminRidersRoute._addFileChildren(
-  AdminRidersRouteChildren,
-)
+const AdminDisputesRouteRouteWithChildren =
+  AdminDisputesRouteRoute._addFileChildren(AdminDisputesRouteRouteChildren)
 
 interface AdminMerchantsMerchantIdRouteChildren {
   AdminMerchantsMerchantIdEditRoute: typeof AdminMerchantsMerchantIdEditRoute
@@ -665,88 +718,121 @@ const AdminMerchantsMerchantIdRouteWithChildren =
     AdminMerchantsMerchantIdRouteChildren,
   )
 
-interface AdminRouteRouteChildren {
-  AdminAuditRoute: typeof AdminAuditRoute
-  AdminCustomersRoute: typeof AdminCustomersRoute
-  AdminDisputesRoute: typeof AdminDisputesRouteWithChildren
-  AdminFeesRoute: typeof AdminFeesRoute
-  AdminRidersRoute: typeof AdminRidersRouteWithChildren
-  AdminSettingsRoute: typeof AdminSettingsRoute
-  AdminIndexRoute: typeof AdminIndexRoute
+interface AdminMerchantsRouteRouteChildren {
   AdminMerchantsMerchantIdRoute: typeof AdminMerchantsMerchantIdRouteWithChildren
   AdminMerchantsNewRoute: typeof AdminMerchantsNewRoute
   AdminMerchantsIndexRoute: typeof AdminMerchantsIndexRoute
 }
 
-const AdminRouteRouteChildren: AdminRouteRouteChildren = {
-  AdminAuditRoute: AdminAuditRoute,
-  AdminCustomersRoute: AdminCustomersRoute,
-  AdminDisputesRoute: AdminDisputesRouteWithChildren,
-  AdminFeesRoute: AdminFeesRoute,
-  AdminRidersRoute: AdminRidersRouteWithChildren,
-  AdminSettingsRoute: AdminSettingsRoute,
-  AdminIndexRoute: AdminIndexRoute,
+const AdminMerchantsRouteRouteChildren: AdminMerchantsRouteRouteChildren = {
   AdminMerchantsMerchantIdRoute: AdminMerchantsMerchantIdRouteWithChildren,
   AdminMerchantsNewRoute: AdminMerchantsNewRoute,
   AdminMerchantsIndexRoute: AdminMerchantsIndexRoute,
+}
+
+const AdminMerchantsRouteRouteWithChildren =
+  AdminMerchantsRouteRoute._addFileChildren(AdminMerchantsRouteRouteChildren)
+
+interface AdminRidersRouteRouteChildren {
+  AdminRidersNewRoute: typeof AdminRidersNewRoute
+  AdminRidersIndexRoute: typeof AdminRidersIndexRoute
+}
+
+const AdminRidersRouteRouteChildren: AdminRidersRouteRouteChildren = {
+  AdminRidersNewRoute: AdminRidersNewRoute,
+  AdminRidersIndexRoute: AdminRidersIndexRoute,
+}
+
+const AdminRidersRouteRouteWithChildren =
+  AdminRidersRouteRoute._addFileChildren(AdminRidersRouteRouteChildren)
+
+interface AdminRouteRouteChildren {
+  AdminDisputesRouteRoute: typeof AdminDisputesRouteRouteWithChildren
+  AdminMerchantsRouteRoute: typeof AdminMerchantsRouteRouteWithChildren
+  AdminRidersRouteRoute: typeof AdminRidersRouteRouteWithChildren
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminCustomersIndexRoute: typeof AdminCustomersIndexRoute
+  AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminDisputesRouteRoute: AdminDisputesRouteRouteWithChildren,
+  AdminMerchantsRouteRoute: AdminMerchantsRouteRouteWithChildren,
+  AdminRidersRouteRoute: AdminRidersRouteRouteWithChildren,
+  AdminIndexRoute: AdminIndexRoute,
+  AdminCustomersIndexRoute: AdminCustomersIndexRoute,
+  AdminSettingsIndexRoute: AdminSettingsIndexRoute,
 }
 
 const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
   AdminRouteRouteChildren,
 )
 
-interface MerchantCatalogRouteChildren {
+interface MerchantCatalogRouteRouteChildren {
   MerchantCatalogProductIdRoute: typeof MerchantCatalogProductIdRoute
   MerchantCatalogNewRoute: typeof MerchantCatalogNewRoute
+  MerchantCatalogIndexRoute: typeof MerchantCatalogIndexRoute
 }
 
-const MerchantCatalogRouteChildren: MerchantCatalogRouteChildren = {
+const MerchantCatalogRouteRouteChildren: MerchantCatalogRouteRouteChildren = {
   MerchantCatalogProductIdRoute: MerchantCatalogProductIdRoute,
   MerchantCatalogNewRoute: MerchantCatalogNewRoute,
+  MerchantCatalogIndexRoute: MerchantCatalogIndexRoute,
 }
 
-const MerchantCatalogRouteWithChildren = MerchantCatalogRoute._addFileChildren(
-  MerchantCatalogRouteChildren,
-)
+const MerchantCatalogRouteRouteWithChildren =
+  MerchantCatalogRouteRoute._addFileChildren(MerchantCatalogRouteRouteChildren)
 
-interface MerchantMenuRouteChildren {
+interface MerchantMenuRouteRouteChildren {
   MerchantMenuProductIdRoute: typeof MerchantMenuProductIdRoute
   MerchantMenuNewRoute: typeof MerchantMenuNewRoute
+  MerchantMenuIndexRoute: typeof MerchantMenuIndexRoute
 }
 
-const MerchantMenuRouteChildren: MerchantMenuRouteChildren = {
+const MerchantMenuRouteRouteChildren: MerchantMenuRouteRouteChildren = {
   MerchantMenuProductIdRoute: MerchantMenuProductIdRoute,
   MerchantMenuNewRoute: MerchantMenuNewRoute,
+  MerchantMenuIndexRoute: MerchantMenuIndexRoute,
 }
 
-const MerchantMenuRouteWithChildren = MerchantMenuRoute._addFileChildren(
-  MerchantMenuRouteChildren,
-)
+const MerchantMenuRouteRouteWithChildren =
+  MerchantMenuRouteRoute._addFileChildren(MerchantMenuRouteRouteChildren)
 
-interface MerchantRouteRouteChildren {
-  MerchantCatalogRoute: typeof MerchantCatalogRouteWithChildren
-  MerchantEarningsRoute: typeof MerchantEarningsRoute
-  MerchantMenuRoute: typeof MerchantMenuRouteWithChildren
-  MerchantOrdersRoute: typeof MerchantOrdersRoute
-  MerchantReviewsRoute: typeof MerchantReviewsRoute
-  MerchantSettingsRoute: typeof MerchantSettingsRoute
-  MerchantIndexRoute: typeof MerchantIndexRoute
+interface MerchantStoreRouteRouteChildren {
   MerchantStoreStoreIdRoute: typeof MerchantStoreStoreIdRoute
   MerchantStoreNewRoute: typeof MerchantStoreNewRoute
   MerchantStoreIndexRoute: typeof MerchantStoreIndexRoute
 }
 
-const MerchantRouteRouteChildren: MerchantRouteRouteChildren = {
-  MerchantCatalogRoute: MerchantCatalogRouteWithChildren,
-  MerchantEarningsRoute: MerchantEarningsRoute,
-  MerchantMenuRoute: MerchantMenuRouteWithChildren,
-  MerchantOrdersRoute: MerchantOrdersRoute,
-  MerchantReviewsRoute: MerchantReviewsRoute,
-  MerchantSettingsRoute: MerchantSettingsRoute,
-  MerchantIndexRoute: MerchantIndexRoute,
+const MerchantStoreRouteRouteChildren: MerchantStoreRouteRouteChildren = {
   MerchantStoreStoreIdRoute: MerchantStoreStoreIdRoute,
   MerchantStoreNewRoute: MerchantStoreNewRoute,
   MerchantStoreIndexRoute: MerchantStoreIndexRoute,
+}
+
+const MerchantStoreRouteRouteWithChildren =
+  MerchantStoreRouteRoute._addFileChildren(MerchantStoreRouteRouteChildren)
+
+interface MerchantRouteRouteChildren {
+  MerchantCatalogRouteRoute: typeof MerchantCatalogRouteRouteWithChildren
+  MerchantMenuRouteRoute: typeof MerchantMenuRouteRouteWithChildren
+  MerchantStoreRouteRoute: typeof MerchantStoreRouteRouteWithChildren
+  MerchantIndexRoute: typeof MerchantIndexRoute
+  MerchantEarningsIndexRoute: typeof MerchantEarningsIndexRoute
+  MerchantOrdersIndexRoute: typeof MerchantOrdersIndexRoute
+  MerchantReviewsIndexRoute: typeof MerchantReviewsIndexRoute
+  MerchantSettingsIndexRoute: typeof MerchantSettingsIndexRoute
+}
+
+const MerchantRouteRouteChildren: MerchantRouteRouteChildren = {
+  MerchantCatalogRouteRoute: MerchantCatalogRouteRouteWithChildren,
+  MerchantMenuRouteRoute: MerchantMenuRouteRouteWithChildren,
+  MerchantStoreRouteRoute: MerchantStoreRouteRouteWithChildren,
+  MerchantIndexRoute: MerchantIndexRoute,
+  MerchantEarningsIndexRoute: MerchantEarningsIndexRoute,
+  MerchantOrdersIndexRoute: MerchantOrdersIndexRoute,
+  MerchantReviewsIndexRoute: MerchantReviewsIndexRoute,
+  MerchantSettingsIndexRoute: MerchantSettingsIndexRoute,
 }
 
 const MerchantRouteRouteWithChildren = MerchantRouteRoute._addFileChildren(

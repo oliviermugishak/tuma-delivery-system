@@ -5,7 +5,6 @@
  * (BACKEND-GAPS.md G3/G4/G8/G9) until those services exist — never fake
  * numbers inside real cards.
  */
-import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 
@@ -28,7 +27,6 @@ import { num, rwf } from '@/lib/format'
 
 export function AdminOverview() {
   const summary = useQuery({ ...summaryOptions(), refetchInterval: 20_000 })
-  const [range, setRange] = useState<'today' | '7d' | '30d'>('today')
   const now = new Date().toISOString()
 
   return (
@@ -47,19 +45,6 @@ export function AdminOverview() {
               <Pulse />
               Live counts · <Freshness updated={summary.dataUpdatedAt ? new Date(summary.dataUpdatedAt).toISOString() : now} />
             </span>
-          </>
-        }
-        actions={
-          <>
-            <RangeChip on={range === 'today'} onClick={() => setRange('today')}>
-              Today
-            </RangeChip>
-            <RangeChip on={range === '7d'} onClick={() => setRange('7d')}>
-              7 days
-            </RangeChip>
-            <RangeChip on={range === '30d'} onClick={() => setRange('30d')}>
-              30 days
-            </RangeChip>
           </>
         }
       />
@@ -120,30 +105,6 @@ export function AdminOverview() {
   )
 }
 
-function RangeChip({
-  on,
-  onClick,
-  children,
-}: {
-  on: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 ${
-        on
-          ? 'border-brand/45 bg-brand/7 text-brand'
-          : 'border-line text-text2 hover:text-foreground'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
 
 /**
  * Rows end in a verb (P17). Real service-backed rows first (today: only
@@ -159,7 +120,6 @@ function NeedsAttention() {
           key: 'disputes',
           tone: 'danger' as const,
           title: `${openDisputes.length} open disputes`,
-          titleBold: null as string | null,
           sub: `${rwf(openDisputes.reduce((s, d) => s + d.amount, 0))} at stake`,
           cta: 'Open disputes',
           primary: false,
@@ -195,9 +155,7 @@ function NeedsAttention() {
               }`}
             />
             <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-semibold">
-                {row.titleBold ? `${row.title} · ${row.titleBold}` : row.title}
-              </div>
+              <div className="text-[13.5px] font-semibold">{row.title}</div>
               <div className="mt-0.5 text-xs text-text3">{row.sub}</div>
             </div>
             <Link to={row.to}>

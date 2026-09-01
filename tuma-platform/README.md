@@ -28,15 +28,18 @@ src/
     ui/           shadcn/base-ui primitives the ds layer sits on
     settings-screen.tsx   shared Settings (both wings, P16)
   features/
-    admin/        Overview · Orders · Merchants(+detail, forms) · Riders ·
-                  Customers · Disputes(+resolve) · Fees · Audit
-    merchant/     Overview · Orders(board+history) · Menu(+product form) ·
-                  Stores(+form, pin picker) · Store detail · Earnings · Reviews
+    admin/        Overview · Merchants(+detail, forms) · Riders ·
+                  Customers · Disputes(+resolve)
+    merchant/     Overview · Orders(board+history) · Catalog ·
+                  Menu(+attach/edit) · Stores(+form, pin picker) ·
+                  Store detail · Earnings · Reviews
     demo/seed.ts  demo rows for screens awaiting backend endpoints
     auth/         login
   lib/            format.ts (money/dates) · status.ts (dot+text vocabulary)
-                  · session.ts · csv.ts
-  routes/         file-based routes, two wings behind requireWing guards
+                  · session.ts · csv.ts · handoff-log.ts
+  routes/         directory-form file routes, two wings behind requireWing
+                  guards; every folder with children carries a pass-through
+                  route.tsx layout so a page screen is never a parent
 ```
 
 ## The law (short form)

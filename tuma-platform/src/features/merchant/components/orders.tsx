@@ -39,7 +39,6 @@ import {
   Input,
   PageHead,
   Pulse,
-  Select,
   Skeleton,
   Status,
   TableSkeleton,
@@ -376,7 +375,6 @@ function OrderDetail({
   })
   const [riderNumber, setRiderNumber] = useState('')
   const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
 
   if (id == null) return null
   const d = detail.data
@@ -386,11 +384,7 @@ function OrderDetail({
       <Drawer
         open
         onClose={onClose}
-        title={
-          <>
-            Order <CopyableId id={d?.number ?? '…'} />
-          </>
-        }
+        title={d ? <>Order <CopyableId id={d.number} /></> : 'Order'}
         subtitle={d ? `Placed ${dateTime(d.created_at)} · Cash on delivery` : undefined}
         status={
           d ? (
@@ -420,8 +414,8 @@ function OrderDetail({
                 }}
               >
                 {d.status === 'picked_up'
-                  ? `Re-assign · rider #${riderNumber || '…'}`
-                  : `Hand off · rider #${riderNumber || '…'}`}
+                  ? 'Re-assign rider'
+                  : 'Hand off to rider'}
               </Button>
               {d.status !== 'picked_up' ? (
                 <Button variant="dangerOutline" onClick={() => setCancelOpen(true)}>
@@ -538,11 +532,10 @@ function OrderDetail({
       <CancelGuard
         open={cancelOpen}
         orderId={id}
+        number={d?.number}
         total={d?.total ?? 0}
-        reason={cancelReason}
-        onReason={setCancelReason}
         onClose={() => setCancelOpen(false)}
-        onConfirm={() => {
+        onDone={() => {
           setCancelOpen(false)
           onClose()
         }}
@@ -554,24 +547,34 @@ function OrderDetail({
 function CancelGuard({
   open,
   orderId,
+  number,
   total,
-  reason,
-  onReason,
   onClose,
-  onConfirm,
+  onDone,
 }: {
   open: boolean
   orderId: string
+  number?: number
   total: number
-  reason: string
-  onReason: (v: string) => void
   onClose: () => void
-  onConfirm: () => void
+  onDone: () => void
 }) {
+  const queryClient = useQueryClient()
   const cancel = useMutation({
     ...advanceStoreOrderMutation(),
     onSuccess: () => {
-      toast.success('Order cancelled — mark the cash as refunded in History')
+      // The board and the sheet must reflect the cancel immediately —
+      // same invalidation contract as the board's advance mutation.
+      void queryClient.invalidateQueries({ queryKey: listMerchantOrdersQueryKey() })
+      void queryClient.invalidateQueries({
+        queryKey: getMerchantStoreOrderQueryKey({ path: { id: orderId } }),
+      })
+      toast.success(
+        number
+          ? `Order #${number} cancelled — mark the cash as refunded in History`
+          : 'Order cancelled — mark the cash as refunded in History',
+      )
+      onDone()
     },
     onError: (e) =>
       toast.error(e instanceof ApiError ? e.message : 'Could not cancel the order'),
@@ -581,34 +584,21 @@ function CancelGuard({
     <GuardDialog
       open={open}
       onClose={onClose}
-      title="Cancel this order?"
+      title={number ? `Cancel order #${number}?` : 'Cancel this order?'}
       confirmLabel={`Cancel order · ${rwf(total)}`}
+      pending={cancel.isPending}
       onConfirm={() => {
+        // The server takes {status} only — no reason field exists (the
+        // customer cancel route's reason has no merchant counterpart).
         cancel.mutate({
           path: { id: orderId },
           body: { status: 'cancelled' },
         })
-        onConfirm()
       }}
-      note="The customer is notified. Cash already taken must be returned — the order keeps its collection state."
+      note="The customer is notified. Cash already taken must be returned — the order keeps its collection state. This can't be undone."
     >
       This cancels the order worth <b>{rwf(total)}</b>. The customer is
-      told immediately
-      {reason ? <> — reason: {reason}</> : null}.
-      <div className="mt-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-text2">Reason</span>
-          <Select
-            value={reason}
-            onChange={(e) => onReason(e.target.value)}
-          >
-            <option value="">Choose a reason</option>
-            <option>Item unavailable</option>
-            <option>Store closing early</option>
-            <option>Customer asked to cancel</option>
-          </Select>
-        </label>
-      </div>
+      told immediately, and the money returns to them.
     </GuardDialog>
   )
 }
@@ -714,17 +704,22 @@ function ReceiptDrawer({
   })
   if (id == null) return null
   const d = detail.data
+  const assigned = d && d.status === 'picked_up' ? lookupHandoff(d.id) : null
 
   return (
     <Drawer
       open
       onClose={onClose}
-      title={<>Receipt · order #{d?.number ?? '…'}</>}
-      subtitle={d ? dateTime(d.created_at) : undefined}
+      title={d ? <>Order <CopyableId id={d.number} /></> : 'Receipt'}
+      subtitle={
+        d
+          ? `${d.store_name} · Placed ${dateTime(d.created_at)} · Cash on delivery`
+          : undefined
+      }
       status={
         d ? (
-          <Status tone={paymentStatusTone(d.payment_status)}>
-            {paymentStatusLabel(d.payment_status)}
+          <Status tone={orderStatusTone(d.status)}>
+            {orderStatusLabel(d.status)}
           </Status>
         ) : undefined
       }
@@ -735,34 +730,62 @@ function ReceiptDrawer({
           <Skeleton className="h-24 w-full" />
         </div>
       ) : (
-        <DrawerSection label="The order, line by line">
-          {d.items.map((item) => (
-            <div
-              key={item.product_name}
-              className="flex justify-between gap-3 py-1 text-[13.5px]"
-            >
-              <span>
-                {item.product_name}
-                <span className="ml-1.5 text-xs text-text3">×{item.quantity}</span>
-              </span>
-              <span>{num(item.unit_price * item.quantity)}</span>
+        <>
+          {/* The receipt carries everything the live sheet does — same
+              endpoint, full record (founder: history must not be poorer). */}
+          <DrawerSection label="Customer">
+            <div className="text-sm font-semibold">
+              {d.customer_name ?? 'Phone verified · name not set'}
             </div>
-          ))}
-          <div className="flex justify-between gap-3 py-1 text-[13.5px]">
-            <span>Delivery fee</span>
-            <span>{num(d.delivery_fee)}</span>
-          </div>
-          <div className="mt-1.5 flex justify-between border-t border-white/8 pt-3 text-[15px] font-bold">
-            <span>Total {d.payment_status === 'collected' ? 'collected' : 'to return'}</span>
-            <span className="text-brand">{rwf(d.total)}</span>
-          </div>
-          {d.status === 'cancelled' ? (
+            <div className="text-[13px] text-text2">{phone(d.customer_phone)}</div>
+            <div className="text-[13px] text-text2">{d.address_text}</div>
+          </DrawerSection>
+
+          <DrawerSection label={`Items · ${d.store_name}`}>
+            {d.items.map((item) => (
+              <div
+                key={item.product_name}
+                className="flex justify-between gap-3 py-1 text-[13.5px]"
+              >
+                <span>
+                  {item.product_name}
+                  <span className="ml-1.5 text-xs text-text3">×{item.quantity}</span>
+                </span>
+                <span>{num(item.unit_price * item.quantity)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between gap-3 py-1 text-[13.5px]">
+              <span>Delivery fee</span>
+              <span>{num(d.delivery_fee)}</span>
+            </div>
+            <div className="mt-1.5 flex justify-between border-t border-white/8 pt-3 text-[15px] font-bold">
+              <span>Total {d.payment_status === 'collected' ? 'collected' : 'to return'}</span>
+              <span className="text-brand">{rwf(d.total)}</span>
+            </div>
+          </DrawerSection>
+
+          <DrawerSection label="Rider">
             <div className="text-[13px] text-text2">
-              This order was cancelled. Cash taken for it must be returned to
-              the customer.
+              {d.status === 'delivered'
+                ? assigned != null
+                  ? `Delivered by rider #${assigned} — the assignment is frozen.`
+                  : 'Delivered — the final rider assignment is frozen.'
+                : 'No rider — the order was cancelled before hand-off.'}
             </div>
-          ) : null}
-        </DrawerSection>
+          </DrawerSection>
+
+          <DrawerSection label="Payment">
+            <Status tone={paymentStatusTone(d.payment_status)}>
+              {paymentStatusLabel(d.payment_status)}
+            </Status>
+            {d.status === 'cancelled' ? (
+              <div className="text-[13px] text-text2">
+                This order was cancelled. Cash taken for it must be returned
+                to the customer.
+              </div>
+            ) : null}
+          </DrawerSection>
+        </>
       )}
     </Drawer>
   )

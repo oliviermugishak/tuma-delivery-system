@@ -125,42 +125,9 @@ export const demoMerchantPayouts: DemoPayout[] = [
   },
 ]
 
-/* G5 — fees & categories: GET/PUT /v1/admin/platform-settings. */
-export interface DemoFeeCategory {
-  category: string
-  products: number
-  deliveryFee: number
-}
-
-export const demoFeeSettings = {
-  platformFeePct: 12,
-  categories: [
-    { category: 'Fast food', products: 128, deliveryFee: 1500 },
-    { category: 'Groceries', products: 342, deliveryFee: 2000 },
-    { category: 'Coffee & bakery', products: 96, deliveryFee: 1000 },
-    { category: 'Grill', products: 54, deliveryFee: 1500 },
-  ] as DemoFeeCategory[],
-  lastEdited: '2026-08-30T14:05:00Z',
-  lastEditedBy: 'Tuma Admin',
-}
-
-/* G6 — audit log: GET /v1/admin/audit (append-only; no row actions). */
-export interface DemoAuditRow {
-  id: string
-  actor: string
-  action: string
-  targetType: string
-  targetId: string
-  at: string
-}
-
-export const demoAudit: DemoAuditRow[] = [
-  { id: 'a9', actor: 'Tuma Admin', action: 'Approved payout', targetType: 'Payout', targetId: '232500 RWF · Simba Supermarket', at: '2026-08-26T09:44:00Z' },
-  { id: 'a8', actor: 'Tuma Admin', action: 'Suspended merchant', targetType: 'Merchant', targetId: 'heza-grill', at: '2026-08-25T17:02:00Z' },
-  { id: 'a7', actor: 'Tuma Admin', action: 'Refunded order', targetType: 'Order', targetId: '#1019', at: '2026-08-25T16:40:00Z' },
-  { id: 'a6', actor: 'Tuma Admin', action: 'Added rider', targetType: 'Rider', targetId: 'Rider #4 · Théo M.', at: '2026-08-24T11:26:00Z' },
-  { id: 'a5', actor: 'Tuma Admin', action: 'Changed platform fee', targetType: 'Fees', targetId: '12% → 11%', at: '2026-08-22T09:12:00Z' },
-]
+/* G5 (fees) and G6 (audit) were retired by founder direction — the pages
+   were removed; when the platform needs them again the endpoints land as
+   normal slices. */
 
 /* G7 — reviews: GET /v1/merchant/reviews (+ reply). */
 export interface DemoReview {

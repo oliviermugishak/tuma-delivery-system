@@ -1,7 +1,7 @@
 /**
  * Merchant — Menu (coverage §7.12, mockup M3): dense table (thumb ·
  * product · store · price · availability dot+text+toggle · kebab),
- * store filter chips, result count. "Add product" is a page (P18).
+ * store filter chips, result count. Selling in a store is a page (P18).
  * "Remove from store" is guarded — the product survives in catalog.
  *
  * Live data: /v1/merchant/store-products (the sell sheet per store),
@@ -176,14 +176,14 @@ export function MenuScreen() {
         title="Menu"
         sub={
           products.data
-            ? `${products.data.length} products across ${stores.data?.length ?? 0} stores · the same product can have a different price per store`
+            ? `${products.data.length} products across ${stores.data?.length ?? 0} stores · what each store sells, at its own price (catalog identities live on the Catalog page)`
             : 'What your stores sell, per store'
         }
         actions={
           <Link to="/merchant/menu/new">
             <Button variant="primary">
-              <Icon name="add" label="" size={18} />
-              Add product
+              <Icon name="storefront" label="" size={18} />
+              Sell in a store
             </Button>
           </Link>
         }
@@ -255,7 +255,7 @@ export function MenuScreen() {
             action={
               <Link to="/merchant/menu/new">
                 <Button small variant="primary">
-                  Add product
+                  Sell in a store
                 </Button>
               </Link>
             }
@@ -284,7 +284,11 @@ export function MenuScreen() {
       <GuardDialog
         open={removeTarget != null}
         onClose={() => setRemoveTarget(null)}
-        title={`Remove ${removeTarget?.product_name ?? ''} from ${removeTarget?.store_name ?? ''}?`}
+        title={
+          removeTarget
+            ? `Remove ${removeTarget.product_name} from ${removeTarget.store_name}?`
+            : 'Remove from store?'
+        }
         confirmLabel="Remove from store"
         pending={removeProduct.isPending}
         onConfirm={() => {
@@ -339,7 +343,7 @@ function PriceDialog({
     <GuardDialog
       open={target != null}
       onClose={onClose}
-      title={`Edit price · ${target?.product_name ?? ''}`}
+      title={target ? `Edit price · ${target.product_name}` : 'Edit price'}
       confirmLabel="Save price"
       danger={false}
       pending={saving}

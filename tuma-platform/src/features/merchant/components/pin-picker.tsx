@@ -93,7 +93,11 @@ function Marker({ pin, onPin }: { pin: Pin | null; onPin: (pin: Pin | null) => v
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markerRef = useRef<any>(null)
   const onPinRef = useRef(onPin)
-  onPinRef.current = onPin
+
+  // Keep the callback ref fresh inside an effect, never during render.
+  useEffect(() => {
+    onPinRef.current = onPin
+  }, [onPin])
 
   useEffect(() => {
     if (!map || !markerLib) return

@@ -285,7 +285,6 @@ function EditCustomerForm({
       <Field
         label="Name"
         help="Leave empty to clear — they can set it again from the app"
-        error={errors.name}
       >
         <Input
           value={name}

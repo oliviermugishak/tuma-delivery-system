@@ -158,7 +158,11 @@ export function CatalogScreen() {
             {
               label: 'Sell it in a store',
               icon: 'storefront',
-              onSelect: () => void navigate({ to: '/merchant/menu/new' }),
+              onSelect: () =>
+                void navigate({
+                  to: '/merchant/menu/new',
+                  search: { product: p.id },
+                }),
             },
             {
               label: 'Delete product…',
@@ -190,7 +194,7 @@ export function CatalogScreen() {
           <Link to="/merchant/catalog/new">
             <Button variant="primary">
               <Icon name="add" label="" size={18} />
-              Add product
+              Add catalog product
             </Button>
           </Link>
         }
@@ -222,7 +226,7 @@ export function CatalogScreen() {
             action={
               <Link to="/merchant/catalog/new">
                 <Button small variant="primary">
-                  Add product
+                  Add catalog product
                 </Button>
               </Link>
             }
@@ -250,7 +254,7 @@ export function CatalogScreen() {
       <GuardDialog
         open={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
-        title={`Delete ${deleteTarget?.name ?? ''}?`}
+        title={deleteTarget ? `Delete ${deleteTarget.name}?` : 'Delete product?'}
         confirmLabel="Delete product"
         pending={removeProduct.isPending}
         onConfirm={() => {
@@ -375,7 +379,9 @@ function CatalogForm({
     <div className="flex flex-col gap-5 pb-10">
       <PageHead
         back={{ to: '/merchant/catalog', label: 'Catalog' }}
-        title={mode === 'create' ? 'Add product' : 'Edit product'}
+        title={
+          mode === 'create' ? 'New catalog product' : 'Edit catalog product'
+        }
         sub={
           mode === 'create'
             ? 'Describe the product once — images and store prices come next.'
