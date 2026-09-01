@@ -1098,3 +1098,123 @@ async fn audiences_and_anonymous_are_gated(pool: sqlx::PgPool) {
         401
     );
 }
+
+// The cancel integrity (review P01/P02): a cancel that only flipped the
+// status burned the reserved stock and left the allocation `pending`
+// forever — the group's payment could then never complete.
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Simba Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    // Tracked stock: 5 units on the shelf.
+    let rice_sp = attach(&aline, store, rice, 12000, json!(5)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000010").await;
+    let response = checkout(
+        &chantal,
+        &token,
+        "Anywhere",
+        json!([line(rice_sp, 2)]),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), 201);
+    let group: Value = response.json().await.unwrap();
+    let group_id = group["id"].as_str().unwrap().to_string();
+    let order_id = group["store_orders"][0]["id"].as_str().unwrap().to_string();
+
+    // The reservation: 5 − 2 = 3 on the shelf.
+    let (stock_after_checkout,): (i64,) = sqlx::query_as(
+        "SELECT stock FROM marketplace.store_products WHERE id = $1",
+    )
+    .bind(rice_sp)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(stock_after_checkout, 3);
+
+    // The cancel gives the 2 units back.
+    let response = chantal
+        .post_json(
+            &format!("/v1/orders/{group_id}/store-orders/{order_id}/cancel"),
+            json!({ "reason": "changed my mind" }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    let (stock_after_cancel,): (i64,) = sqlx::query_as(
+        "SELECT stock FROM marketplace.store_products WHERE id = $1",
+    )
+    .bind(rice_sp)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(stock_after_cancel, 5, "the reserved units return to the shelf");
+
+    // The slice's allocation is refunded, never left pending.
+    let (allocation,): (String,) = sqlx::query_as(
+        "SELECT status::text FROM commerce.payment_allocations WHERE store_order_id = $1",
+    )
+    .bind(order_id.parse::<uuid::Uuid>().unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(allocation, "refunded");
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_fully_cancelled_group_refunds_its_payment(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Simba Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let beans = create_product(&aline, "Beans 1KG").await;
+    let rice_sp = attach(&aline, store, rice, 12000, json!(null)).await;
+    let beans_sp = attach(&aline, store, beans, 3500, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000010").await;
+    let response = checkout(
+        &chantal,
+        &token,
+        "Anywhere",
+        json!([line(rice_sp, 1), line(beans_sp, 1)]),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), 201);
+    let group: Value = response.json().await.unwrap();
+    let group_id = group["id"].as_str().unwrap().to_string();
+    let orders = group["store_orders"].as_array().unwrap();
+    assert_eq!(orders.len(), 1);
+
+    let order_id = orders[0]["id"].as_str().unwrap().to_string();
+    let response = chantal
+        .post_json(
+            &format!("/v1/orders/{group_id}/store-orders/{order_id}/cancel"),
+            json!({}),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // One store order, fully cancelled: nothing pending anywhere — the
+    // group's payment is refunded, not stuck `pending` forever.
+    let (payment,): (String,) = sqlx::query_as(
+        "SELECT status::text FROM commerce.payments WHERE order_group_id = $1",
+    )
+    .bind(Uuid::parse_str(group["id"].as_str().unwrap()).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(payment, "refunded");
+}

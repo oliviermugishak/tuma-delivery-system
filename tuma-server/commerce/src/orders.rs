@@ -1031,20 +1031,29 @@ pub async fn advance_store_order_status(
         return Err(TransitionError::HandoffRequired);
     }
 
+    // Compare-and-swap: the legality check above read the row, but a
+    // concurrent cancel/advance could have flipped it between the read
+    // and this write. The status guard in the UPDATE makes this write
+    // lose that race (0 rows) instead of last-write-wins.
     let updated = sqlx::query_as!(
         StoreOrder,
         r#"
         UPDATE commerce.store_orders SET status = $2
-        WHERE id = $1
+        WHERE id = $1 AND status = $3
         RETURNING id, order_group_id, merchant_id, store_id, number,
                   status AS "status: OrderStatus", subtotal, delivery_fee, total,
                   created_at, updated_at
         "#,
         store_order_id,
         next as OrderStatus,
+        current.status as OrderStatus,
     )
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(TransitionError::Illegal {
+        from: current.status.label(),
+        to: next.label(),
+    })?;
     // The cash state (tracking doc §5): delivery = payment for cash-on-
     // delivery, whichever real actor drives the advance — the rider's
     // Delivered action and the merchant's PATCH are the same event to the
@@ -1074,6 +1083,11 @@ pub async fn cancel_own_store_order(
     group_id: Uuid,
     store_order_id: Uuid,
 ) -> Result<StoreOrder, CancelError> {
+    // Everything below is ONE transaction: ownership, the status
+    // compare-and-swap, stock restoration, and the allocation ledger move
+    // together — a cancel that half-landed would strand money or inventory.
+    let mut tx = conn.begin().await?;
+
     // The group must belong to the customer, and the store order must sit
     // inside it — a foreign id is a plain NotFound either way.
     let owned = sqlx::query!(
@@ -1087,13 +1101,75 @@ pub async fn cancel_own_store_order(
         group_id,
         user_id,
     )
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(CancelError::NotFound)?;
 
-    advance_store_order_status(&mut *conn, owned.id, OrderStatus::Cancelled)
-        .await
-        .map_err(CancelError::Illegal)
+    // Compare-and-swap: the same legality set as
+    // `can_transition_to(Cancelled)` (placed/accepted/preparing), enforced
+    // by the UPDATE itself. If a merchant accepted/prepared between the
+    // customer's tap and this write, 0 rows means the cancel loses.
+    let cancelled = sqlx::query_as!(
+        StoreOrder,
+        r#"
+        UPDATE commerce.store_orders SET status = 'cancelled'
+        WHERE id = $1 AND status IN ('placed', 'accepted', 'preparing')
+        RETURNING id, order_group_id, merchant_id, store_id, number,
+                  status AS "status: OrderStatus", subtotal, delivery_fee, total,
+                  created_at, updated_at
+        "#,
+        owned.id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(CancelError::Illegal(TransitionError::Illegal {
+        from: "its current state",
+        to: OrderStatus::Cancelled.label(),
+    }))?;
+
+    // The checkout reserved this store's stock; the cancel gives it back.
+    // Untracked stock (NULL) was never decremented and stays NULL.
+    sqlx::query!(
+        r#"
+        UPDATE marketplace.store_products sp
+        SET stock = sp.stock + oi.quantity
+        FROM commerce.order_items oi
+        WHERE oi.store_order_id = $1 AND sp.id = oi.store_product_id
+        "#,
+        store_order_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // The ledger: this store's slice can never be collected now — it
+    // moves to `refunded`, which lets the group's payment complete
+    // (`collected` when nothing is pending) once the remaining deliveries
+    // settle. A fully-cancelled group becomes `refunded` outright.
+    sqlx::query!(
+        r#"
+        UPDATE commerce.payment_allocations SET status = 'refunded'
+        WHERE store_order_id = $1 AND status = 'pending'
+        "#,
+        store_order_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query!(
+        r#"
+        UPDATE commerce.payments SET status = 'refunded'
+        WHERE order_group_id = $1 AND status = 'pending'
+          AND NOT EXISTS (
+              SELECT 1 FROM commerce.payment_allocations
+              WHERE order_group_id = $1 AND status = 'pending'
+          )
+        "#,
+        group_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(cancelled)
 }
 
 /// Store orders still moving — the platform's live-ops count (summary).
