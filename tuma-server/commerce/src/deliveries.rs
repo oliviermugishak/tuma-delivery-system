@@ -626,39 +626,37 @@ pub async fn tracking_for_user(
     .fetch_all(&mut *conn)
     .await?;
 
+    // The trail is a tail, not the history — SQL keeps exactly the last
+    // TRAIL_TAIL_LEN real points per delivery (a lateral over the
+    // (delivery_id, recorded_at) index, re-sorted oldest-first for
+    // drawing). Fetching all breadcrumbs and trimming in Rust scanned a
+    // whole run's rows on every poll.
     let delivery_ids: Vec<Uuid> = deliveries.iter().map(|d| d.delivery_id).collect();
-    let mut trails: Vec<TrailPoint> = if delivery_ids.is_empty() {
+    let trails: Vec<TrailPoint> = if delivery_ids.is_empty() {
         Vec::new()
     } else {
         sqlx::query_as!(
             TrailPoint,
             r#"
-            SELECT delivery_id, lat, lng, recorded_at
-            FROM commerce.delivery_locations
-            WHERE delivery_id = ANY($1)
-            ORDER BY recorded_at ASC
+            SELECT t.delivery_id, t.lat, t.lng, t.recorded_at
+            FROM unnest($1::uuid[]) AS d(id)
+            CROSS JOIN LATERAL (
+                SELECT dl.delivery_id, dl.lat, dl.lng, dl.recorded_at
+                FROM commerce.delivery_locations dl
+                WHERE dl.delivery_id = d.id
+                ORDER BY dl.recorded_at DESC
+                LIMIT $2
+            ) t
+            ORDER BY t.delivery_id, t.recorded_at ASC
             "#,
             &delivery_ids,
+            TRAIL_TAIL_LEN as i64,
         )
         .fetch_all(&mut *conn)
         .await?
     };
-    // The trail is a tail, not the history — keep the last few real points
-    // per delivery (rows arrive oldest-first, so the tail is the end).
-    if !trails.is_empty() {
-        let mut kept: Vec<TrailPoint> = Vec::with_capacity(trails.len());
-        let mut start = 0usize;
-        for i in 1..=trails.len() {
-            let boundary = i == trails.len() || trails[i].delivery_id != trails[start].delivery_id;
-            if boundary {
-                let slice = &trails[start..i];
-                let from = slice.len().saturating_sub(TRAIL_TAIL_LEN);
-                kept.extend_from_slice(&slice[from..]);
-                start = i;
-            }
-        }
-        trails = kept;
-    }
+    // unnest preserves the delivery_ids order (the deliveries' own order),
+    // so each delivery's trail slice is already contiguous.
 
     let payment = crate::orders::payment_for_group(&mut *conn, group.id).await?;
     let statuses: Vec<OrderStatus> = deliveries.iter().map(|d| d.status).collect();
@@ -677,6 +675,43 @@ pub async fn tracking_for_user(
         trails,
         changed_at,
     }))
+}
+
+/// The freshness probe behind the tracking poll's 204: the group's
+/// `changed_at` with ONE cheap query instead of the full snapshot
+/// (geometry + trails + payment). Equal-or-newer `since` → the caller
+/// answers 204 without paying for any of that.
+pub async fn tracking_changed_at(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    group_id: Uuid,
+) -> Result<Option<OffsetDateTime>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT max(t) AS "changed_at: _" FROM (
+            SELECT so.updated_at AS t
+            FROM commerce.order_groups og
+            JOIN commerce.store_orders so ON so.order_group_id = og.id
+            WHERE og.id = $1 AND og.user_id = $2
+            UNION ALL
+            SELECT d.last_location_at
+            FROM commerce.order_groups og
+            JOIN commerce.store_orders so ON so.order_group_id = og.id
+            JOIN commerce.deliveries d ON d.store_order_id = so.id
+            WHERE og.id = $1 AND og.user_id = $2
+            UNION ALL
+            SELECT d.handoff_at
+            FROM commerce.order_groups og
+            JOIN commerce.store_orders so ON so.order_group_id = og.id
+            JOIN commerce.deliveries d ON d.store_order_id = so.id
+            WHERE og.id = $1 AND og.user_id = $2
+        ) stamps
+        "#,
+        group_id,
+        user_id,
+    )
+    .fetch_one(&mut *conn)
+    .await
 }
 
 #[cfg(test)]

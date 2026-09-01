@@ -42,7 +42,9 @@ async fn main() -> anyhow::Result<()> {
             }
             "--deliver" => deliver = true,
             "--list" => list = true,
-            other => bail!("unknown argument {other} (use --rider <n>, --order <n>, --store-order <id>, --deliver, --list)"),
+            other => bail!(
+                "unknown argument {other} (use --rider <n>, --order <n>, --store-order <id>, --deliver, --list)"
+            ),
         }
     }
 

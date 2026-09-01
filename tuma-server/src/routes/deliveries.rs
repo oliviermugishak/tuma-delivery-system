@@ -269,18 +269,22 @@ pub async fn order_tracking(
         .user_id()
         .ok_or_else(|| AppError::Authentication("Access denied".into()))?;
     let mut conn = app.db_pool.acquire().await?;
+
+    // The freshness contract: the client echoes `changed_at` back as
+    // `since`; equal-or-newer means nothing moved — 204, decided by a
+    // ONE-query probe before any geometry, trail, or payment is loaded.
+    // Every heartbeat poll takes this path, so the cheap answer is the
+    // common one.
+    let changed_at = commerce::deliveries::tracking_changed_at(&mut conn, user, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("order not found".into()))?;
+    if query.since.is_some_and(|since| since >= changed_at) {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
     let tracking = commerce::deliveries::tracking_for_user(&mut conn, user, id)
         .await?
         .ok_or_else(|| AppError::NotFound("order not found".into()))?;
-
-    // The freshness contract: the client echoes `changed_at` back as
-    // `since`; equal-or-older means nothing moved — 204.
-    if query
-        .since
-        .is_some_and(|since| since >= tracking.changed_at)
-    {
-        return Ok(StatusCode::NO_CONTENT.into_response());
-    }
 
     let entries = tracking
         .deliveries

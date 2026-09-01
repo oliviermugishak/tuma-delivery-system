@@ -132,9 +132,9 @@ impl From<CheckoutError> for AppError {
             CheckoutError::EmptyCart | CheckoutError::DuplicateItems => {
                 AppError::BadRequest(error.to_string())
             }
-            // The idempotent-retry arm is resolved by the handler before
+            // The idempotent-retry arms are resolved by the handler before
             // this conversion ever runs.
-            CheckoutError::AlreadyPlaced(_) => {
+            CheckoutError::AlreadyPlaced(_) | CheckoutError::IdempotencyRace { .. } => {
                 AppError::Internal("unresolved idempotent retry".into())
             }
             CheckoutError::Database(error) => AppError::Database(error),

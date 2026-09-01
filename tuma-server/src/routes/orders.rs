@@ -226,6 +226,17 @@ pub async fn checkout(
                 .ok_or_else(|| AppError::Internal("existing group disappeared".into()))?;
             Ok((StatusCode::OK, Json(group_detail_response(detail))))
         }
+        Err(CheckoutError::IdempotencyRace { user_id, key }) => {
+            // Lost the concurrent-same-key race: the aborted transaction
+            // can't be queried, so re-fetch the winner on a fresh one.
+            let group = orders::group_by_idempotency_key(&mut conn, user_id, &key)
+                .await?
+                .ok_or_else(|| AppError::Internal("idempotency race winner missing".into()))?;
+            let detail = orders::group_detail_for_user(&mut conn, user_id, group.id)
+                .await?
+                .ok_or_else(|| AppError::Internal("existing group disappeared".into()))?;
+            Ok((StatusCode::OK, Json(group_detail_response(detail))))
+        }
         Err(error) => Err(error.into()),
     }
 }
@@ -504,21 +515,25 @@ pub async fn list_merchant_orders(
 ) -> AppResult<Json<Vec<MerchantStoreOrderResponse>>> {
     let access = merchant_access(&context)?;
     let mut conn = app.db_pool.acquire().await?;
-    let mut rows = Vec::new();
+    // Owner grants admit whole merchants; scoped manager grants admit
+    // exactly their stores — one paged query covers both (a per-grant
+    // loop with a shared limit/offset duplicates and skips pages).
+    let mut owner_merchant_ids = Vec::new();
+    let mut scoped_store_ids = Vec::new();
     for grant in &access.grants {
-        let scoped = grant.store_ids.as_deref();
-        rows.extend(
-            orders::store_orders_for_merchant_scoped(
-                &mut conn,
-                grant.merchant_id,
-                scoped,
-                page.limit(),
-                page.offset(),
-            )
-            .await?,
-        );
+        match grant.store_ids.as_deref() {
+            None => owner_merchant_ids.push(grant.merchant_id),
+            Some(stores) => scoped_store_ids.extend_from_slice(stores),
+        }
     }
-    rows.sort_by_key(|row| std::cmp::Reverse(row.created_at));
+    let rows = orders::store_orders_for_grants(
+        &mut conn,
+        &owner_merchant_ids,
+        &scoped_store_ids,
+        page.limit(),
+        page.offset(),
+    )
+    .await?;
     Ok(Json(
         rows.into_iter()
             .map(|row| MerchantStoreOrderResponse {
@@ -682,12 +697,9 @@ pub async fn advance_store_order(
     let order = orders::advance_store_order_status(&mut conn, id, next).await?;
     // (The cash settlement lives inside the domain advance's transaction —
     // delivery = payment, one atomic event, doc §5.)
-    let row =
-        orders::store_orders_for_merchant_scoped(&mut conn, merchant_id, Some(&[store_id]), 200, 0)
-            .await?
-            .into_iter()
-            .find(|row| row.id == order.id)
-            .ok_or_else(|| AppError::Internal("advanced order disappeared".into()))?;
+    let row = orders::merchant_store_order_row(&mut conn, order.id)
+        .await?
+        .ok_or_else(|| AppError::Internal("advanced order disappeared".into()))?;
     Ok(Json(MerchantStoreOrderResponse {
         id: row.id,
         number: row.number,
@@ -778,12 +790,9 @@ pub async fn handoff_store_order(
     };
 
     let order = commerce::deliveries::handoff(&mut conn, id, rider.id, cached).await?;
-    let row =
-        orders::store_orders_for_merchant_scoped(&mut conn, merchant_id, Some(&[store_id]), 200, 0)
-            .await?
-            .into_iter()
-            .find(|row| row.id == order.id)
-            .ok_or_else(|| AppError::Internal("handed-over order disappeared".into()))?;
+    let row = orders::merchant_store_order_row(&mut conn, order.id)
+        .await?
+        .ok_or_else(|| AppError::Internal("handed-over order disappeared".into()))?;
     Ok(Json(MerchantStoreOrderResponse {
         id: row.id,
         number: row.number,

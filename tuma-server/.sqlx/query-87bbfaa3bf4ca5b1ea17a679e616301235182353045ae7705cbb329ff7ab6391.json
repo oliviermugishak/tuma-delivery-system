@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT delivery_id, lat, lng, recorded_at\n            FROM commerce.delivery_locations\n            WHERE delivery_id = ANY($1)\n            ORDER BY recorded_at ASC\n            ",
+  "query": "\n            SELECT t.delivery_id, t.lat, t.lng, t.recorded_at\n            FROM unnest($1::uuid[]) AS d(id)\n            CROSS JOIN LATERAL (\n                SELECT dl.delivery_id, dl.lat, dl.lng, dl.recorded_at\n                FROM commerce.delivery_locations dl\n                WHERE dl.delivery_id = d.id\n                ORDER BY dl.recorded_at DESC\n                LIMIT $2\n            ) t\n            ORDER BY t.delivery_id, t.recorded_at ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -50,7 +50,8 @@
     ],
     "parameters": {
       "Left": [
-        "UuidArray"
+        "UuidArray",
+        "Int8"
       ]
     },
     "nullable": [
@@ -60,5 +61,5 @@
       false
     ]
   },
-  "hash": "e13cd64fbfe9cc65456e4c938a4e8c25419a6d3f61d5eac961af9c6029d30135"
+  "hash": "87bbfaa3bf4ca5b1ea17a679e616301235182353045ae7705cbb329ff7ab6391"
 }

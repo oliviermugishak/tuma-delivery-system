@@ -307,6 +307,11 @@ pub enum CheckoutError {
     /// not a failure; the handler returns the existing group.
     #[error("checkout already placed")]
     AlreadyPlaced(Box<OrderGroup>),
+    /// Two concurrent checkouts shared one idempotency key and the loser
+    /// hit the UNIQUE constraint mid-transaction — the handler re-fetches
+    /// the winner and returns the same 200 as AlreadyPlaced.
+    #[error("checkout already placed (concurrent retry)")]
+    IdempotencyRace { user_id: Uuid, key: String },
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -482,33 +487,38 @@ pub async fn create_checkout(
     if !shorts.is_empty() {
         return Err(CheckoutError::InsufficientStock { items: shorts });
     }
-    for line in &lines {
-        if line.stock.is_some() {
-            let result = sqlx::query!(
-                r#"
-                UPDATE marketplace.store_products
-                SET stock = stock - $2
-                WHERE id = $1 AND stock >= $2
-                "#,
-                line.store_product_id,
-                i64::from(line.quantity),
-            )
-            .execute(&mut *conn)
-            .await?;
-            if result.rows_affected() == 0 {
-                // Lost a race between the check and the decrement; the
-                // transaction aborts, nothing was placed.
-                return Err(CheckoutError::InsufficientStock {
-                    items: vec![StockShort {
-                        product_name: line.product_name.clone(),
-                        available: 0,
-                    }],
-                });
-            }
+    // One transaction for the WHOLE checkout — including the stock
+    // decrements. (They used to run on the raw connection before the
+    // transaction began, so a failure mid-checkout kept the committed
+    // decrements: a stock leak. Now everything commits or nothing does.)
+    // Updates are ordered by store_product_id so concurrent multi-line
+    // carts lock rows in the same order — no deadlocks.
+    let mut tx = conn.begin().await?;
+    let mut tracked: Vec<&Line> = lines.iter().filter(|l| l.stock.is_some()).collect();
+    tracked.sort_by_key(|line| line.store_product_id);
+    for line in tracked {
+        let result = sqlx::query!(
+            r#"
+            UPDATE marketplace.store_products
+            SET stock = stock - $2
+            WHERE id = $1 AND stock >= $2
+            "#,
+            line.store_product_id,
+            i64::from(line.quantity),
+        )
+        .execute(&mut *tx)
+        .await?;
+        if result.rows_affected() == 0 {
+            // Lost a race between the check and the decrement — the
+            // transaction aborts, nothing was placed and no stock moved.
+            return Err(CheckoutError::InsufficientStock {
+                items: vec![StockShort {
+                    product_name: line.product_name.clone(),
+                    available: 0,
+                }],
+            });
         }
     }
-
-    let mut tx = conn.begin().await?;
 
     let group_subtotal: i64 = per_store
         .values()
@@ -546,7 +556,25 @@ pub async fn create_checkout(
         checkout.idempotency_key,
     )
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|error| {
+        // Idempotency race: two concurrent checkouts with the same key
+        // both pass the pre-check; the loser hits the UNIQUE(user_id,
+        // idempotency_key) constraint. Return the winner's checkout
+        // instead of a 500 — the documented retry contract.
+        if error
+            .as_database_error()
+            .is_some_and(|db| db.code().as_deref() == Some("23505"))
+        {
+            if let Some(key) = checkout.idempotency_key.as_deref() {
+                return CheckoutError::IdempotencyRace {
+                    user_id,
+                    key: key.to_string(),
+                };
+            }
+        }
+        CheckoutError::Database(error)
+    })?;
 
     let payment = sqlx::query_as!(
         Payment,
@@ -794,9 +822,31 @@ pub async fn group_detail_for_user(
     .fetch_all(&mut *conn)
     .await?;
 
+    // One batched items query for the whole group (a per-store loop was
+    // an N+1 on the customer's most-fetched endpoint); re-joined to the
+    // store orders in memory.
+    let store_order_ids: Vec<Uuid> = orders.iter().map(|o| o.id).collect();
+    let all_items = sqlx::query_as!(
+        OrderItem,
+        r#"
+        SELECT id, store_order_id, store_product_id, product_id,
+               product_name_snapshot, unit_price, quantity
+        FROM commerce.order_items
+        WHERE store_order_id = ANY($1)
+        ORDER BY id
+        "#,
+        &store_order_ids,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+
     let mut store_orders = Vec::with_capacity(orders.len());
     for order in orders {
-        let items = items_for_store_order(&mut *conn, order.id).await?;
+        let items: Vec<OrderItem> = all_items
+            .iter()
+            .filter(|item| item.store_order_id == order.id)
+            .cloned()
+            .collect();
         store_orders.push((
             StoreOrder {
                 id: order.id,
@@ -1015,6 +1065,65 @@ pub async fn store_orders_for_merchant_scoped(
         offset,
     )
     .fetch_all(&mut *conn)
+    .await
+}
+
+/// The merchant board across ALL of an operator's grants in ONE paged
+/// query. An owner grant admits every store of that merchant (its id goes
+/// in `owner_merchant_ids`); a scoped manager grant admits exactly its
+/// stores (unioned into `scoped_store_ids`). A row matches either way;
+/// per-grant loops with a shared limit/offset could duplicate or skip
+/// pages, which is why this exists.
+pub async fn store_orders_for_grants(
+    conn: &mut PgConnection,
+    owner_merchant_ids: &[Uuid],
+    scoped_store_ids: &[Uuid],
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<MerchantStoreOrderRow>, sqlx::Error> {
+    sqlx::query_as!(
+        MerchantStoreOrderRow,
+        r#"
+        SELECT so.id, so.store_id, s.name AS store_name, so.number,
+               so.status AS "status: OrderStatus", so.total,
+               og.address_text, so.created_at
+        FROM commerce.store_orders so
+        JOIN marketplace.stores s ON s.id = so.store_id
+        JOIN commerce.order_groups og ON og.id = so.order_group_id
+        WHERE (cardinality($1::uuid[]) > 0 AND s.merchant_id = ANY($1::uuid[]))
+           OR (cardinality($2::uuid[]) > 0 AND so.store_id = ANY($2::uuid[]))
+        ORDER BY so.created_at DESC
+        LIMIT $3 OFFSET $4
+        "#,
+        owner_merchant_ids,
+        scoped_store_ids,
+        limit,
+        offset,
+    )
+    .fetch_all(&mut *conn)
+    .await
+}
+
+/// One board row by store-order id — the advance/handoff handlers' exact
+/// response without rescanning a page of the board.
+pub async fn merchant_store_order_row(
+    conn: &mut PgConnection,
+    store_order_id: Uuid,
+) -> Result<Option<MerchantStoreOrderRow>, sqlx::Error> {
+    sqlx::query_as!(
+        MerchantStoreOrderRow,
+        r#"
+        SELECT so.id, so.store_id, s.name AS store_name, so.number,
+               so.status AS "status: OrderStatus", so.total,
+               og.address_text, so.created_at
+        FROM commerce.store_orders so
+        JOIN marketplace.stores s ON s.id = so.store_id
+        JOIN commerce.order_groups og ON og.id = so.order_group_id
+        WHERE so.id = $1
+        "#,
+        store_order_id,
+    )
+    .fetch_optional(&mut *conn)
     .await
 }
 
