@@ -550,7 +550,7 @@ async fn catalog_reachable_through_the_cookie_transport(pool: sqlx::PgPool) {
 /// territory; here only the history's existence is the fact under test.
 async fn place_order(app: &common::TestApp, store_product_id: Uuid) {
     let seeded = seed_customer(&app.pool, "+250780099001").await;
-    let token = token_for(&app, seeded.account.id, 3600);
+    let token = token_for(app, seeded.account.id, 3600);
     let response = TestClient::new(&app.address)
         .post_json(
             "/v1/orders",

@@ -56,9 +56,12 @@ class CartItem {
         storeProductId: json['storeProductId'] as String,
         productId: json['productId'] as String? ?? json['storeProductId'] as String,
         name: json['name'] as String,
-        unitPrice: json['unitPrice'] as int,
+        // Same num-safe parse as the wire models (review A42): the cart
+        // JSON is app-written, but a num re-encode on restore must not
+        // blow up the loader — it degrades to a cart reset instead.
+        unitPrice: (json['unitPrice'] as num).toInt(),
         imageUrl: json['imageUrl'] as String?,
-        quantity: json['quantity'] as int,
+        quantity: (json['quantity'] as num).toInt(),
       );
 }
 
@@ -96,7 +99,7 @@ class StoreBucket {
   factory StoreBucket.fromJson(Map<String, dynamic> json) => StoreBucket(
         storeId: json['storeId'] as String,
         storeName: json['storeName'] as String,
-        deliveryFee: json['deliveryFee'] as int,
+        deliveryFee: (json['deliveryFee'] as num).toInt(),
         items: (json['items'] as List? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(CartItem.fromJson)

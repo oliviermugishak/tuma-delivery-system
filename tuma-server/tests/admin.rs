@@ -493,7 +493,7 @@ async fn place_order_with_merchant(app: &common::TestApp, merchant_id: uuid::Uui
     .await
     .unwrap();
     let seeded = seed_customer(&app.pool, "+250780099003").await;
-    let token = token_for(&app, seeded.account.id, 3600);
+    let token = token_for(app, seeded.account.id, 3600);
     let response = TestClient::new(&app.address)
         .post_json(
             "/v1/orders",
