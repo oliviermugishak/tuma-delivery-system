@@ -58,7 +58,9 @@ pub struct CreateAddressInput {
     pub label: String,
     #[validate(length(min = 1, max = 300, message = "address must be 1-300 characters"))]
     pub address_text: String,
+    #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<f64>,
+    #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
     pub lng: Option<f64>,
     #[serde(default)]
     pub is_default: bool,
@@ -78,7 +80,9 @@ pub struct UpdateAddressInput {
     pub label: Option<String>,
     #[validate(length(min = 1, max = 300, message = "address must be 1-300 characters"))]
     pub address_text: Option<String>,
+    #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<Option<f64>>,
+    #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
     pub lng: Option<Option<f64>>,
     pub is_default: Option<bool>,
     #[validate(length(max = 20, message = "kind must be at most 20 characters"))]

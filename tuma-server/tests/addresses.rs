@@ -185,6 +185,68 @@ async fn address_patch_updates_fields_and_empty_label_is_rejected(pool: sqlx::Pg
     assert_eq!(response.status(), 204);
 }
 
+/// Review P11: saved addresses ride the same ±90/±180 rule as the stores/
+/// search inputs — on create and on patch (the pin moved is no license to
+/// leave the planet).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn address_coordinates_are_range_validated_on_create_and_patch(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let seeded = seed_customer(&app.pool, "+250780000007").await;
+    let token = token_for(&app, seeded.account.id, 3600);
+
+    // Create with a latitude beyond the pole: 422.
+    let response = client
+        .post_json(
+            "/v1/addresses",
+            json!({
+                "label": "Nowhere",
+                "address_text": "KG 7 Ave, Kigali",
+                "lat": -91.0,
+                "lng": 30.0619
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "lat beyond ±90 is refused");
+
+    // A valid address, then a patch moving it beyond the antimeridian: 422.
+    let response = client
+        .post_json(
+            "/v1/addresses",
+            json!({"label": "Home", "address_text": "KK 40 Street, Kigali"}),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let created: serde_json::Value = response.json().await.unwrap();
+    let id = created["id"].as_str().unwrap();
+
+    let response = client
+        .patch_json(&format!("/v1/addresses/{id}"), json!({"lng": -180.5}))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "lng beyond ±180 is refused");
+
+    // The untouched boundaries are honest zero: exactly ±90/±180 pass.
+    let response = client
+        .patch_json(
+            &format!("/v1/addresses/{id}"),
+            json!({"lat": -90.0, "lng": 180.0}),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200, "the boundary itself is legal");
+}
+
 // ---------------------------------------------------------------------------
 // The geocoding proxy: server-side key or an honest 502 — never a client
 // key, never invented addresses.

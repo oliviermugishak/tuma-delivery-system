@@ -1103,6 +1103,57 @@ async fn audiences_and_anonymous_are_gated(pool: sqlx::PgPool) {
 // status burned the reserved stock and left the allocation `pending`
 // forever — the group's payment could then never complete.
 
+/// Review P11: the checkout's coordinates ride the same ±90/±180 rule as
+/// the stores/search inputs — an out-of-range lat/lng is a 422, not a
+/// poisoning of the group (and, downstream, of the rider's map).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn checkout_rejects_out_of_range_coordinates(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 12000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000014").await;
+    // A latitude past the pole: nonsense geography, refused at the door.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KG 7 Ave, Remera",
+                "address_lat": 91.0,
+                "address_lng": 30.0622,
+                "items": [line(rice_sp, 1)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "lat beyond ±90 is refused");
+
+    // Same for a longitude past the antimeridian...
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KG 7 Ave, Remera",
+                "address_lat": -1.9499,
+                "address_lng": 181.0,
+                "items": [line(rice_sp, 1)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "lng beyond ±180 is refused");
+
+    // ...and nothing was placed by either attempt.
+    assert_eq!(group_count(&chantal, &token).await, 0);
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;

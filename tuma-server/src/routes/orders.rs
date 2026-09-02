@@ -173,7 +173,9 @@ async fn handoff_route(
 pub struct CheckoutInput {
     #[validate(length(min = 1, max = 300, message = "delivery address must not be empty"))]
     pub address_text: String,
+    #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub address_lat: Option<f64>,
+    #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
     pub address_lng: Option<f64>,
     /// A client-generated key: retrying the same checkout with the same key
     /// returns the group it already created instead of placing twice.
