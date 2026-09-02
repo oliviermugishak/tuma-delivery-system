@@ -1154,6 +1154,52 @@ async fn checkout_rejects_out_of_range_coordinates(pool: sqlx::PgPool) {
     assert_eq!(group_count(&chantal, &token).await, 0);
 }
 
+/// Review P12: the cart is capped at 50 lines — an unbounded `items`
+/// array is a denial-of-wallet and a denial-of-database. The 422's field
+/// error names the cap so the client can say so. (Validation runs before
+/// the handler, so unknown product ids never get that far on the 51 side.)
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn checkout_caps_the_cart_at_fifty_lines(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let (chantal, token) = customer_session(&app, "+250780000015").await;
+    let cart = |lines: usize| {
+        json!({
+            "address_text": "KG 7 Ave, Remera",
+            "items": (0..lines).map(|_| line(Uuid::new_v4(), 1)).collect::<Vec<_>>(),
+        })
+    };
+
+    // 50 lines passes validation (it fails later, in the domain, on the
+    // unknown product — anything but a 422 proves the cap did not fire).
+    let response = chantal
+        .post_json("/v1/orders", cart(50))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_ne!(response.status(), 422, "50 lines is inside the cap");
+
+    // 51 lines is a 422 whose details name the cap.
+    let response = chantal
+        .post_json("/v1/orders", cart(51))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "51 lines is over the cap");
+    let body: Value = response.json().await.unwrap();
+    let messages: Vec<String> = body["details"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["message"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        messages.iter().any(|m| m.contains("50")),
+        "the error names the cap: {messages:?}"
+    );
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;

@@ -186,8 +186,10 @@ pub struct CheckoutInput {
     /// None (P2: nothing renders for an unknown).
     #[validate(length(max = 140, message = "note must be at most 140 characters"))]
     pub customer_note: Option<String>,
-    /// At least one line. Each carries the store_product id and quantity.
-    #[validate(length(min = 1, message = "cart must have at least one item"))]
+    /// At least one line, at most fifty (review P12: an unbounded cart is
+    /// a denial-of-wallet and a denial-of-database — 50 lines is generous
+    /// for real baskets). Each carries the store_product id and quantity.
+    #[validate(length(min = 1, max = 50, message = "cart is limited to 50 items"))]
     pub items: Vec<CheckoutLineInput>,
 }
 
