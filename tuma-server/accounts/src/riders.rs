@@ -112,9 +112,13 @@ pub async fn active_by_number(
     .await
 }
 
-/// All riders, oldest first (admin list — the merchant needs to read the
-/// numbers to enter them at handoff).
-pub async fn list(conn: &mut PgConnection) -> Result<Vec<Rider>, sqlx::Error> {
+/// Riders, oldest first, one page at a time (admin list — the merchant
+/// needs to read the numbers to enter them at handoff).
+pub async fn list(
+    conn: &mut PgConnection,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Rider>, sqlx::Error> {
     sqlx::query_as!(
         Rider,
         r#"
@@ -122,7 +126,10 @@ pub async fn list(conn: &mut PgConnection) -> Result<Vec<Rider>, sqlx::Error> {
                created_at, updated_at
         FROM commerce.riders
         ORDER BY created_at
+        LIMIT $1 OFFSET $2
         "#,
+        limit,
+        offset,
     )
     .fetch_all(&mut *conn)
     .await

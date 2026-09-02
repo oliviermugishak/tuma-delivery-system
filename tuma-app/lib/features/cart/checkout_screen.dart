@@ -44,10 +44,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// Which slot renders [_error]: the form banner (field-level, e.g. a
   /// missing address) or the items-area banner (cart/server conflicts).
   bool _errorIsFormLevel = false;
+
   /// The delivery pin from the map (or GPS). Seeds itself from the
   /// persisted customer location; every choice re-persists, so Home's
   /// distances sharpen after the first checkout too.
   CustomerLocation? _pin;
+
   /// Generated once per checkout attempt and kept until the order lands,
   /// so a retry (timeout, back button, re-tap) can never place twice.
   String? _idempotencyKey;
@@ -71,25 +73,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 orElse: () => addresses.first,
               )
             : null;
-        // A saved address drives the address field + pin (P3's answer:
-        // geocoding is the system's job; the address row already knows).
-        final selected = _selectedAddress;
-        if (selected != null) {
-          _addressController.text = selected.addressText;
-          // The rider note travels with the address — pre-fill it so the
-          // rider always sees the gate detail (P8's loop closed).
-          final note = selected.note;
-          if (_noteController.text.isEmpty && note != null) {
-            _noteController.text = note;
-          }
-          _pin = selected.lat != null && selected.lng != null
-              ? CustomerLocation(lat: selected.lat!, lng: selected.lng!)
-              : _pin;
-        }
+        _seedFromSelectedAddress();
       });
     } on ApiError {
       // The location is simply not chosen yet — checkout requires it.
     }
+  }
+
+  /// A saved address drives the address field + pin (P3's answer:
+  /// geocoding is the system's job; the address row already knows).
+  /// Shared by the initial load and an explicit pick so both seed the
+  /// form identically.
+  void _seedFromSelectedAddress() {
+    final selected = _selectedAddress;
+    if (selected == null) return;
+    _addressController.text = selected.addressText;
+    // The rider note travels with the address — pre-fill it so the
+    // rider always sees the gate detail (P8's loop closed).
+    final note = selected.note;
+    if (_noteController.text.isEmpty && note != null) {
+      _noteController.text = note;
+    }
+    _pin = selected.lat != null && selected.lng != null
+        ? CustomerLocation(lat: selected.lat!, lng: selected.lng!)
+        : _pin;
   }
 
   /// Pick among saved addresses (>1): a bottom sheet of the book, plus
@@ -100,69 +107,92 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return showModalBottomSheet<Address>(
       context: context,
       backgroundColor: AppColors.surface,
+      // A grown address book scrolls; fixed rows in a tight Column
+      // overflowed the sheet (A31).
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: MicroLabel('Deliver to'),
-            ),
-            for (final address in saved) ...[
-              InkWell(
-                onTap: () => Navigator.of(sheetContext).pop(address),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        switch (address.kind) {
-                          'home' => Icons.home_rounded,
-                          'work' => Icons.work_rounded,
-                          _ => Icons.place_rounded,
-                        },
-                        size: 20,
-                        color: address.id == _selectedAddress?.id
-                            ? AppColors.primary
-                            : AppColors.onSurfaceMuted,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              address.addressText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.bd(textTheme)
-                                  .copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              address.label,
-                              style: AppTheme.sub(textTheme),
-                            ),
-                          ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: MicroLabel('Deliver to'),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final address in saved) ...[
+                      InkWell(
+                        onTap: () => Navigator.of(sheetContext).pop(address),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                switch (address.kind) {
+                                  'home' => Icons.home_rounded,
+                                  'work' => Icons.work_rounded,
+                                  _ => Icons.place_rounded,
+                                },
+                                size: 20,
+                                color: address.id == _selectedAddress?.id
+                                    ? AppColors.primary
+                                    : AppColors.onSurfaceMuted,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      address.addressText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTheme.bd(
+                                        textTheme,
+                                      ).copyWith(fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      address.label,
+                                      style: AppTheme.sub(textTheme),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (address.id == _selectedAddress?.id)
+                                const Icon(
+                                  Icons.check_rounded,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                      if (address.id == _selectedAddress?.id)
-                        const Icon(Icons.check_rounded,
-                            size: 18, color: AppColors.primary),
+                      const Divider(
+                        height: 1,
+                        indent: 20,
+                        color: AppColors.surfaceBorder,
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
-              const Divider(height: 1, indent: 20, color: AppColors.surfaceBorder),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -184,8 +214,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// A reasonably unique key without a uuid dependency: time + random.
   String _newIdempotencyKey() {
     final random = Random.secure();
-    final suffix =
-        List.generate(8, (_) => random.nextInt(16).toRadixString(16)).join();
+    final suffix = List.generate(
+      8,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
     return 'mob-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-$suffix';
   }
 
@@ -257,12 +289,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // rides the tracking endpoint instead (the success card stays
       // silent until then; P2: no invented numbers).
       if (!mounted) return;
-      context.pushReplacement('/success', extra: SuccessScreenArgs(
-        groupId: placed.id,
-        orderNumber: placed.number,
-        storeName: firstStore,
-        total: placed.grandTotal,
-      ));
+      context.pushReplacement(
+        '/success',
+        extra: SuccessScreenArgs(
+          groupId: placed.id,
+          orderNumber: placed.number,
+          storeName: firstStore,
+          total: placed.grandTotal,
+        ),
+      );
     } on ApiBadRequest catch (e) {
       _showPlacedError(e.message);
     } on ApiConflict catch (e) {
@@ -302,9 +337,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               children: [
                 Text(
                   'Nothing to checkout.',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(color: AppColors.onSurfaceMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -332,73 +366,124 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final textTheme = Theme.of(context).textTheme;
     final storeCount = state.storeCount;
 
-    return Scaffold(
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 120),
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded, size: 22),
-                  // A cold start on /checkout has nothing to pop — fall
-                  // home instead of throwing (review P16).
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/home');
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                Text('Checkout',
-                    style: AppTheme.d1(textTheme).copyWith(fontSize: 21)),
-              ],
-            ),
-          ),
-          if (storeCount > 1)
+    // No backing out while the placement POST is in flight (A28): the
+    // popped State would take the checkout's idempotency key with it, so
+    // the next placement books a second order. PopScope blocks the
+    // system gesture/back button; go_router's imperative context.pop()
+    // bypasses PopScope, so the app-bar back guards itself below.
+    return PopScope(
+      canPop: !_placing,
+      child: Scaffold(
+        body: ListView(
+          padding: const EdgeInsets.only(bottom: 120),
+          children: [
+            // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-              child: Text(
-                '$storeCount stores are fulfilling this order — they\'ll arrive as separate deliveries.',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                    // A cold start on /checkout has nothing to pop — fall
+                    // home instead of throwing (review P16).
+                    onPressed: () {
+                      // While the placement POST is in flight, back is
+                      // inert (A28): go_router's imperative pop bypasses
+                      // PopScope, so the guard lives here too.
+                      if (_placing) return;
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Checkout',
+                    style: AppTheme.d1(textTheme).copyWith(fontSize: 21),
+                  ),
+                ],
               ),
             ),
-          // DELIVER TO — saved-address-first (P3's answer: geocoding is
-          // the system's job). The selected row drives the checkout's
-          // address fields; Change swaps; dashed Add new creates. With no
-          // saved addresses yet, an honest text field takes the row's
-          // place (P12: the fallback is designed too) — the persisted pin
-          // still carries the coordinates.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: MicroLabel('Deliver to'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
+            if (storeCount > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                child: Text(
+                  '$storeCount stores are fulfilling this order — they\'ll arrive as separate deliveries.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+                ),
               ),
-              child: _selectedAddress == null
-                  ? InkWell(
-                      onTap: () => unawaited(() async {
-                        await context.push('/profile/location');
-                        if (mounted) await _loadAddresses();
-                      }()),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Row(
+            // DELIVER TO — saved-address-first (P3's answer: geocoding is
+            // the system's job). The selected row drives the checkout's
+            // address fields; Change swaps; dashed Add new creates. With no
+            // saved addresses yet, an honest text field takes the row's
+            // place (P12: the fallback is designed too) — the persisted pin
+            // still carries the coordinates.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: MicroLabel('Deliver to'),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: _selectedAddress == null
+                    ? InkWell(
+                        onTap: () => unawaited(() async {
+                          await context.push('/profile/location');
+                          if (mounted) await _loadAddresses();
+                        }()),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.location_searching_rounded,
+                              size: 20,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Choose your delivery location',
+                                    style: AppTheme.bd(textTheme).copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Required — pick on the map or use your GPS.',
+                                    style: AppTheme.sub(textTheme),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ],
+                        ),
+                      )
+                    : Row(
                         children: [
                           const Icon(
-                            Icons.location_searching_rounded,
+                            Icons.location_on_rounded,
                             size: 20,
                             color: AppColors.primary,
                           ),
@@ -408,303 +493,311 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Choose your delivery location',
-                                  style: AppTheme.bd(textTheme).copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
+                                  _addressController.text.trim().isEmpty
+                                      ? 'Set your delivery address'
+                                      : _addressController.text.trim(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.bd(textTheme)
+                                      .copyWith(fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Required — pick on the map or use your GPS.',
+                                  // Honest labeling (A36): "Default" only
+                                  // when the picked address IS the default.
+                                  '${_selectedAddress!.label}'
+                                  '${_selectedAddress!.isDefault ? ' · Default' : ''}'
+                                  '${(_savedAddresses?.length ?? 0) > 1 ? ' · ${_savedAddresses!.length} saved' : ''}',
                                   style: AppTheme.sub(textTheme),
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right_rounded,
-                              size: 20, color: AppColors.onSurfaceMuted),
-                        ],
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        const Icon(Icons.location_on_rounded,
-                            size: 20, color: AppColors.primary),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _addressController.text.trim().isEmpty
-                                    ? 'Set your delivery address'
-                                    : _addressController.text.trim(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.bd(textTheme)
-                                    .copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_selectedAddress!.label} · Default${(_savedAddresses?.length ?? 0) > 1 ? ' · ${_savedAddresses!.length} saved' : ''}',
-                                style: AppTheme.sub(textTheme),
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => unawaited(() async {
-                            final saved = _savedAddresses ?? const [];
-                            if (saved.length > 1) {
-                              final picked = await _pickAddress(saved);
-                              if (!mounted) return;
-                              if (picked == null) return;
-                              setState(() => _selectedAddress = picked);
-                            } else {
+                          TextButton(
+                            onPressed: () => unawaited(() async {
+                              final saved = _savedAddresses ?? const [];
+                              if (saved.length > 1) {
+                                final picked = await _pickAddress(saved);
+                                if (!mounted) return;
+                                if (picked == null) return;
+                                // Apply the pick FULLY — state, address
+                                // field, and pin — exactly as the initial
+                                // load seeds it. No reload here: one would
+                                // re-select the default and throw the
+                                // user's choice away (A27).
+                                setState(() => _selectedAddress = picked);
+                                _seedFromSelectedAddress();
+                                return;
+                              }
                               await context.push(
                                 '/profile/location',
                                 extra: _selectedAddress,
                               );
-                            }
-                            if (mounted) await _loadAddresses();
-                          }()),
-                          child: const Text('Change'),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DashedAddRow(
-              label: 'Add new address',
-              onTap: () => unawaited(context.push('/profile/location')),
-            ),
-          ),
-          if (_error != null && _errorIsFormLevel) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              child: Text(
-                _error!,
-                style: textTheme.bodySmall?.copyWith(color: AppColors.error),
-              ),
-            ),
-          ],
-          // PAYMENT — cash selected, MoMo visible-but-disabled: showing
-          // the roadmap is honest and sets the mental model (P12).
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
-            child: MicroLabel('Payment'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        const _PaymentTile(
-                          icon: Icons.payments_rounded,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Cash on delivery',
-                                  style: AppTheme.bd(textTheme)
-                                      .copyWith(fontWeight: FontWeight.w600)),
-                              Text(
-                                storeCount > 1
-                                    ? 'Pay the full total when the last delivery arrives.'
-                                    : 'Pay when your order arrives.',
-                                style: AppTheme.sub(textTheme),
-                              ),
-                            ],
+                              // The editor may have changed the book —
+                              // reload (and re-select default) only here.
+                              if (mounted) await _loadAddresses();
+                            }()),
+                            child: const Text('Change'),
                           ),
-                        ),
-                        const _RadioDot(selected: true),
-                      ],
-                    ),
-                  ),
-                  const Divider(
-                      height: 1, indent: 14, endIndent: 14),
-                  Opacity(
-                    opacity: 0.5,
-                    child: Padding(
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DashedAddRow(
+                label: 'Add new address',
+                // Await the editor and reload on return, exactly like the
+                // no-addresses entry point above — a fresh save must show
+                // up (A38).
+                onTap: () => unawaited(() async {
+                  await context.push('/profile/location');
+                  if (mounted) await _loadAddresses();
+                }()),
+              ),
+            ),
+            if (_error != null && _errorIsFormLevel) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                child: Text(
+                  _error!,
+                  style: textTheme.bodySmall?.copyWith(color: AppColors.error),
+                ),
+              ),
+            ],
+            // PAYMENT — cash selected, MoMo visible-but-disabled: showing
+            // the roadmap is honest and sets the mental model (P12).
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+              child: MicroLabel('Payment'),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
                       padding: const EdgeInsets.all(14),
                       child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceHigh,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.smartphone_rounded,
-                                size: 20, color: AppColors.onSurfaceMuted),
-                          ),
+                          const _PaymentTile(icon: Icons.payments_rounded),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('MoMo MTN',
-                                    style: AppTheme.bd(textTheme)
-                                        .copyWith(fontWeight: FontWeight.w600)),
-                                Text('Coming soon',
-                                    style: AppTheme.sub(textTheme)),
+                                Text(
+                                  'Cash on delivery',
+                                  style: AppTheme.bd(textTheme)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  storeCount > 1
+                                      ? 'Pay the full total when the last delivery arrives.'
+                                      : 'Pay when your order arrives.',
+                                  style: AppTheme.sub(textTheme),
+                                ),
                               ],
                             ),
                           ),
-                          const _RadioDot(selected: false),
+                          const _RadioDot(selected: true),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // NOTE FOR RIDER — optional; the rider's Delivering card
-          // displays it. The loop has a consumer, so here's the producer.
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
-            child: MicroLabel('Note for rider · optional'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _noteController,
-              maxLength: 140,
-              style: AppTheme.bd(textTheme),
-              decoration: const InputDecoration(
-                hintText: 'e.g. blue gate, ring the bell…',
-                counterText: '',
-              ),
-            ),
-          ),
-          // ORDER SUMMARY — one block (P1).
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
-            child: MicroLabel('Order summary'),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                children: [
-                  for (final bucket in state.buckets)
-                    for (final item in bucket.items)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
+                    const Divider(height: 1, indent: 14, endIndent: 14),
+                    Opacity(
+                      opacity: 0.5,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
                         child: Row(
                           children: [
-                            Expanded(
-                              child: Text(
-                                '${item.name} × ${item.quantity}',
-                                style: AppTheme.bd(textTheme)
-                                    .copyWith(color: AppColors.onSurfaceMuted),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceHigh,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.smartphone_rounded,
+                                size: 20,
+                                color: AppColors.onSurfaceMuted,
                               ),
                             ),
-                            Text(formatRwf(item.lineTotal),
-                                style: AppTheme.bd(textTheme)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'MoMo MTN',
+                                    style: AppTheme.bd(textTheme)
+                                        .copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    'Coming soon',
+                                    style: AppTheme.sub(textTheme),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const _RadioDot(selected: false),
                           ],
                         ),
                       ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Delivery fee',
-                            style: AppTheme.bd(textTheme)
-                                .copyWith(color: AppColors.onSurfaceMuted)),
-                        Text(formatRwf(state.deliveryTotal),
-                            style: AppTheme.bd(textTheme)),
-                      ],
                     ),
-                  ),
-                  const Divider(color: AppColors.surfaceBorder),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total',
-                          style: AppTheme.bd(textTheme)
-                              .copyWith(fontWeight: FontWeight.w600)),
-                      Text(
-                        formatRwf(state.total),
-                        style: textTheme.titleSmall?.copyWith(
-                          fontSize: 15,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-      bottomSheet: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_error != null && !_errorIsFormLevel)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    _error!,
-                    style: textTheme.bodySmall?.copyWith(color: AppColors.error),
-                  ),
+            // NOTE FOR RIDER — optional; the rider's Delivering card
+            // displays it. The loop has a consumer, so here's the producer.
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+              child: MicroLabel('Note for rider · optional'),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _noteController,
+                maxLength: 140,
+                style: AppTheme.bd(textTheme),
+                decoration: const InputDecoration(
+                  hintText: 'e.g. blue gate, ring the bell…',
+                  counterText: '',
                 ),
-              FilledButton(
-                onPressed: _placing ? null : _placeOrder,
-                style: FilledButton.styleFrom(
-                  disabledBackgroundColor:
-                      AppColors.onSurface.withValues(alpha: 0.15),
-                ),
-                child: _placing
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.onPrimary,
-                        ),
-                      )
-                    : Text(
-                        'Place order · ${formatRwf(state.total)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
               ),
-            ],
+            ),
+            // ORDER SUMMARY — one block (P1).
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+              child: MicroLabel('Order summary'),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Column(
+                  children: [
+                    for (final bucket in state.buckets)
+                      for (final item in bucket.items)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${item.name} × ${item.quantity}',
+                                  style: AppTheme.bd(
+                                    textTheme,
+                                  ).copyWith(color: AppColors.onSurfaceMuted),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                formatRwf(item.lineTotal),
+                                style: AppTheme.bd(textTheme),
+                              ),
+                            ],
+                          ),
+                        ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Delivery fee',
+                            style: AppTheme.bd(textTheme)
+                                .copyWith(color: AppColors.onSurfaceMuted),
+                          ),
+                          Text(
+                            formatRwf(state.deliveryTotal),
+                            style: AppTheme.bd(textTheme),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: AppColors.surfaceBorder),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total',
+                          style: AppTheme.bd(textTheme)
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          formatRwf(state.total),
+                          style: textTheme.titleSmall?.copyWith(
+                            fontSize: 15,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+        bottomSheet: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_error != null && !_errorIsFormLevel)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _error!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                FilledButton(
+                  onPressed: _placing ? null : _placeOrder,
+                  style: FilledButton.styleFrom(
+                    disabledBackgroundColor: AppColors.onSurface.withValues(
+                      alpha: 0.15,
+                    ),
+                  ),
+                  child: _placing
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.onPrimary,
+                          ),
+                        )
+                      : Text(
+                          'Place order · ${formatRwf(state.total)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -765,4 +858,3 @@ class _RadioDot extends StatelessWidget {
     );
   }
 }
-

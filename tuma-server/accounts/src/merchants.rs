@@ -77,8 +77,12 @@ pub async fn by_id(conn: &mut PgConnection, id: Uuid) -> Result<Option<Merchant>
     .await
 }
 
-/// All merchant businesses, oldest first (admin list).
-pub async fn list(conn: &mut PgConnection) -> Result<Vec<Merchant>, sqlx::Error> {
+/// Merchant businesses, oldest first, one page at a time (admin list).
+pub async fn list(
+    conn: &mut PgConnection,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Merchant>, sqlx::Error> {
     sqlx::query_as!(
         Merchant,
         r#"
@@ -86,7 +90,10 @@ pub async fn list(conn: &mut PgConnection) -> Result<Vec<Merchant>, sqlx::Error>
                status AS "status: MerchantStatus", created_at, updated_at
         FROM marketplace.merchants
         ORDER BY created_at
+        LIMIT $1 OFFSET $2
         "#,
+        limit,
+        offset,
     )
     .fetch_all(&mut *conn)
     .await
@@ -123,8 +130,34 @@ pub async fn update(
 
 /// Hard-delete the business. Memberships, stores (and their store_products),
 /// and catalog products follow via ON DELETE CASCADE. Member ACCOUNTS are
-/// not deleted — they are identities, not parts of the business.
-pub async fn delete(conn: &mut PgConnection, id: Uuid) -> Result<bool, sqlx::Error> {
+/// not deleted — they are identities, not parts of the business. A business
+/// with order history refuses: the FKs from commerce.store_orders and
+/// payment_allocations have no ON DELETE, and history must not be rewritten
+/// to satisfy a delete — suspend it instead.
+#[derive(Debug, thiserror::Error)]
+pub enum DeleteError {
+    #[error("this business has order history — suspend it instead of deleting")]
+    HasOrderHistory,
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+}
+
+pub async fn delete(conn: &mut PgConnection, id: Uuid) -> Result<bool, DeleteError> {
+    // Cheap pre-check: orders reference the business directly, so any row
+    // there means the delete would 500 on the FK.
+    let (referenced,): (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM commerce.store_orders WHERE merchant_id = $1
+        )
+        "#,
+    )
+    .bind(id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if referenced {
+        return Err(DeleteError::HasOrderHistory);
+    }
     let result = sqlx::query!(
         r#"
         DELETE FROM marketplace.merchants

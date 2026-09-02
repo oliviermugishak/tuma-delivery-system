@@ -83,7 +83,12 @@ pub struct CustomerListRow {
     pub created_at: OffsetDateTime,
 }
 
-pub async fn list_customers(conn: &mut PgConnection) -> Result<Vec<CustomerListRow>, sqlx::Error> {
+/// Customer accounts, oldest first, one page at a time (admin list).
+pub async fn list_customers(
+    conn: &mut PgConnection,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<CustomerListRow>, sqlx::Error> {
     sqlx::query_as!(
         CustomerListRow,
         r#"
@@ -91,7 +96,10 @@ pub async fn list_customers(conn: &mut PgConnection) -> Result<Vec<CustomerListR
         FROM accounts.customers c
         JOIN accounts.users u ON u.id = c.user_id
         ORDER BY u.created_at
+        LIMIT $1 OFFSET $2
         "#,
+        limit,
+        offset,
     )
     .fetch_all(&mut *conn)
     .await

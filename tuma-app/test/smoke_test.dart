@@ -228,6 +228,7 @@ ApiClient _apiClient({
   List<String>? menuImages,
   Map<String, dynamic>? groupDetail,
   List<Map<String, dynamic>>? riderDeliveries,
+  List<Map<String, dynamic>>? addresses,
   http.Response Function(http.Request request)? tracking,
   http.Response Function(int fetchCount)? orders,
 }) {
@@ -343,21 +344,24 @@ ApiClient _apiClient({
       return _json({'store': _store, 'products': [item]}, 200);
     }
     if (method == 'GET' && path.endsWith('/addresses')) {
-      // The saved-address book: one pinned default (the production shape
-      // checkout assumes — location is a first-class, required choice).
-      return _json([
-        {
-          'id': 'addr-1',
-          'label': 'Home',
-          'address_text': 'KK 40 Street, Kigali',
-          'lat': -1.9449,
-          'lng': 30.0619,
-          'is_default': true,
-          'kind': 'home',
-          'note': 'Gate on the left side',
-          'created_at': '2026-08-30T08:00:00Z',
-        },
-      ], 200);
+      // The saved-address book: one pinned default by default (the
+      // production shape checkout assumes — location is a first-class,
+      // required choice). Tests can pass a bigger book via `addresses`;
+      // the first address must keep is_default true.
+      return _json(addresses ??
+          [
+            {
+              'id': 'addr-1',
+              'label': 'Home',
+              'address_text': 'KK 40 Street, Kigali',
+              'lat': -1.9449,
+              'lng': 30.0619,
+              'is_default': true,
+              'kind': 'home',
+              'note': 'Gate on the left side',
+              'created_at': '2026-08-30T08:00:00Z',
+            },
+          ], 200);
     }
     if (path.endsWith('/me')) {
       if (method == 'PATCH') {
@@ -768,6 +772,60 @@ void main() {
     final body = jsonDecode(checkout.body) as Map<String, dynamic>;
     expect(body['address_lat'], -1.9449);
     expect(body['address_lng'], 30.0619);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('a picked non-default address sticks and is honestly labeled',
+      (tester) async {
+    _seedCart();
+    // Two saved addresses: the pinned default first, then a non-default
+    // one that differs in text and label. The first must stay default.
+    final client = _apiClient(
+      addresses: [
+        {
+          'id': 'addr-1',
+          'label': 'Home',
+          'address_text': 'KK 40 Street, Kigali',
+          'lat': -1.9449,
+          'lng': 30.0619,
+          'is_default': true,
+          'kind': 'home',
+          'note': 'Gate on the left side',
+          'created_at': '2026-08-30T08:00:00Z',
+        },
+        {
+          'id': 'addr-2',
+          'label': 'Work',
+          'address_text': 'KN 30 Ave, Remera',
+          'lat': -1.9590,
+          'lng': 30.1050,
+          'is_default': false,
+          'kind': 'work',
+          'created_at': '2026-08-30T08:05:00Z',
+        },
+      ],
+    );
+    await _landOnShell(tester, client);
+
+    // Cart → checkout. The default address drives the row at first.
+    await tester.tap(find.text('Cart'));
+    await _settle(tester);
+    await tester.tap(find.textContaining('Checkout ·'));
+    await _settle(tester);
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+
+    // Change → the picker sheet → pick the non-default address.
+    await tester.tap(find.text('Change'));
+    await _settle(tester);
+    await tester.tap(find.text('KN 30 Ave, Remera'));
+    await _settle(tester);
+
+    // The pick STICKS: the card now carries the picked address…
+    expect(find.text('KN 30 Ave, Remera'), findsOneWidget);
+    expect(find.text('KK 40 Street, Kigali'), findsNothing);
+    // …labeled honestly: Work, 2 saved, and NO false "· Default" claim.
+    expect(find.text('Work · 2 saved'), findsOneWidget);
+    expect(find.textContaining('Default'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

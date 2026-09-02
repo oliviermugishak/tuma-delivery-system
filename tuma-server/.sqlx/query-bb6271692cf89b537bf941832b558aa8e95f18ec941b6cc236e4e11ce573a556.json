@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.id FROM commerce.payments p\n        WHERE p.id = (\n            SELECT a.payment_id FROM commerce.payment_allocations a\n            WHERE a.store_order_id = $1\n        )\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "commerce.payments",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bb6271692cf89b537bf941832b558aa8e95f18ec941b6cc236e4e11ce573a556"
+}

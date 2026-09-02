@@ -152,8 +152,14 @@ pub async fn create(
 }
 
 /// Replace label/address/coordinates, with the provided-overwrites,
-/// absent-keeps semantics every edit endpoint shares.
-/// The editable patch for one address: provided overwrites, absent keeps.
+/// absent-keeps semantics every edit endpoint shares. The `note` merges
+/// the same way — an absent field keeps the saved note (the rider's
+/// "blue gate, ring the bell" is not deletable by omission) — with one
+/// convention on top: an empty (or whitespace-only) string clears it,
+/// because the wire's `Option<String>` cannot tell an absent field from
+/// an explicit `null`, and there must be SOME way to remove a note.
+/// The editable patch for one address: provided overwrites, absent keeps
+/// (note: empty string = explicit clear).
 pub struct AddressPatch<'a> {
     pub label: Option<&'a str>,
     pub address_text: Option<&'a str>,
@@ -192,6 +198,13 @@ pub async fn update(
         .filter(|k| !k.is_empty())
         .unwrap_or(&current.kind);
     let make_default = patch.is_default.unwrap_or(false);
+    // Review S32: absent keeps, empty clears — binding patch.note raw
+    // let an absent field NULL out a saved rider note.
+    let note = match patch.note {
+        Some(n) if n.trim().is_empty() => None,
+        Some(n) => Some(n),
+        None => current.note.as_deref(),
+    };
 
     let mut tx = conn.begin().await?;
     if make_default && !current.is_default {
@@ -223,7 +236,7 @@ pub async fn update(
         lng,
         make_default || current.is_default,
         kind,
-        patch.note,
+        note,
     )
     .fetch_one(&mut *tx)
     .await?;

@@ -480,6 +480,115 @@ async fn admin_edits_and_deletes_a_business(pool: sqlx::PgPool) {
     );
 }
 
+/// One customer order through the business — the order history a delete
+/// must refuse to rewrite.
+async fn place_order_with_merchant(app: &common::TestApp, merchant_id: uuid::Uuid) {
+    let (store_product_id,): (Uuid,) = sqlx::query_as(
+        "SELECT sp.id FROM marketplace.store_products sp \
+         JOIN marketplace.stores s ON s.id = sp.store_id \
+         WHERE s.merchant_id = $1 LIMIT 1",
+    )
+    .bind(merchant_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    let seeded = seed_customer(&app.pool, "+250780099003").await;
+    let token = token_for(&app, seeded.account.id, 3600);
+    let response = TestClient::new(&app.address)
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KN 4 Ave, Kigali",
+                "items": [{ "store_product_id": store_product_id, "quantity": 1 }]
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201, "the order history exists");
+}
+
+/// S28: the store_orders/payment_allocations FKs have no ON DELETE —
+/// before the typed pre-check, deleting a business that ever appeared in
+/// an order was a 500 from the constraint. Now it is a 409 naming the
+/// remedy (suspend).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_a_merchant_with_order_history_is_a_409_not_a_500(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = admin_client(&app, "admin@example.com").await;
+    let one = seed_merchant(&app.pool, "one@example.com", "One Business").await;
+    let two = seed_merchant(&app.pool, "two@example.com", "Two Business").await;
+
+    // Stock the business's store, open it, and take one real order through it.
+    let store = common::seed_store(&app.pool, one.merchant.id, "One Kitchen", true).await;
+    let owner_client = TestClient::new(&app.address);
+    assert_eq!(
+        login(&owner_client, "one@example.com", "Password123")
+            .await
+            .status(),
+        204
+    );
+    let product = owner_client
+        .post_json("/v1/merchant/products", json!({ "name": "Rice 5KG" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(product.status(), 201);
+    let product_id: Uuid = product.json::<Value>().await.unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let attach = owner_client
+        .post_json(
+            "/v1/merchant/store-products",
+            json!({ "product_id": product_id, "store_id": store.id, "price": 5000, "stock": 5 }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(attach.status(), 201);
+    place_order_with_merchant(&app, one.merchant.id).await;
+
+    // The delete is refused with its remedy, not a 500.
+    let response = client
+        .delete(&format!("/v1/admin/merchants/{}", one.merchant.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        409,
+        "order history is a conflict, not a 500"
+    );
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["error"], "conflict");
+    assert!(
+        body["message"].as_str().unwrap().contains("suspend"),
+        "the message names the remedy: {body}"
+    );
+
+    // The business survived.
+    assert_eq!(
+        client
+            .get(&format!("/v1/admin/merchants/{}", one.merchant.id))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+
+    // A business with no history still deletes cleanly.
+    let response = client
+        .delete(&format!("/v1/admin/merchants/{}", two.merchant.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204, "no history deletes cleanly");
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn admin_routes_reject_non_admins(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
@@ -533,4 +642,112 @@ async fn admin_routes_reject_non_admins(pool: sqlx::PgPool) {
         .await
         .unwrap();
     assert_eq!(response.status(), 401);
+}
+
+/// S34: the admin lists are paged — limit/offset clamp like the orders
+/// PageQuery (1..=200, default 50), so an unbounded page can never be
+/// fetched, and paging actually moves through the rows.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn admin_lists_page_with_limit_and_offset(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = admin_client(&app, "admin@example.com").await;
+    for (email, name) in [
+        ("m1@example.com", "One Business"),
+        ("m2@example.com", "Two Business"),
+        ("m3@example.com", "Three Business"),
+    ] {
+        seed_merchant(&app.pool, email, name).await;
+    }
+
+    // limit=2: only the first two (oldest) rows.
+    let page: Value = client
+        .get("/v1/admin/merchants?limit=2&offset=0")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let merchants = page.as_array().unwrap();
+    assert_eq!(merchants.len(), 2);
+    assert_eq!(merchants[0]["name"], "One Business");
+    assert_eq!(merchants[1]["name"], "Two Business");
+
+    // offset=2: the rest of the list.
+    let page: Value = client
+        .get("/v1/admin/merchants?limit=2&offset=2")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let merchants = page.as_array().unwrap();
+    assert_eq!(merchants.len(), 1);
+    assert_eq!(merchants[0]["name"], "Three Business");
+
+    // Absent limit means the default 50, not everything forever — the
+    // default page is already bigger than this dataset.
+    let page: Value = client
+        .get("/v1/admin/merchants")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(page.as_array().unwrap().len(), 3);
+
+    // The clamp is shared: 0 and 1000 both normalize (1 and 200).
+    let page: Value = client
+        .get("/v1/admin/merchants?limit=0")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(page.as_array().unwrap().len(), 1, "limit=0 clamps to 1");
+
+    // Customers page the same way.
+    seed_customer(&app.pool, "+250780005001").await;
+    seed_customer(&app.pool, "+250780005002").await;
+    let page: Value = client
+        .get("/v1/admin/customers?limit=1")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(page.as_array().unwrap().len(), 1);
+
+    // Riders too.
+    client
+        .post_json(
+            "/v1/admin/riders",
+            json!({ "name": "Jean", "phone": "+250780005003" }),
+        )
+        .send()
+        .await
+        .unwrap();
+    client
+        .post_json(
+            "/v1/admin/riders",
+            json!({ "name": "Eric", "phone": "+250780005004" }),
+        )
+        .send()
+        .await
+        .unwrap();
+    let page: Value = client
+        .get("/v1/admin/riders?limit=1&offset=1")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let riders = page.as_array().unwrap();
+    assert_eq!(riders.len(), 1);
+    assert_eq!(riders[0]["name"], "Eric", "offset skips the oldest rider");
 }

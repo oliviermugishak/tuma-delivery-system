@@ -6,11 +6,12 @@
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
 use crate::routes::auth::validate_phone;
+use crate::routes::orders::PageQuery;
 use accounts::customers;
 use accounts::merchants::{self, Merchant, MerchantStatus};
 use accounts::riders::{self, Rider, RiderError};
 use accounts::users;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
@@ -128,20 +129,23 @@ pub async fn create_merchant(
 #[utoipa::path(
     get,
     path = "/v1/admin/merchants",
+    params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
+           ("offset" = Option<i64>, Query, description = "Rows to skip")),
     responses(
-        (status = 200, description = "All merchant businesses, oldest first", body = Vec<MerchantResponse>),
+        (status = 200, description = "Merchant businesses, oldest first, one page", body = Vec<MerchantResponse>),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not an admin"),
     ),
     tag = "admin"
 )]
-#[tracing::instrument(name = "List merchants")]
+#[tracing::instrument(name = "List merchants", skip_all)]
 pub async fn list_merchants(
     State(app): State<AppState>,
     Extension(_context): Extension<UserContext>,
+    Query(page): Query<PageQuery>,
 ) -> AppResult<Json<Vec<MerchantResponse>>> {
     let mut conn = app.db_pool.acquire().await?;
-    let merchants = merchants::list(&mut conn).await?;
+    let merchants = merchants::list(&mut conn, page.limit(), page.offset()).await?;
     Ok(Json(
         merchants.into_iter().map(MerchantResponse::from).collect(),
     ))
@@ -335,6 +339,7 @@ pub async fn update_merchant(
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not an admin"),
         (status = 404, description = "No merchant business with that id"),
+        (status = 409, description = "The business has order history — suspend it instead"),
     ),
     tag = "admin"
 )]
@@ -345,6 +350,8 @@ pub async fn delete_merchant(
     Path(id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
     let mut conn = app.db_pool.acquire().await?;
+    // With order history the delete is a 409 naming the remedy (suspend);
+    // the From impl carries it.
     if !merchants::delete(&mut conn, id).await? {
         return Err(AppError::NotFound("merchant not found".into()));
     }
@@ -425,20 +432,23 @@ impl From<customers::CustomerListRow> for CustomerAdminResponse {
 #[utoipa::path(
     get,
     path = "/v1/admin/customers",
+    params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
+           ("offset" = Option<i64>, Query, description = "Rows to skip")),
     responses(
-        (status = 200, description = "All customer accounts, oldest first", body = Vec<CustomerAdminResponse>),
+        (status = 200, description = "Customer accounts, oldest first, one page", body = Vec<CustomerAdminResponse>),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not an admin"),
     ),
     tag = "admin"
 )]
-#[tracing::instrument(name = "List customers")]
+#[tracing::instrument(name = "List customers", skip_all)]
 pub async fn list_customers(
     State(app): State<AppState>,
     Extension(_context): Extension<UserContext>,
+    Query(page): Query<PageQuery>,
 ) -> AppResult<Json<Vec<CustomerAdminResponse>>> {
     let mut conn = app.db_pool.acquire().await?;
-    let customers = customers::list_customers(&mut conn).await?;
+    let customers = customers::list_customers(&mut conn, page.limit(), page.offset()).await?;
     Ok(Json(
         customers
             .into_iter()
@@ -625,20 +635,23 @@ pub async fn create_rider(
 #[utoipa::path(
     get,
     path = "/v1/admin/riders",
+    params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
+           ("offset" = Option<i64>, Query, description = "Rows to skip")),
     responses(
-        (status = 200, description = "All riders, oldest first", body = Vec<RiderAdminResponse>),
+        (status = 200, description = "Riders, oldest first, one page", body = Vec<RiderAdminResponse>),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Not an admin"),
     ),
     tag = "admin"
 )]
-#[tracing::instrument(name = "List riders")]
+#[tracing::instrument(name = "List riders", skip_all)]
 pub async fn list_riders(
     State(app): State<AppState>,
     Extension(_context): Extension<UserContext>,
+    Query(page): Query<PageQuery>,
 ) -> AppResult<Json<Vec<RiderAdminResponse>>> {
     let mut conn = app.db_pool.acquire().await?;
-    let riders = riders::list(&mut conn).await?;
+    let riders = riders::list(&mut conn, page.limit(), page.offset()).await?;
     Ok(Json(
         riders.into_iter().map(RiderAdminResponse::from).collect(),
     ))

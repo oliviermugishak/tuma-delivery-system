@@ -4,7 +4,8 @@
 //! manageable by anyone who can reach the store.
 
 use crate::app::{AppError, AppResult, AppState, UserContext, ValidatedJson};
-use axum::extract::{Path, State};
+use crate::routes::orders::PageQuery;
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use marketplace::catalog::{self, ProductChanges, StoreProductChanges, StoreProductError};
@@ -195,8 +196,10 @@ pub async fn create_product(
 #[utoipa::path(
     get,
     path = "/v1/merchant/products",
+    params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
+           ("offset" = Option<i64>, Query, description = "Rows to skip")),
     responses(
-        (status = 200, description = "The business's catalog, oldest first", body = Vec<ProductResponse>),
+        (status = 200, description = "The business's catalog, oldest first, one page", body = Vec<ProductResponse>),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership"),
     ),
@@ -206,13 +209,22 @@ pub async fn create_product(
 pub async fn list_products(
     State(app): State<AppState>,
     Extension(context): Extension<UserContext>,
+    Query(page): Query<PageQuery>,
 ) -> AppResult<Json<Vec<ProductResponse>>> {
     let access = merchant_access(&context)?;
     let mut conn = app.db_pool.acquire().await?;
     // Catalog is per business; aggregate across the operator's businesses.
     let mut products = Vec::new();
     for grant in &access.grants {
-        products.extend(catalog::products_for_merchant(&mut conn, grant.merchant_id).await?);
+        products.extend(
+            catalog::products_for_merchant(
+                &mut conn,
+                grant.merchant_id,
+                page.limit(),
+                page.offset(),
+            )
+            .await?,
+        );
     }
     Ok(Json(
         products
@@ -274,6 +286,7 @@ pub async fn update_product(
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership, or not the business owner"),
         (status = 404, description = "Not one of this business's products"),
+        (status = 409, description = "The product has order history — mark it unavailable instead"),
     ),
     tag = "merchant"
 )]
@@ -364,6 +377,10 @@ pub async fn create_store_product(
         &mut conn,
         store.merchant_id,
         Some(&[store.id]),
+        // Internal row reload, not a page: a wide enough window to find
+        // the row just created.
+        200,
+        0,
     )
     .await?
     .into_iter()
@@ -381,8 +398,10 @@ pub async fn create_store_product(
 #[utoipa::path(
     get,
     path = "/v1/merchant/store-products",
+    params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
+           ("offset" = Option<i64>, Query, description = "Rows to skip")),
     responses(
-        (status = 200, description = "The assortment across reachable stores, oldest first", body = Vec<StoreProductResponse>),
+        (status = 200, description = "The assortment across reachable stores, oldest first, one page", body = Vec<StoreProductResponse>),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership"),
     ),
@@ -392,6 +411,7 @@ pub async fn create_store_product(
 pub async fn list_store_products(
     State(app): State<AppState>,
     Extension(context): Extension<UserContext>,
+    Query(page): Query<PageQuery>,
 ) -> AppResult<Json<Vec<StoreProductResponse>>> {
     let access = merchant_access(&context)?;
     let mut conn = app.db_pool.acquire().await?;
@@ -399,8 +419,14 @@ pub async fn list_store_products(
     for grant in &access.grants {
         let scoped = grant.store_ids.as_deref();
         items.extend(
-            catalog::store_products_for_merchant_scoped(&mut conn, grant.merchant_id, scoped)
-                .await?,
+            catalog::store_products_for_merchant_scoped(
+                &mut conn,
+                grant.merchant_id,
+                scoped,
+                page.limit(),
+                page.offset(),
+            )
+            .await?,
         );
     }
     Ok(Json(
@@ -462,6 +488,7 @@ pub struct UpdateStoreProductInput {
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership, or store out of scope"),
         (status = 404, description = "Not one of this business's store products"),
+        (status = 409, description = "Changed by someone else since the read — reload and retry"),
         (status = 422, description = "Invalid input"),
     ),
     tag = "merchant"
@@ -494,12 +521,25 @@ pub async fn update_store_product(
         is_available: input.is_available.unwrap_or(current.is_available),
         sku: merge_text(input.sku, current.sku),
     };
-    catalog::update_store_product(&mut conn, id, changes).await?;
+    // The row we just merged against is the precondition: if a second
+    // writer moved it in between, the domain refuses — no silent
+    // last-write-wins. (0 rows on a row we just read is that race, so
+    // NotFound here would lie; map it to the conflict.)
+    catalog::update_store_product(&mut conn, id, current.updated_at, changes)
+        .await
+        .map_err(|error| match error {
+            StoreProductError::NotFound => AppError::Conflict(StoreProductError::Stale.to_string()),
+            other => other.into(),
+        })?;
 
     let view = catalog::store_products_for_merchant_scoped(
         &mut conn,
         current.merchant_id,
         Some(&[current.store_id]),
+        // Internal row reload, not a page: a wide enough window to find
+        // the row just updated.
+        200,
+        0,
     )
     .await?
     .into_iter()
@@ -522,6 +562,7 @@ pub async fn update_store_product(
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership, or store out of scope"),
         (status = 404, description = "Not one of this business's store products"),
+        (status = 409, description = "The store product has order history — mark it unavailable instead"),
     ),
     tag = "merchant"
 )]

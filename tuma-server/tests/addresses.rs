@@ -123,14 +123,15 @@ async fn address_patch_updates_fields_and_empty_label_is_rejected(pool: sqlx::Pg
     let created: serde_json::Value = response.json().await.unwrap();
     let id = created["id"].as_str().unwrap();
 
-    // Patch: note + kind change, coordinates too (the pin moved on the map).
+    // Patch: address + kind change, coordinates too (the pin moved on the
+    // map), and the note explicitly cleared with an empty string.
     let response = client
         .patch_json(
             &format!("/v1/addresses/{id}"),
             json!({
                 "address_text": "KK 40 Street, Kicukiro",
                 "kind": "other",
-                "note": null,
+                "note": "",
                 "lat": -1.9461,
                 "lng": 30.0607
             }),
@@ -183,6 +184,66 @@ async fn address_patch_updates_fields_and_empty_label_is_rejected(pool: sqlx::Pg
         .await
         .unwrap();
     assert_eq!(response.status(), 204);
+}
+
+/// Review S32: an absent note field must not wipe the saved rider note —
+/// provided-overwrites, absent-keeps. Removing a note is deliberate:
+/// an empty string is the explicit clear (the wire cannot tell an absent
+/// field from an explicit null).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn an_absent_note_survives_the_patch_but_empty_clears_it(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = TestClient::new(&app.address);
+    let seeded = seed_customer(&app.pool, "+250780000010").await;
+    let token = token_for(&app, seeded.account.id, 3600);
+
+    let response = client
+        .post_json(
+            "/v1/addresses",
+            json!({
+                "label": "Home",
+                "address_text": "KG 7 Ave, Kigali",
+                "note": "Blue gate"
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let created: serde_json::Value = response.json().await.unwrap();
+    let id = created["id"].as_str().unwrap();
+
+    // A patch without a note keeps the rider's "blue gate" instruction.
+    let response = client
+        .patch_json(&format!("/v1/addresses/{id}"), json!({"label": "Home2"}))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let updated: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(updated["label"], json!("Home2"));
+    assert_eq!(
+        updated["note"],
+        json!("Blue gate"),
+        "an absent note must survive the patch"
+    );
+
+    // Clearing is explicit: an empty string.
+    let response = client
+        .patch_json(&format!("/v1/addresses/{id}"), json!({"note": ""}))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let updated: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(
+        updated["note"],
+        serde_json::Value::Null,
+        "an empty string is the deliberate clear"
+    );
 }
 
 /// Review P11: saved addresses ride the same ±90/±180 rule as the stores/

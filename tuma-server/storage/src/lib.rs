@@ -32,6 +32,13 @@ use app_config::StorageConfig;
 /// Hard cap accepted from the wire, before any decoding. Multipart routes
 /// raise axum's default body limit a little above this (envelope overhead).
 pub const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+/// Hard ceiling on the DECLARED pixel dimensions, read from the container
+/// header before any decode (review S33). A 20000×20000 PNG costs a few
+/// hundred bytes on the wire but ~1.6 GB once decoded; the ceiling sits
+/// above every real phone sensor (108 MP ≈ 12000×9000 — larger "photos"
+/// are hostile) while bounding the worst legitimate decode buffer to
+/// roughly half a gigabyte.
+const MAX_DIMENSION_PX: u32 = 12_000;
 /// Longest edge after normalization. Feed cards render thumbnails; the
 /// original pixel size of a phone photo buys nothing on mobile data.
 const MAX_EDGE_PX: u32 = 1600;
@@ -42,7 +49,7 @@ pub enum StorageError {
     /// Not an image at all, or an image type outside the allow-list.
     #[error("that file is not a JPEG, PNG, or WebP image")]
     NotAnImage,
-    #[error("images can be at most 5 MB")]
+    #[error("images can be at most 5 MB or {MAX_DIMENSION_PX}px on a side")]
     TooLarge,
     #[error("the image could not be processed")]
     Decode(#[source] image::ImageError),
@@ -176,9 +183,23 @@ pub fn normalize_image(bytes: Bytes) -> Result<Bytes, StorageError> {
         return Err(StorageError::NotAnImage);
     }
 
+    // Read ONLY the header's declared dimensions (review S33) and refuse
+    // the decode bomb before the decoder ever allocates: a few hundred
+    // bytes can claim 20000×20000 — gigabytes of pixel buffer for free.
+    // Same 413 class as the byte cap: the size of the thing is the
+    // client's fault, not a processing failure. A header that lies
+    // smaller than the body still fails the decode below (415) as before.
+    let (declared_width, declared_height) = reader
+        .into_dimensions()
+        .map_err(|_| StorageError::NotAnImage)?;
+    if declared_width > MAX_DIMENSION_PX || declared_height > MAX_DIMENSION_PX {
+        return Err(StorageError::TooLarge);
+    }
+
     // Everything up to a decoded image is the CLIENT's fault — fake
     // magics, truncated files — so it maps to 415, never 500. Only an
     // encode failure (a bug: the input already decoded) stays internal.
+    let reader = ImageReader::with_format(Cursor::new(&bytes), format);
     let mut decoder = reader
         .into_decoder()
         .map_err(|_| StorageError::NotAnImage)?;

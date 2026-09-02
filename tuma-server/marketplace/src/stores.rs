@@ -57,6 +57,15 @@ pub struct StoreChanges {
 pub enum StoreError {
     #[error("store not found")]
     NotFound,
+    /// The row's updated_at moved between the caller's read and this
+    /// write — a second writer won the race. The PATCH is refused instead
+    /// of silently overwriting their change.
+    #[error("this store was changed by someone else — reload and retry")]
+    Stale,
+    /// The store appears in commerce.store_orders — order history is
+    /// immutable, so the delete is refused with its remedy named.
+    #[error("this store has order history — close it instead of deleting")]
+    HasOrderHistory,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -187,11 +196,15 @@ pub async fn store_for_scope(
 }
 
 /// Overwrite a store with full values. The caller has already established
-/// access and merged the PATCH onto the current row. The `updated_at`
+/// access and merged the PATCH onto the current row. `expected_updated_at`
+/// is the optimistic-concurrency precondition: the caller read it from the
+/// row it merged against, and 0 rows here means a second writer moved the
+/// row first — refused instead of last-write-wins. The `updated_at`
 /// trigger only fires when the row actually changes.
 pub async fn update_store(
     conn: &mut PgConnection,
     store_id: Uuid,
+    expected_updated_at: OffsetDateTime,
     changes: StoreChanges,
 ) -> Result<Store, StoreError> {
     sqlx::query_as!(
@@ -201,7 +214,7 @@ pub async fn update_store(
         SET name = $2, description = $3, image_url = $4, address_text = $5,
             lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10,
             contact_phone = $11, contact_email = $12
-        WHERE id = $1
+        WHERE id = $1 AND updated_at = $13
         RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,
                   lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,
                   created_at, updated_at
@@ -218,6 +231,7 @@ pub async fn update_store(
         changes.is_open,
         changes.contact_phone,
         changes.contact_email,
+        expected_updated_at,
     )
     .fetch_optional(&mut *conn)
     .await?
@@ -245,7 +259,13 @@ pub async fn store_by_id(
     .await
 }
 
-/// Stores currently accepting orders, oldest first.
+/// Hard cap on the customer-facing store GETs — the hottest reads in the
+/// app must never return an unbounded page. Matches the search side's
+/// product cap style.
+pub const STORE_LIMIT: i64 = 50;
+
+/// Stores currently accepting orders, oldest first, capped at
+/// [`STORE_LIMIT`].
 pub async fn open_stores(conn: &mut PgConnection) -> Result<Vec<Store>, sqlx::Error> {
     sqlx::query_as!(
         Store,
@@ -256,7 +276,9 @@ pub async fn open_stores(conn: &mut PgConnection) -> Result<Vec<Store>, sqlx::Er
         FROM marketplace.stores
         WHERE is_open
         ORDER BY created_at
+        LIMIT $1
         "#,
+        STORE_LIMIT,
     )
     .fetch_all(&mut *conn)
     .await
@@ -277,9 +299,10 @@ pub fn escape_like(input: &str) -> String {
 }
 
 /// Open stores whose name or category matches the search pattern, oldest
-/// first. A separate query from [open_stores] on purpose: the no-search
-/// path stays byte-for-byte identical, and this one stays free of
-/// null-branches that would keep the trigram index from being used.
+/// first, capped at [`STORE_LIMIT`]. A separate query from [open_stores]
+/// on purpose: the no-search path stays byte-for-byte identical, and this
+/// one stays free of null-branches that would keep the trigram index from
+/// being used.
 pub async fn search_stores(
     conn: &mut PgConnection,
     pattern: &str,
@@ -293,8 +316,10 @@ pub async fn search_stores(
         FROM marketplace.stores
         WHERE is_open AND (name ILIKE $1 OR category ILIKE $1)
         ORDER BY created_at
+        LIMIT $2
         "#,
         pattern,
+        STORE_LIMIT,
     )
     .fetch_all(&mut *conn)
     .await
@@ -361,8 +386,25 @@ pub async fn catalog_counts(conn: &mut PgConnection) -> Result<CatalogCounts, sq
 
 /// Delete a store. Its store_products follow via ON DELETE CASCADE. The
 /// caller has already established access; unknown and out-of-scope ids are
-/// the same NotFound.
+/// the same NotFound. A store with order history refuses: the FKs from
+/// commerce.store_orders have no ON DELETE, and history must not be
+/// rewritten to satisfy a delete.
 pub async fn delete_store(conn: &mut PgConnection, store_id: Uuid) -> Result<(), StoreError> {
+    // Cheap pre-check: a store that ever appeared in an order is part of
+    // that history — closing it is the remedy, not deleting it.
+    let (referenced,): (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM commerce.store_orders WHERE store_id = $1
+        )
+        "#,
+    )
+    .bind(store_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if referenced {
+        return Err(StoreError::HasOrderHistory);
+    }
     let result = sqlx::query!(
         r#"
         DELETE FROM marketplace.stores

@@ -286,6 +286,7 @@ pub async fn get_own_store(
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership"),
         (status = 404, description = "Not one of this operator's stores"),
+        (status = 409, description = "Changed by someone else since the read — reload and retry"),
         (status = 422, description = "Invalid input"),
     ),
     tag = "merchant"
@@ -318,7 +319,18 @@ pub async fn update_own_store(
         contact_phone: merge_text(input.contact_phone, store.contact_phone),
         contact_email: merge_text(input.contact_email, store.contact_email),
     };
-    let store = stores::update_store(&mut conn, store.id, changes).await?;
+    // The row we just merged against is the precondition: if a second
+    // writer moved it in between, the domain refuses — no silent
+    // last-write-wins. (0 rows on a row we just read is that race, so
+    // NotFound here would lie; map it to the conflict.)
+    let store = stores::update_store(&mut conn, store.id, store.updated_at, changes)
+        .await
+        .map_err(|error| match error {
+            stores::StoreError::NotFound => {
+                AppError::Conflict(stores::StoreError::Stale.to_string())
+            }
+            other => other.into(),
+        })?;
     Ok(Json(StoreResponse::from_store(
         store,
         &app.storage.public_base_url,
@@ -337,6 +349,7 @@ pub async fn update_own_store(
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "No merchant membership, or not the business owner"),
         (status = 404, description = "Not one of this operator's stores"),
+        (status = 409, description = "The store has order history — close it instead"),
     ),
     tag = "merchant"
 )]

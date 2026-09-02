@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT sp.id AS \"store_product_id!\",\n               sp.store_id,\n               s.name AS \"store_name!\",\n               p.name,\n               p.description,\n               sp.price,\n               p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               s.lat AS store_lat,\n               s.lng AS store_lng\n        FROM commerce.order_items oi\n        JOIN marketplace.store_products sp ON sp.id = oi.store_product_id\n        JOIN marketplace.products p ON p.id = sp.product_id\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE s.is_open AND sp.is_available\n        GROUP BY sp.id, p.id, s.id\n        ORDER BY COUNT(*) DESC, p.name\n        LIMIT $1\n        ",
+  "query": "\n        SELECT sp.id AS \"store_product_id!\",\n               sp.store_id,\n               s.name AS \"store_name!\",\n               p.name,\n               p.description,\n               sp.price,\n               p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               s.lat AS store_lat,\n               s.lng AS store_lng\n        FROM commerce.order_items oi\n        JOIN commerce.store_orders so ON so.id = oi.store_order_id\n        JOIN marketplace.store_products sp ON sp.id = oi.store_product_id\n        JOIN marketplace.products p ON p.id = sp.product_id\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE s.is_open AND sp.is_available AND so.status <> 'cancelled'\n        GROUP BY sp.id, p.id, s.id\n        ORDER BY COUNT(*) DESC, p.name\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -127,5 +127,5 @@
       true
     ]
   },
-  "hash": "2b0537d02431e92bf0fa6279e4fe277238b533e068007eb752bc454d8de50fb5"
+  "hash": "98953b6ee70e032644a077ad551de73cc893e14ba6661080d671bd876073515e"
 }

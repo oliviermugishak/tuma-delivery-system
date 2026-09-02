@@ -199,13 +199,41 @@ async fn empty_query_shows_popular_products_and_open_stores(pool: sqlx::PgPool) 
     let rice = create_product(&aline, "Rice 5KG").await;
     let rice_sp = attach(&aline, remera, rice, 12000).await;
     let tea = create_product(&aline, "Tea").await;
-    let _tea_sp = attach(&aline, remera, tea, 500).await;
+    let tea_sp = attach(&aline, remera, tea, 500).await;
 
     let (chantal, token) = customer_session(&app, "+250780000031").await;
     // Real purchases through the real checkout: brochette twice, rice once.
     checkout(&chantal, &token, json!([line(brochette_sp, 1)])).await;
     checkout(&chantal, &token, json!([line(brochette_sp, 2)])).await;
     checkout(&chantal, &token, json!([line(rice_sp, 1)])).await;
+
+    // A cancelled order is not a purchase: Tea's only checkout is
+    // cancelled, so it must never reach the popular shelf.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({ "address_text": "KN 4 Ave, Kigali", "items": [line(tea_sp, 1)] }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let group: Value = response.json().await.unwrap();
+    let cancel = chantal
+        .post_json(
+            &format!(
+                "/v1/orders/{}/store-orders/{}/cancel",
+                group["id"].as_str().unwrap(),
+                group["store_orders"][0]["id"].as_str().unwrap()
+            ),
+            json!({ "reason": "changed my mind" }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancel.status(), 200);
 
     // An ordered product whose store later closes falls off discovery —
     // the open-store rule is a read-side fact, not a write-time one.
@@ -236,8 +264,8 @@ async fn empty_query_shows_popular_products_and_open_stores(pool: sqlx::PgPool) 
         .iter()
         .map(|p| p["name"].as_str().unwrap())
         .collect();
-    // Most purchases first; Tea (zero orders) and Night Tea (closed
-    // store) never appear.
+    // Most purchases first; Tea (only order was cancelled) and Night Tea
+    // (closed store) never appear.
     assert_eq!(names, vec!["Brochette", "Rice 5KG"]);
     assert_eq!(products[0]["price"], 3000);
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, business_email, business_phone,\n               status AS \"status: MerchantStatus\", created_at, updated_at\n        FROM marketplace.merchants\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, name, business_email, business_phone,\n               status AS \"status: MerchantStatus\", created_at, updated_at\n        FROM marketplace.merchants\n        ORDER BY created_at\n        LIMIT $1 OFFSET $2\n        ",
   "describe": {
     "columns": [
       {
@@ -92,7 +92,10 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -104,5 +107,5 @@
       false
     ]
   },
-  "hash": "89f2637b3e6384cd5fbec43a394ed0832002da04dddb082efc757008cd7a4a41"
+  "hash": "406e899772d20d4de29992dddb2e2a751ed091ab5911cdb595c7a47a425081c1"
 }

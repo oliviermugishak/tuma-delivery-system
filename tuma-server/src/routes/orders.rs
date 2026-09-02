@@ -114,7 +114,9 @@ pub struct GroupSummaryResponse {
     pub created_at: OffsetDateTime,
 }
 
-/// Shared paging query: a capped limit, offset past the first page.
+/// Shared paging query: a capped limit, offset past the first page. The
+/// clamp (1..=200, default 50) is the house pattern — every paged list
+/// reuses this struct rather than inventing its own bounds.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct PageQuery {
     pub limit: Option<i64>,
@@ -122,10 +124,10 @@ pub struct PageQuery {
 }
 
 impl PageQuery {
-    fn limit(&self) -> i64 {
+    pub(crate) fn limit(&self) -> i64 {
         self.limit.unwrap_or(50).clamp(1, 200)
     }
-    fn offset(&self) -> i64 {
+    pub(crate) fn offset(&self) -> i64 {
         self.offset.unwrap_or(0).max(0)
     }
 }

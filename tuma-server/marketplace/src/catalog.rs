@@ -38,6 +38,10 @@ pub enum ProductError {
     /// way, so merchants cannot probe for other businesses' catalog.
     #[error("product not found")]
     NotFound,
+    /// The product appears in commerce.order_items — order history is
+    /// immutable, so the delete is refused with its remedy named.
+    #[error("this product has order history — mark it unavailable instead of deleting")]
+    HasOrderHistory,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -86,6 +90,8 @@ pub struct ProductWithCover {
 pub async fn products_for_merchant(
     conn: &mut PgConnection,
     merchant_id: Uuid,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<ProductWithCover>, sqlx::Error> {
     sqlx::query_as!(
         ProductWithCover,
@@ -97,8 +103,11 @@ pub async fn products_for_merchant(
         FROM marketplace.products p
         WHERE p.merchant_id = $1
         ORDER BY p.created_at
+        LIMIT $2 OFFSET $3
         "#,
         merchant_id,
+        limit,
+        offset,
     )
     .fetch_all(&mut *conn)
     .await
@@ -150,11 +159,28 @@ pub async fn update_product(
 }
 
 /// Delete a catalog product. Every store_product selling it follows via
-/// ON DELETE CASCADE — it leaves all assortments at once.
+/// ON DELETE CASCADE — it leaves all assortments at once. A product with
+/// order history refuses: the FK into commerce.order_items has no ON
+/// DELETE, and history must not be rewritten to satisfy a delete.
 pub async fn delete_product(
     conn: &mut PgConnection,
     product_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+) -> Result<bool, ProductError> {
+    // Cheap pre-check: the nameplate remedy (mark it unavailable) is a
+    // different action, so the caller must know before the rows vanish.
+    let (referenced,): (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM commerce.order_items WHERE product_id = $1
+        )
+        "#,
+    )
+    .bind(product_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if referenced {
+        return Err(ProductError::HasOrderHistory);
+    }
     let result = sqlx::query!(
         r#"
         DELETE FROM marketplace.products
@@ -212,6 +238,15 @@ pub enum StoreProductError {
     /// This store already sells this catalog product — patch it instead.
     #[error("this store already sells this product")]
     AlreadyAttached,
+    /// The store_product appears in commerce.order_items — order history
+    /// is immutable, so the delete is refused with its remedy named.
+    #[error("this product has order history — mark it unavailable instead of deleting")]
+    HasOrderHistory,
+    /// The row's updated_at moved between the caller's read and this
+    /// write — a second writer won the race. The PATCH is refused instead
+    /// of silently overwriting their change.
+    #[error("this store product was changed by someone else — reload and retry")]
+    Stale,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }
@@ -238,6 +273,12 @@ pub async fn create_store_product(
         .await
         .map_err(|error| match error {
             ProductError::NotFound => StoreProductError::ProductNotFound,
+            // Impossible: this conversion is only fed by
+            // product_for_merchant, a SELECT that never produces the
+            // delete-only HasOrderHistory arm.
+            ProductError::HasOrderHistory => {
+                unreachable!("product_for_merchant never returns HasOrderHistory")
+            }
             ProductError::Database(error) => StoreProductError::Database(error),
         })?;
 
@@ -271,11 +312,13 @@ pub async fn create_store_product(
 }
 
 /// The assortment across one business's stores, optionally scoped to a set
-/// of stores (a store-scoped manager), oldest first.
+/// of stores (a store-scoped manager), oldest first, one page at a time.
 pub async fn store_products_for_merchant_scoped(
     conn: &mut PgConnection,
     merchant_id: Uuid,
     store_ids: Option<&[Uuid]>,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<StoreProductView>, sqlx::Error> {
     sqlx::query_as!(
         StoreProductView,
@@ -293,16 +336,20 @@ pub async fn store_products_for_merchant_scoped(
         WHERE s.merchant_id = $1
           AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR sp.store_id = ANY($2::uuid[]))
         ORDER BY sp.created_at
+        LIMIT $3 OFFSET $4
         "#,
         merchant_id,
         store_ids,
+        limit,
+        offset,
     )
     .fetch_all(&mut *conn)
     .await
 }
 
 /// One store_product with the store's merchant attached, for ownership
-/// resolution: the caller filters through its grant.
+/// resolution: the caller filters through its grant. The `updated_at`
+/// doubles as the PATCH's optimistic-concurrency precondition.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StoreProductWithMerchant {
     pub id: Uuid,
@@ -313,6 +360,7 @@ pub struct StoreProductWithMerchant {
     pub stock: Option<i64>,
     pub is_available: bool,
     pub sku: Option<String>,
+    pub updated_at: OffsetDateTime,
 }
 
 pub async fn store_product_by_id(
@@ -323,7 +371,7 @@ pub async fn store_product_by_id(
         StoreProductWithMerchant,
         r#"
         SELECT sp.id, sp.store_id, s.merchant_id, sp.product_id,
-               sp.price, sp.stock, sp.is_available, sp.sku
+               sp.price, sp.stock, sp.is_available, sp.sku, sp.updated_at
         FROM marketplace.store_products sp
         JOIN marketplace.stores s ON s.id = sp.store_id
         WHERE sp.id = $1
@@ -343,9 +391,13 @@ pub struct StoreProductChanges {
 }
 
 /// Overwrite a store_product with full values (ownership pre-checked).
+/// `expected_updated_at` is the optimistic-concurrency precondition: the
+/// caller read it from the row it merged against, and 0 rows here means a
+/// second writer moved the row first — refused instead of last-write-wins.
 pub async fn update_store_product(
     conn: &mut PgConnection,
     store_product_id: Uuid,
+    expected_updated_at: OffsetDateTime,
     changes: StoreProductChanges,
 ) -> Result<StoreProduct, StoreProductError> {
     sqlx::query_as!(
@@ -353,7 +405,7 @@ pub async fn update_store_product(
         r#"
         UPDATE marketplace.store_products
         SET price = $2, stock = $3, is_available = $4, sku = $5
-        WHERE id = $1
+        WHERE id = $1 AND updated_at = $6
         RETURNING id, store_id, product_id, price, stock, is_available, sku,
                   created_at, updated_at
         "#,
@@ -362,6 +414,7 @@ pub async fn update_store_product(
         changes.stock,
         changes.is_available,
         changes.sku,
+        expected_updated_at,
     )
     .fetch_optional(&mut *conn)
     .await?
@@ -372,7 +425,22 @@ pub async fn update_store_product(
 pub async fn delete_store_product(
     conn: &mut PgConnection,
     store_product_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+) -> Result<bool, StoreProductError> {
+    // Cheap pre-check: a sold store_product is part of order history —
+    // detach-by-delete would break the FK, so refuse with the remedy.
+    let (referenced,): (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM commerce.order_items WHERE store_product_id = $1
+        )
+        "#,
+    )
+    .bind(store_product_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if referenced {
+        return Err(StoreProductError::HasOrderHistory);
+    }
     let result = sqlx::query!(
         r#"
         DELETE FROM marketplace.store_products

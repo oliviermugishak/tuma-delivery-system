@@ -1061,6 +1061,52 @@ pub async fn advance_store_order_status(
     if next == OrderStatus::Delivered {
         crate::deliveries::settle_delivery_cash(&mut tx, store_order_id).await?;
     }
+    // A merchant reject (placed/accepted/preparing → cancelled) is the
+    // customer-cancel's twin: the same three ledger moves must land, or the
+    // reserved stock evaporates and the allocation/payment stay `pending`
+    // forever. Same SQL as `cancel_own_store_order`, same transaction.
+    if next == OrderStatus::Cancelled {
+        // The checkout reserved this store's stock; the reject gives it
+        // back. Untracked stock (NULL) was never decremented and stays NULL.
+        sqlx::query!(
+            r#"
+            UPDATE marketplace.store_products sp
+            SET stock = sp.stock + oi.quantity
+            FROM commerce.order_items oi
+            WHERE oi.store_order_id = $1 AND sp.id = oi.store_product_id
+            "#,
+            store_order_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // This store's slice of the payment can never be collected now.
+        sqlx::query!(
+            r#"
+            UPDATE commerce.payment_allocations SET status = 'refunded'
+            WHERE store_order_id = $1 AND status = 'pending'
+            "#,
+            store_order_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // The group's payment completes when nothing is pending:
+        // `refunded` if every slice was cancelled.
+        sqlx::query!(
+            r#"
+            UPDATE commerce.payments SET status = 'refunded'
+            WHERE order_group_id = $1 AND status = 'pending'
+              AND NOT EXISTS (
+                  SELECT 1 FROM commerce.payment_allocations
+                  WHERE order_group_id = $1 AND status = 'pending'
+              )
+            "#,
+            updated.order_group_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
     tx.commit().await?;
     Ok(updated)
 }

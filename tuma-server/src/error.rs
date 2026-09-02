@@ -1,4 +1,5 @@
 use crate::app::AppError;
+use accounts::merchants::DeleteError as MerchantDeleteError;
 use accounts::otp::VerifyError;
 use accounts::{ChangePasswordError, CreateAccountError};
 use commerce::CheckoutError;
@@ -90,6 +91,8 @@ impl From<ProductError> for AppError {
     fn from(error: ProductError) -> Self {
         match error {
             ProductError::NotFound => AppError::NotFound(error.to_string()),
+            // Order history is immutable — the delete names its remedy.
+            ProductError::HasOrderHistory => AppError::Conflict(error.to_string()),
             ProductError::Database(error) => AppError::Database(error),
         }
     }
@@ -115,6 +118,10 @@ impl From<StoreProductError> for AppError {
                 AppError::NotFound(error.to_string())
             }
             StoreProductError::AlreadyAttached => AppError::Conflict(error.to_string()),
+            // Order history is immutable — the delete names its remedy.
+            StoreProductError::HasOrderHistory => AppError::Conflict(error.to_string()),
+            // A lost read-write race is a conflict with the other writer.
+            StoreProductError::Stale => AppError::Conflict(error.to_string()),
             StoreProductError::Database(error) => AppError::Database(error),
         }
     }
@@ -165,7 +172,21 @@ impl From<StoreError> for AppError {
     fn from(error: StoreError) -> Self {
         match error {
             StoreError::NotFound => AppError::NotFound(error.to_string()),
+            // Order history is immutable — the delete names its remedy.
+            StoreError::HasOrderHistory => AppError::Conflict(error.to_string()),
+            // A lost read-write race is a conflict with the other writer.
+            StoreError::Stale => AppError::Conflict(error.to_string()),
             StoreError::Database(error) => AppError::Database(error),
+        }
+    }
+}
+
+impl From<MerchantDeleteError> for AppError {
+    fn from(error: MerchantDeleteError) -> Self {
+        match error {
+            // Order history is immutable — the delete names its remedy.
+            MerchantDeleteError::HasOrderHistory => AppError::Conflict(error.to_string()),
+            MerchantDeleteError::Database(db) => AppError::Database(db),
         }
     }
 }

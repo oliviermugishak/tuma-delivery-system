@@ -42,6 +42,50 @@ fn png_bytes() -> Vec<u8> {
     buffer
 }
 
+/// A minimal PNG whose IHDR declares 20000×20000 while the whole file is
+/// a few hundred bytes — the decode bomb's shape (review S33). Built byte
+/// by byte: actually encoding a real 20000px image would allocate the
+/// very gigabytes the gate exists to prevent. CRC-32 (IEEE) is computed
+/// honestly because the PNG decoder validates chunk checksums.
+fn png_dimension_bomb_bytes(width: u32, height: u32) -> Vec<u8> {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0xFFFF_FFFF;
+        for &byte in data {
+            crc ^= byte as u32;
+            for _ in 0..8 {
+                let mask = (crc & 1).wrapping_neg();
+                crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
+            }
+        }
+        !crc
+    }
+    fn chunk(kind: &[u8], data: &[u8]) -> Vec<u8> {
+        let mut chunk = Vec::with_capacity(12 + data.len());
+        chunk.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        chunk.extend_from_slice(kind);
+        chunk.extend_from_slice(data);
+        let mut crc_input = Vec::with_capacity(4 + data.len());
+        crc_input.extend_from_slice(kind);
+        crc_input.extend_from_slice(data);
+        chunk.extend_from_slice(&crc32(&crc_input).to_be_bytes());
+        chunk
+    }
+
+    let ihdr = &[
+        &width.to_be_bytes()[..],
+        &height.to_be_bytes()[..],
+        &[8, 2, 0, 0, 0], // 8-bit depth, truecolor RGB, no interlace
+    ]
+    .concat();
+    let mut png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    png.extend_from_slice(&chunk(b"IHDR", ihdr));
+    // A stub zlib stream: the gate must refuse on the header BEFORE any
+    // decompression is attempted, so the payload never has to be valid.
+    png.extend_from_slice(&chunk(b"IDAT", &[0x78, 0x01, 0x01, 0x00, 0x00, 0xFF, 0xFF]));
+    png.extend_from_slice(&chunk(b"IEND", &[]));
+    png
+}
+
 fn png_form() -> Form {
     Form::new().part(
         "file",
@@ -290,6 +334,89 @@ async fn uploads_reject_non_images_and_oversize(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(response.status(), 413);
+}
+
+/// Review S33: the dimension gate reads the container header and refuses
+/// a decode bomb with the byte cap's status — 413 — BEFORE decoding, so a
+/// few hundred hostile bytes cannot allocate gigabytes (a 20000×20000
+/// buffer) or hang the worker. Not a 415, not a 500, not an OOM.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn an_oversized_dimension_upload_is_rejected_before_decoding(pool: PgPool) {
+    let app = spawn_app(pool).await;
+    let operator = owner(&app, "owner@tuma.rw").await;
+    let store_id = create_store_via_api(&operator).await;
+
+    let bomb = png_dimension_bomb_bytes(20_000, 20_000);
+    assert!(
+        bomb.len() < 500,
+        "the bomb must be tiny on the wire: {} bytes",
+        bomb.len()
+    );
+    let bomb_form = Form::new().part(
+        "file",
+        Part::bytes(bomb)
+            .file_name("bomb.png")
+            .mime_str("image/png")
+            .unwrap(),
+    );
+    let response = operator
+        .client
+        .post(&format!("/v1/merchant/stores/{store_id}/banner"))
+        .bearer_auth(&operator.token)
+        .multipart(bomb_form)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        413,
+        "declared-size excess is the byte cap's class, not a decode error"
+    );
+
+    // The ceiling is real but generous: 12000×9000 — a 108 MP phone
+    // sensor's full output — passes the gate. The stub payload then fails
+    // the DECODE (415): 415 here is the proof the dimension gate let it
+    // through, without encoding a real 108 MP image in the test.
+    let legal = png_dimension_bomb_bytes(12_000, 9_000);
+    let legal_form = Form::new().part(
+        "file",
+        Part::bytes(legal)
+            .file_name("big-phone.png")
+            .mime_str("image/png")
+            .unwrap(),
+    );
+    let response = operator
+        .client
+        .post(&format!("/v1/merchant/stores/{store_id}/banner"))
+        .bearer_auth(&operator.token)
+        .multipart(legal_form)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        415,
+        "at the ceiling the gate passes; only the stub decode fails"
+    );
+
+    // One pixel over the ceiling on either axis is refused again.
+    let over = png_dimension_bomb_bytes(12_001, 9_000);
+    let over_form = Form::new().part(
+        "file",
+        Part::bytes(over)
+            .file_name("over.png")
+            .mime_str("image/png")
+            .unwrap(),
+    );
+    let response = operator
+        .client
+        .post(&format!("/v1/merchant/stores/{store_id}/banner"))
+        .bearer_auth(&operator.token)
+        .multipart(over_form)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 413, "12_001 wide is over the line");
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

@@ -1315,3 +1315,145 @@ async fn a_fully_cancelled_group_refunds_its_payment(pool: sqlx::PgPool) {
     .unwrap();
     assert_eq!(payment, "refunded");
 }
+
+// Review S27 (CRITICAL): the merchant's reject — PATCH
+// {"status":"cancelled"} — must run the same ledger as the customer's
+// cancel: reserved stock returns, the slice's allocation refunds, and
+// the group's payment completes once the surviving delivery settles.
+// The old advance wrote ONLY the status.
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_merchant_reject_restores_stock_and_settles_the_ledger(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let (chantal, token) = customer_session(&app, "+250780000016").await;
+    let rider = seed_rider(&app.pool, "Jean", "+250780000002").await;
+
+    // Two stores of one merchant, one checkout. A carries tracked stock;
+    // Aline rejects A before accepting it.
+    let store_a = create_store(&aline, "Aline Remera").await;
+    let store_b = create_store(&aline, "Aline Kiyovu").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let beans = create_product(&aline, "Beans 1KG").await;
+    let rice_sp = attach(&aline, store_a, rice, 5000, json!(5)).await;
+    let beans_sp = attach(&aline, store_b, beans, 3500, json!(null)).await;
+    set_open(&app.pool, store_a, true).await;
+    set_open(&app.pool, store_b, true).await;
+
+    let group: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 2), line(beans_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let group_id = group["id"].as_str().unwrap().to_string();
+    let orders = group["store_orders"].as_array().unwrap();
+    assert_eq!(orders.len(), 2);
+    let order_a = orders
+        .iter()
+        .find(|o| o["store_id"].as_str().unwrap() == store_a.to_string())
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let order_b = orders
+        .iter()
+        .find(|o| o["store_id"].as_str().unwrap() == store_b.to_string())
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // The reject: cancelled straight from placed — legal, and previously
+    // a bare status write.
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-orders/{order_a}"),
+            json!({ "status": "cancelled" }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200, "placed → cancelled is legal");
+    assert_eq!(
+        response.json::<Value>().await.unwrap()["status"],
+        "cancelled"
+    );
+
+    // The ledger half 1: the 2 reserved units are back on the shelf.
+    let (stock,): (i64,) =
+        sqlx::query_as("SELECT stock FROM marketplace.store_products WHERE id = $1")
+            .bind(rice_sp)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(stock, 5, "the reject returns the reserved stock");
+
+    // The ledger half 2: A's slice can never collect — it refunds.
+    let (allocation,): (String,) = sqlx::query_as(
+        "SELECT status::text FROM commerce.payment_allocations WHERE store_order_id = $1",
+    )
+    .bind(Uuid::parse_str(&order_a).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(allocation, "refunded", "the rejected slice refunds");
+
+    // The surviving store B fulfills normally: accepted → preparing →
+    // handoff → delivered (the merchant advance settles its allocation).
+    for status in ["accepted", "preparing"] {
+        let response = aline
+            .client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{order_b}"),
+                json!({ "status": status }),
+            )
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200, "advance to {status}");
+    }
+    let response = aline
+        .client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{order_b}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-orders/{order_b}"),
+            json!({ "status": "delivered" }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Nothing pending anywhere: settled B + refunded A ⇒ the group's
+    // payment COLLECTS. Pre-fix this stayed `pending` forever.
+    let (payment,): (String,) =
+        sqlx::query_as("SELECT status::text FROM commerce.payments WHERE order_group_id = $1")
+            .bind(Uuid::parse_str(&group_id).unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        payment, "collected",
+        "a rejected sibling must not strand the group's cash"
+    );
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, account_id, rider_number, name, phone, is_active,\n               created_at, updated_at\n        FROM commerce.riders\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT p.id, p.merchant_id, p.name, p.description, p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = p.id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               p.created_at, p.updated_at\n        FROM marketplace.products p\n        WHERE p.merchant_id = $1\n        ORDER BY p.created_at\n        LIMIT $2 OFFSET $3\n        ",
   "describe": {
     "columns": [
       {
@@ -9,65 +9,60 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
+            "table": "marketplace.products",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "account_id",
+        "name": "merchant_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
-            "name": "account_id"
+            "table": "marketplace.products",
+            "name": "merchant_id"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "rider_number",
-        "type_info": "Int8",
-        "origin": {
-          "Table": {
-            "table": "commerce.riders",
-            "name": "rider_number"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
         "name": "name",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
+            "table": "marketplace.products",
             "name": "name"
           }
         }
       },
       {
-        "ordinal": 4,
-        "name": "phone",
+        "ordinal": 3,
+        "name": "description",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
-            "name": "phone"
+            "table": "marketplace.products",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "image_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.products",
+            "name": "image_url"
           }
         }
       },
       {
         "ordinal": 5,
-        "name": "is_active",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "commerce.riders",
-            "name": "is_active"
-          }
-        }
+        "name": "cover_key",
+        "type_info": "Text",
+        "origin": "Expression"
       },
       {
         "ordinal": 6,
@@ -75,7 +70,7 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
+            "table": "marketplace.products",
             "name": "created_at"
           }
         }
@@ -86,25 +81,29 @@
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "commerce.riders",
+            "table": "marketplace.products",
             "name": "updated_at"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
     },
     "nullable": [
       false,
       false,
       false,
-      false,
-      false,
-      false,
+      true,
+      true,
+      null,
       false,
       false
     ]
   },
-  "hash": "fe533573d3849bc7684d1b52470147ab430d1206c2f606553c50b953d088f595"
+  "hash": "f466d52ad10db3c7da1839f8a1b1ed26347d4f432a3fbb569d2df9db163c7c04"
 }

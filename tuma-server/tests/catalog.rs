@@ -544,3 +544,207 @@ async fn catalog_reachable_through_the_cookie_transport(pool: sqlx::PgPool) {
         200
     );
 }
+
+/// Place one customer order against a store_product — the order history a
+/// delete must refuse to rewrite. The checkout flow itself is orders.rs's
+/// territory; here only the history's existence is the fact under test.
+async fn place_order(app: &common::TestApp, store_product_id: Uuid) {
+    let seeded = seed_customer(&app.pool, "+250780099001").await;
+    let token = token_for(&app, seeded.account.id, 3600);
+    let response = TestClient::new(&app.address)
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KN 4 Ave, Kigali",
+                "items": [{ "store_product_id": store_product_id, "quantity": 1 }]
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201, "the order history exists");
+}
+
+/// S28: the order_items FKs have no ON DELETE — before the typed
+/// pre-check, deleting a product that ever appeared in an order was a
+/// 500 from the constraint. Now it is a 409 naming the remedy.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_an_ordered_product_is_a_409_not_a_500(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG", true).await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(5)).await;
+    open_store(&app.pool, store).await;
+    place_order(&app, rice_sp).await;
+
+    let response = aline
+        .client
+        .delete(&format!("/v1/merchant/products/{rice}"))
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        409,
+        "order history is a conflict, not a 500"
+    );
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["error"], "conflict");
+    assert!(
+        body["message"].as_str().unwrap().contains("unavailable"),
+        "the message names the remedy: {body}"
+    );
+
+    // The product survived, so the remedy is actually available.
+    let response = aline
+        .client
+        .get("/v1/merchant/products")
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    let products: Value = response.json().await.unwrap();
+    assert_eq!(products.as_array().unwrap().len(), 1);
+
+    // A product with no history still deletes cleanly.
+    let fresh = create_product(&aline, "Fresh Dish", true).await;
+    assert_eq!(
+        aline
+            .client
+            .delete(&format!("/v1/merchant/products/{fresh}"))
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        204
+    );
+}
+
+/// S28, store_product flavor: a sold store_product is part of order
+/// history — the delete is a 409, an unsold one still detaches with 204.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn deleting_an_ordered_store_product_is_a_409_not_a_500(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG", true).await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(5)).await;
+    open_store(&app.pool, store).await;
+    place_order(&app, rice_sp).await;
+
+    let response = aline
+        .client
+        .delete(&format!("/v1/merchant/store-products/{rice_sp}"))
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        409,
+        "order history is a conflict, not a 500"
+    );
+    let body: Value = response.json().await.unwrap();
+    assert!(
+        body["message"].as_str().unwrap().contains("unavailable"),
+        "the message names the remedy: {body}"
+    );
+
+    // A store_product with no history still detaches cleanly.
+    let milk = create_product(&aline, "Milk 1L", true).await;
+    let milk_sp = attach(&aline, store, milk, 1500, json!(null)).await;
+    assert_eq!(
+        aline
+            .client
+            .delete(&format!("/v1/merchant/store-products/{milk_sp}"))
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        204
+    );
+}
+
+/// S36: two writers, one store_product — the loser's PATCH must be a 409,
+/// not a silent last-write-wins. The second writer holds the row lock with
+/// an uncommitted UPDATE between the handler's read and write: the handler
+/// parks on the lock with the old updated_at already read, the writer
+/// commits, and the precondition no longer matches.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_stale_store_product_patch_is_a_conflict_not_a_silent_overwrite(pool: sqlx::PgPool) {
+    let app = spawn_app(pool.clone()).await;
+    let aline = owner(&app, "aline@example.com").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG", true).await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(10)).await;
+
+    // A normal PATCH still lands — the precondition must not fight
+    // legitimate sequential edits.
+    let first = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-products/{rice_sp}"),
+            json!({ "price": 5500 }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+    assert_eq!(first.json::<Value>().await.unwrap()["price"], 5500);
+
+    // The second writer wins the race: its uncommitted UPDATE moves
+    // updated_at and holds the row lock.
+    let mut second_writer = pool.begin().await.unwrap();
+    sqlx::query("UPDATE marketplace.store_products SET is_available = false WHERE id = $1")
+        .bind(rice_sp)
+        .execute(&mut *second_writer)
+        .await
+        .unwrap();
+
+    let stale_patch = tokio::spawn({
+        let client = aline.client.clone();
+        let token = aline.token.clone();
+        async move {
+            client
+                .patch_json(
+                    &format!("/v1/merchant/store-products/{rice_sp}"),
+                    json!({ "price": 6000 }),
+                )
+                .bearer_auth(&token)
+                .send()
+                .await
+                .unwrap()
+        }
+    });
+    // Let the handler read the row and park on the lock before committing.
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    second_writer.commit().await.unwrap();
+
+    let response = stale_patch.await.unwrap();
+    assert_eq!(
+        response.status(),
+        409,
+        "a lost read-write race is a conflict, not a silent overwrite"
+    );
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["error"], "conflict");
+    assert!(
+        body["message"].as_str().unwrap().contains("someone else"),
+        "the message says reload and retry: {body}"
+    );
+
+    // The second writer's change survived — nothing was overwritten.
+    let (is_available,): (bool,) =
+        sqlx::query_as("SELECT is_available FROM marketplace.store_products WHERE id = $1")
+            .bind(rice_sp)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(!is_available, "the stale PATCH must not land");
+}

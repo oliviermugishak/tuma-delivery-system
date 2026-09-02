@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n               created_at, updated_at\n        FROM marketplace.stores\n        WHERE is_open\n        ORDER BY created_at\n        ",
+  "query": "\n        SELECT id, merchant_id, name, description, image_url, banner_key, address_text,\n               lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n               created_at, updated_at\n        FROM marketplace.stores\n        WHERE is_open\n        ORDER BY created_at\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -181,7 +181,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -202,5 +204,5 @@
       false
     ]
   },
-  "hash": "6e8f539270ee1c715c671b0046066b1171252012db50c3d3255075cc36208e31"
+  "hash": "cacfc8a5cc3f7d084c6669055c697922afba69348bf933c4f3ba465a67b737f0"
 }

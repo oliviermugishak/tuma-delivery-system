@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT sp.id, sp.store_id, s.merchant_id, sp.product_id,\n               sp.price, sp.stock, sp.is_available, sp.sku\n        FROM marketplace.store_products sp\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE sp.id = $1\n        ",
+  "query": "\n        UPDATE marketplace.store_products\n        SET price = $2, stock = $3, is_available = $4, sku = $5\n        WHERE id = $1 AND updated_at = $6\n        RETURNING id, store_id, product_id, price, stock, is_available, sku,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -27,17 +27,6 @@
       },
       {
         "ordinal": 2,
-        "name": "merchant_id",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "marketplace.stores",
-            "name": "merchant_id"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
         "name": "product_id",
         "type_info": "Uuid",
         "origin": {
@@ -48,7 +37,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "price",
         "type_info": "Int8",
         "origin": {
@@ -59,7 +48,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "stock",
         "type_info": "Int8",
         "origin": {
@@ -70,7 +59,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "is_available",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +70,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "sku",
         "type_info": "Text",
         "origin": {
@@ -90,11 +79,38 @@
             "name": "sku"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "marketplace.store_products",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Bool",
+        "Text",
+        "Timestamptz"
       ]
     },
     "nullable": [
@@ -102,11 +118,12 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       false,
-      true
+      false
     ]
   },
-  "hash": "68f8a5261ba6ec55567bc7ee260ee0e5494d732fd28af2c668394b8f52c2eb30"
+  "hash": "a76ca36d3e2feefcb6239d24994c5296538ba0305a7137c604522f852a32b18f"
 }

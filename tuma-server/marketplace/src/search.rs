@@ -78,7 +78,8 @@ pub async fn search_products(
 
 /// The most-purchased products across open stores, by real order counts,
 /// best first. Grouping by the three table primary keys lets every
-/// selected column ride their functional dependencies.
+/// selected column ride their functional dependencies. Cancelled orders
+/// are not purchases — their items must not feed the shelf.
 pub async fn popular_products(
     conn: &mut PgConnection,
     limit: i64,
@@ -98,10 +99,11 @@ pub async fn popular_products(
                s.lat AS store_lat,
                s.lng AS store_lng
         FROM commerce.order_items oi
+        JOIN commerce.store_orders so ON so.id = oi.store_order_id
         JOIN marketplace.store_products sp ON sp.id = oi.store_product_id
         JOIN marketplace.products p ON p.id = sp.product_id
         JOIN marketplace.stores s ON s.id = sp.store_id
-        WHERE s.is_open AND sp.is_available
+        WHERE s.is_open AND sp.is_available AND so.status <> 'cancelled'
         GROUP BY sp.id, p.id, s.id
         ORDER BY COUNT(*) DESC, p.name
         LIMIT $1

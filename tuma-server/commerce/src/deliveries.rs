@@ -77,13 +77,53 @@ fn decode_route_polyline(encoded: &str) -> Vec<(f64, f64)> {
 }
 
 /// Distance in whole meters from a pushed position to the nearest point on
-/// the decoded route — the stray check's measure.
+/// the decoded route — the stray check's measure. Segments, not just
+/// vertices: a simplified polyline's vertices can sit hundreds of meters
+/// apart, and a rider mid-block would read far from every vertex — a
+/// spurious stray and a needless re-route. Each consecutive pair is
+/// projected into a local equirectangular frame (longitude compressed by
+/// cos of the pair's mean latitude, so meters are isotropic) and the
+/// standard 2D point-to-segment minimum applies; sub-segment accuracy is
+/// far inside the 200m threshold's slack at Kigali scale.
 fn distance_to_route(lat: f64, lng: f64, route: &[(f64, f64)]) -> i64 {
-    route
-        .iter()
-        .map(|(route_lat, route_lng)| haversine_m(lat, lng, *route_lat, *route_lng))
-        .min()
-        .unwrap_or(i64::MAX)
+    if route.len() < 2 {
+        // No corridor to project onto — degenerate routes keep the old
+        // vertex measure.
+        return route
+            .iter()
+            .map(|&(route_lat, route_lng)| haversine_m(lat, lng, route_lat, route_lng))
+            .min()
+            .unwrap_or(i64::MAX);
+    }
+    const EARTH_RADIUS_M: f64 = 6_371_000.0;
+    let mut nearest_m = f64::INFINITY;
+    for pair in route.windows(2) {
+        let (a_lat, a_lng) = pair[0];
+        let (b_lat, b_lng) = pair[1];
+        let cos_ref = ((a_lat + b_lat) / 2.0).to_radians().cos();
+        let plane = |route_lat: f64, route_lng: f64| {
+            (
+                route_lng.to_radians() * EARTH_RADIUS_M * cos_ref,
+                route_lat.to_radians() * EARTH_RADIUS_M,
+            )
+        };
+        let (ax, ay) = plane(a_lat, a_lng);
+        let (bx, by) = plane(b_lat, b_lng);
+        let (px, py) = plane(lat, lng);
+        let (dx, dy) = (bx - ax, by - ay);
+        let length_sq = dx * dx + dy * dy;
+        // Clamp t to [0, 1]: past the segment's end, the nearest point is
+        // the endpoint itself (a repeated vertex makes a zero-length leg —
+        // its endpoint IS the corridor).
+        let t = if length_sq == 0.0 {
+            0.0
+        } else {
+            (((px - ax) * dx + (py - ay) * dy) / length_sq).clamp(0.0, 1.0)
+        };
+        let (cx, cy) = (ax + t * dx, ay + t * dy);
+        nearest_m = nearest_m.min(((px - cx).powi(2) + (py - cy).powi(2)).sqrt());
+    }
+    nearest_m.round() as i64
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -184,7 +224,9 @@ pub async fn route_context_for_delivery(
 /// advance to `picked_up`) and from `picked_up` (re-assignment — a wrong
 /// rider number is re-run, not a support ticket). Everything else is the
 /// state machine refusing the skip. One transaction: status move + the
-/// delivery's assignment, route cache, and ETA target.
+/// delivery's assignment, route cache, and ETA target. The `picked_up`
+/// re-assignment compare-and-swaps the store order too: a concurrently
+/// committing `mark_delivered` must not lose its delivery to a reassign.
 pub async fn handoff(
     conn: &mut PgConnection,
     store_order_id: Uuid,
@@ -226,7 +268,31 @@ pub async fn handoff(
                 });
             }
         }
-        OrderStatus::PickedUp => {}
+        OrderStatus::PickedUp => {
+            // Re-assignment is still a claimed transition (review S30): a
+            // mark_delivered committing in parallel between our read and
+            // write must not have its delivered job silently handed to
+            // another rider. 0 rows means the order left picked_up
+            // mid-reassignment (delivered or cancelled) — the reassign
+            // loses, same rule as the preparing arm above.
+            let swapped = sqlx::query!(
+                r#"
+                UPDATE commerce.store_orders SET status = $2
+                WHERE id = $1 AND status = $3
+                "#,
+                store_order_id,
+                OrderStatus::PickedUp as OrderStatus,
+                OrderStatus::PickedUp as OrderStatus,
+            )
+            .execute(&mut *tx)
+            .await?;
+            if swapped.rows_affected() == 0 {
+                return Err(DeliveryError::Illegal {
+                    from: OrderStatus::PickedUp.label(),
+                    to: OrderStatus::PickedUp.label(),
+                });
+            }
+        }
         other => {
             return Err(DeliveryError::Illegal {
                 from: other.label(),
@@ -394,6 +460,10 @@ pub async fn update_delivery_route(
 /// ledger. Idempotent: an already-settled allocation stays settled and
 /// moves nothing. Only the database can fail — the caller guarantees the
 /// order exists.
+///
+/// The caller MUST run this inside its transaction (both callers pass a
+/// tx): the parent payment's row lock taken here has to survive until the
+/// caller commits, or it serializes nothing.
 pub async fn settle_delivery_cash(
     conn: &mut PgConnection,
     store_order_id: Uuid,
@@ -413,6 +483,27 @@ pub async fn settle_delivery_cash(
     if settled.rows_affected() == 0 {
         return Ok(());
     }
+    // Lock the parent payment FIRST (review S29): under READ COMMITTED,
+    // two actors settling two allocations of one payment in parallel each
+    // see the other's uncommitted allocation as pending, both fail the
+    // NOT EXISTS below, and the payment strands `pending` forever. Row
+    // locks don't block readers — but they DO block each other — so this
+    // lock serializes the settlers: the second tx blocks here until the
+    // first commits, then its snapshot refreshes and it sees the truth.
+    // The conditional collect UPDATE keeps its guard as a second belt.
+    sqlx::query!(
+        r#"
+        SELECT p.id FROM commerce.payments p
+        WHERE p.id = (
+            SELECT a.payment_id FROM commerce.payment_allocations a
+            WHERE a.store_order_id = $1
+        )
+        FOR UPDATE
+        "#,
+        store_order_id,
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
     sqlx::query!(
         r#"
         UPDATE commerce.payments p
@@ -889,5 +980,59 @@ mod tests {
     fn the_breadcrumb_thresholds_match_the_doc() {
         assert_eq!(BREADCRUMB_MIN_DISTANCE_M, 25);
         assert_eq!(BREADCRUMB_MIN_INTERVAL_SECS, 15);
+    }
+
+    /// The regression (review S31): a sparse route's VERTICES can sit
+    /// hundreds of meters apart — the stray check must measure the
+    /// segment between them, or an on-route rider reads as a stray.
+    #[test]
+    fn a_point_on_a_long_sparse_segment_measures_its_offset_not_the_vertex() {
+        // One ~1.11km leg along the equator-parallel; its midpoint is
+        // ~550m from either vertex.
+        let route = [(0.0, 0.0), (0.0, 0.01)];
+        let vertex_gap = haversine_m(0.0, 0.005, 0.0, 0.0);
+        assert!(
+            vertex_gap > 500,
+            "the test only proves the fix if the vertex gap is big: {vertex_gap}"
+        );
+        // 30m off the segment's middle (~0.00027° of latitude).
+        let measured = distance_to_route(30.0 / 111_195.0, 0.005, &route);
+        assert!(
+            measured < 50,
+            "on-route mid-segment must read ~30m, got {measured} (old code: ~{vertex_gap})"
+        );
+    }
+
+    #[test]
+    fn a_point_far_off_the_corridor_still_measures_large() {
+        let route = [(0.0, 0.0), (0.0, 0.01)];
+        // ~0.01° of latitude ≈ 1.1km north of the segment's middle.
+        let measured = distance_to_route(0.01, 0.005, &route);
+        assert!(
+            (1_000..=1_200).contains(&measured),
+            "a kilometer off the corridor must read like it: {measured}"
+        );
+    }
+
+    /// Past the segment's end the nearest point is the endpoint — the
+    /// clamp must not project onto the leg's infinite extension.
+    #[test]
+    fn a_point_beyond_the_route_end_measures_to_the_endpoint() {
+        let route = [(0.0, 0.0), (0.0, 0.01)];
+        // Due east of the route's far end by ~0.005° along the parallel.
+        let measured = distance_to_route(0.0, 0.015, &route);
+        let to_endpoint = haversine_m(0.0, 0.015, 0.0, 0.01);
+        assert!(
+            (measured - to_endpoint).abs() <= 5,
+            "beyond the end, distance is to the endpoint: {measured} vs {to_endpoint}"
+        );
+    }
+
+    #[test]
+    fn degenerate_routes_fall_back_to_the_vertex_measure() {
+        let route = [(0.0, 0.0)];
+        let measured = distance_to_route(-1.9499, 30.0622, &route);
+        assert_eq!(measured, haversine_m(-1.9499, 30.0622, 0.0, 0.0));
+        assert_eq!(distance_to_route(0.0, 0.0, &[]), i64::MAX);
     }
 }

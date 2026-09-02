@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT sp.id, sp.store_id, s.name AS store_name, sp.product_id,\n               p.name AS product_name, p.description AS product_description,\n               p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               sp.price, sp.stock, sp.is_available, sp.sku,\n               sp.created_at\n        FROM marketplace.store_products sp\n        JOIN marketplace.products p ON p.id = sp.product_id\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE s.merchant_id = $1\n          AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR sp.store_id = ANY($2::uuid[]))\n        ORDER BY sp.created_at\n        ",
+  "query": "\n        SELECT sp.id, sp.store_id, s.name AS store_name, sp.product_id,\n               p.name AS product_name, p.description AS product_description,\n               p.image_url,\n               (SELECT pi.storage_key FROM marketplace.product_images pi\n                WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,\n               sp.price, sp.stock, sp.is_available, sp.sku,\n               sp.created_at\n        FROM marketplace.store_products sp\n        JOIN marketplace.products p ON p.id = sp.product_id\n        JOIN marketplace.stores s ON s.id = sp.store_id\n        WHERE s.merchant_id = $1\n          AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR sp.store_id = ANY($2::uuid[]))\n        ORDER BY sp.created_at\n        LIMIT $3 OFFSET $4\n        ",
   "describe": {
     "columns": [
       {
@@ -145,7 +145,9 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "UuidArray"
+        "UuidArray",
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
@@ -164,5 +166,5 @@
       false
     ]
   },
-  "hash": "3a4ca9fb944ae68daf7eab4dd00c04cfe2cadef5c62b2d8694bfbeb016137ea1"
+  "hash": "2d87182a5531390f0c93040f725724e7f0ef10e7679fd8748fe99582b321bed7"
 }

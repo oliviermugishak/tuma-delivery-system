@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE marketplace.stores\n        SET name = $2, description = $3, image_url = $4, address_text = $5,\n            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10,\n            contact_phone = $11, contact_email = $12\n        WHERE id = $1\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n                  created_at, updated_at\n        ",
+  "query": "\n        UPDATE marketplace.stores\n        SET name = $2, description = $3, image_url = $4, address_text = $5,\n            lat = $6, lng = $7, category = $8, delivery_fee = $9, is_open = $10,\n            contact_phone = $11, contact_email = $12\n        WHERE id = $1 AND updated_at = $13\n        RETURNING id, merchant_id, name, description, image_url, banner_key, address_text,\n                  lat, lng, category, delivery_fee, is_open, contact_phone, contact_email,\n                  created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -193,7 +193,8 @@
         "Int8",
         "Bool",
         "Text",
-        "Text"
+        "Text",
+        "Timestamptz"
       ]
     },
     "nullable": [
@@ -215,5 +216,5 @@
       false
     ]
   },
-  "hash": "b6e57ea488a743f8b17617502d9d788807e476b4506e1dc76a6a02d309648b9e"
+  "hash": "0bc32834f0a7378d55e2c2e0ae1c88e3e518c394aae3ae4ce4e043fa17e462e9"
 }
