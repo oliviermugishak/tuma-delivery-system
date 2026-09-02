@@ -177,7 +177,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 : 'Welcome to Tuma',
                             style: AppTheme.d1(textTheme),
                           ),
-                          AccentAvatar(text: identityText(user), size: 40),
+                          AccentAvatar(
+                            text: user?.displayName ??
+                                user?.phone ??
+                                'Customer',
+                            size: 40,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -308,8 +313,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return 'Set your delivery location';
   }
 }
-
-String identityText(dynamic user) => 'MO';
 
 const double _cardSpacing = 12;
 
