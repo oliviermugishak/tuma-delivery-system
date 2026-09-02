@@ -250,7 +250,7 @@ class CartNotifier extends AsyncNotifier<CartState> {
                 name: item.name,
                 unitPrice: item.price,
                 imageUrl: item.displayImage,
-                quantity: 1,
+                quantity: quantity,
               ),
             ];
       buckets[index] = bucket.copyWith(items: items);
@@ -266,7 +266,7 @@ class CartNotifier extends AsyncNotifier<CartState> {
             name: item.name,
             unitPrice: item.price,
             imageUrl: item.displayImage,
-            quantity: 1,
+            quantity: quantity,
           ),
         ],
       ));
