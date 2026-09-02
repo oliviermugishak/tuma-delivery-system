@@ -359,6 +359,10 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       ),
     );
     if (confirmed != true) return;
+    // The dialog's await is a gap: the kiosk may have unmounted (rider
+    // signed out, session dropped) while it was open — a setState here
+    // would throw (review P15).
+    if (!mounted) return;
 
     setState(() => _finishingId = delivery.deliveryId);
     try {
