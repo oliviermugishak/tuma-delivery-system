@@ -29,8 +29,10 @@ GoRouter buildRouter() => GoRouter(
 
         // The OTP and name screens carry their arguments in `extra`; a cold
         // start on them has none — bounce back to the start of the flow.
-        if ((sub == '/auth/otp' || sub == '/auth/name') && state.extra == null) {
-          return '/auth/phone';
+        // `/success` is the same class: no args = nothing to celebrate.
+        if ((sub == '/auth/otp' || sub == '/auth/name' || sub == '/success') &&
+            state.extra == null) {
+          return sub == '/success' ? '/home' : '/auth/phone';
         }
 
         return session.when(
