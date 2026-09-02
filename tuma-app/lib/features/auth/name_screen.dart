@@ -87,64 +87,80 @@ class _NameScreenState extends ConsumerState<NameScreen> {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: AppColors.surface,
+      // Scroll-safe like its auth siblings (phone/OTP): the autofocus
+      // keyboard must never stripe the fixed content on a small phone.
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 72),
-              Text(
-                'What should we call you?',
-                style: textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height -
+                  MediaQuery.paddingOf(context).vertical,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 72),
+                  Text(
+                    'What should we call you?',
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'So shops and riders know who they are serving.',
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceMuted),
+                  ),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _nameController,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.words,
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: AppColors.onSurface),
+                    decoration: const InputDecoration(
+                      hintText: 'Your name',
+                      counterText: '',
+                    ),
+                    maxLength: 100,
+                    onChanged: (_) {
+                      if (_error != null) setState(() => _error = null);
+                    },
+                    onSubmitted: (_) => _continue(),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: AppColors.error),
+                    ),
+                  ],
+                  // The flexible gap the Spacer owned — scrolls away
+                  // under the keyboard instead of striping.
+                  const SizedBox(height: 96),
+                  PrimaryButton(
+                    label: 'Continue',
+                    loading: _submitting,
+                    onPressed: _submitting ? null : _continue,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _submitting ? null : _skip,
+                    child: Text(
+                      'Not now',
+                      style: textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.onSurfaceMuted),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'So shops and riders know who they are serving.',
-                style: textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _nameController,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                style: textTheme.bodyLarge?.copyWith(color: AppColors.onSurface),
-                decoration: const InputDecoration(
-                  hintText: 'Your name',
-                  counterText: '',
-                ),
-                maxLength: 100,
-                onChanged: (_) {
-                  if (_error != null) setState(() => _error = null);
-                },
-                onSubmitted: (_) => _continue(),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: textTheme.bodySmall?.copyWith(color: AppColors.error),
-                ),
-              ],
-              const Spacer(),
-              PrimaryButton(
-                label: 'Continue',
-                loading: _submitting,
-                onPressed: _submitting ? null : _continue,
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _submitting ? null : _skip,
-                child: Text(
-                  'Not now',
-                  style: textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
       ),
