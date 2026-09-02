@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT max(t) AS \"changed_at: _\" FROM (\n            SELECT so.updated_at AS t\n            FROM commerce.order_groups og\n            JOIN commerce.store_orders so ON so.order_group_id = og.id\n            WHERE og.id = $1 AND og.user_id = $2\n            UNION ALL\n            SELECT d.last_location_at\n            FROM commerce.order_groups og\n            JOIN commerce.store_orders so ON so.order_group_id = og.id\n            JOIN commerce.deliveries d ON d.store_order_id = so.id\n            WHERE og.id = $1 AND og.user_id = $2\n            UNION ALL\n            SELECT d.handoff_at\n            FROM commerce.order_groups og\n            JOIN commerce.store_orders so ON so.order_group_id = og.id\n            JOIN commerce.deliveries d ON d.store_order_id = so.id\n            WHERE og.id = $1 AND og.user_id = $2\n            UNION ALL\n            SELECT d.updated_at\n            FROM commerce.order_groups og\n            JOIN commerce.store_orders so ON so.order_group_id = og.id\n            JOIN commerce.deliveries d ON d.store_order_id = so.id\n            WHERE og.id = $1 AND og.user_id = $2\n        ) stamps\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "changed_at: _",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e5c61b82b4b6e80d25833128c7c74f0b5fbb041e51ea8a4f96b8399e7ac3a9ea"
+}

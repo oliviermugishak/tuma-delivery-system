@@ -814,6 +814,110 @@ async fn a_bare_advance_cannot_skip_the_rider_handoff(pool: PgPool) {
     );
 }
 
+/// Review P10: a stray re-route writes ONLY the delivery row (re-armed
+/// ETA, maybe a new polyline) — no breadcrumb, no store-order write. Both
+/// freshness surfaces (`changed_at` in the snapshot and the 204 probe)
+/// must include the delivery's own `updated_at`, or the customer's next
+/// poll with the stale `since` earns a 204 and the map never learns the
+/// new plan.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_stray_re_route_with_no_new_push_polls_200_not_204(pool: PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let chantal = customer_session(&app, "+250780000012").await;
+    let rider = rider_session(&app, "Jean", "+250780000002").await;
+
+    let (group, order_id) = preparing_order(&app, &aline, (&chantal.0, &chantal.1)).await;
+    assert_eq!(
+        handoff(&aline, &order_id, rider.rider.rider_number)
+            .await
+            .status(),
+        200
+    );
+    let delivery_id = delivery_of(&app.pool, &order_id).await;
+    let group_id = group["id"].as_str().unwrap();
+
+    // The customer's heartbeat: poll, take changed_at, echo it back — the
+    // quiet baseline is a 204.
+    let response = chantal
+        .0
+        .get(&format!("/v1/orders/{group_id}/tracking"))
+        .bearer_auth(&chantal.1)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let changed_at = response.json::<Value>().await.unwrap()["changed_at"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let since = changed_at.replace('+', "%2B");
+    assert_eq!(
+        chantal
+            .0
+            .get(&format!("/v1/orders/{group_id}/tracking?since={since}"))
+            .bearer_auth(&chantal.1)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        204,
+        "nothing moved yet — the baseline is quiet"
+    );
+
+    // The re-route, with NO new push: exactly what the stray arm commits
+    // when no Directions backend answers — the ETA re-armed on the
+    // delivery row alone, the route preserved.
+    let mut conn = app.pool.acquire().await.unwrap();
+    commerce::deliveries::update_delivery_route(
+        &mut conn,
+        delivery_id,
+        commerce::CachedRoute {
+            polyline: None,
+            eta_target: time::OffsetDateTime::now_utc() + time::Duration::minutes(30),
+        },
+    )
+    .await
+    .unwrap();
+    drop(conn);
+
+    // The next heartbeat: the re-route is a change the customer has not
+    // seen — 200 with a moved changed_at, never a 204.
+    let response = chantal
+        .0
+        .get(&format!("/v1/orders/{group_id}/tracking?since={since}"))
+        .bearer_auth(&chantal.1)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        200,
+        "a re-route the customer has not seen must wake the poll"
+    );
+    let body: Value = response.json().await.unwrap();
+    assert!(
+        body["changed_at"].as_str().unwrap() > changed_at.as_str(),
+        "changed_at moved past the pre-re-route stamp"
+    );
+
+    // And the snapshot's changed_at closes the loop: echoing it is quiet
+    // again.
+    let fresh = body["changed_at"].as_str().unwrap().replace('+', "%2B");
+    assert_eq!(
+        chantal
+            .0
+            .get(&format!("/v1/orders/{group_id}/tracking?since={fresh}"))
+            .bearer_auth(&chantal.1)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        204,
+        "the new changed_at is the new quiet"
+    );
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn rider_history_lists_completed_stops(pool: PgPool) {
     let app = spawn_app(pool).await;
@@ -992,12 +1096,14 @@ async fn a_cancelled_sibling_does_not_block_the_group_payment(pool: PgPool) {
 
     // A settled + B refunded ⇒ NOTHING pending ⇒ the group payment is
     // `collected` — the ledger completes despite the cancelled sibling.
-    let (payment,): (String,) = sqlx::query_as(
-        "SELECT status::text FROM commerce.payments WHERE order_group_id = $1",
-    )
-    .bind(Uuid::parse_str(&group_id).unwrap())
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
-    assert_eq!(payment, "collected", "a cancelled sibling must not strand the group's cash state");
+    let (payment,): (String,) =
+        sqlx::query_as("SELECT status::text FROM commerce.payments WHERE order_group_id = $1")
+            .bind(Uuid::parse_str(&group_id).unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        payment, "collected",
+        "a cancelled sibling must not strand the group's cash state"
+    );
 }

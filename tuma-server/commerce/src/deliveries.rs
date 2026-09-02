@@ -651,6 +651,12 @@ pub struct DeliveryTracking {
     /// until the rider's phone has checked in at least once.
     pub rider_distance_m: Option<i64>,
     pub updated_at: OffsetDateTime,
+    /// The delivery row's own last write (P10). A stray re-route touches
+    /// ONLY the delivery — re-armed ETA, maybe a new polyline — and the
+    /// store order is silent about it; without this stamp in `changed_at`
+    /// the customer's next poll would earn a 204 and the map would never
+    /// learn the new route/ETA.
+    pub delivery_updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -734,7 +740,8 @@ pub async fn tracking_for_user(
                         * power(sin(radians(og.address_lng - d.last_lng) / 2.0), 2)
                     )))::bigint
                ELSE NULL END AS rider_distance_m,
-               so.updated_at
+               so.updated_at,
+               d.updated_at AS delivery_updated_at
         FROM commerce.store_orders so
         JOIN commerce.deliveries d ON d.store_order_id = so.id
         JOIN commerce.order_groups og ON og.id = so.order_group_id
@@ -784,7 +791,14 @@ pub async fn tracking_for_user(
     let statuses: Vec<OrderStatus> = deliveries.iter().map(|d| d.status).collect();
     let changed_at = deliveries
         .iter()
-        .flat_map(|d| [Some(d.updated_at), d.last_location_at, d.handoff_at])
+        .flat_map(|d| {
+            [
+                Some(d.updated_at),
+                Some(d.delivery_updated_at),
+                d.last_location_at,
+                d.handoff_at,
+            ]
+        })
         .flatten()
         .max()
         .unwrap_or_else(OffsetDateTime::now_utc);
@@ -823,6 +837,12 @@ pub async fn tracking_changed_at(
             WHERE og.id = $1 AND og.user_id = $2
             UNION ALL
             SELECT d.handoff_at
+            FROM commerce.order_groups og
+            JOIN commerce.store_orders so ON so.order_group_id = og.id
+            JOIN commerce.deliveries d ON d.store_order_id = so.id
+            WHERE og.id = $1 AND og.user_id = $2
+            UNION ALL
+            SELECT d.updated_at
             FROM commerce.order_groups og
             JOIN commerce.store_orders so ON so.order_group_id = og.id
             JOIN commerce.deliveries d ON d.store_order_id = so.id
