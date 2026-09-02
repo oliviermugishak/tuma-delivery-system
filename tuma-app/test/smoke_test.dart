@@ -971,6 +971,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testDesktop('a cancelled order shows its red dot row, not a stepper',
+      (tester) async {
+    final client = _apiClient(
+      groups: [
+        {
+          'id': 'group-1',
+          'number': 1042,
+          'grand_total': 8500,
+          'status': 'cancelled',
+          'stores': ["Aline's Kitchen"],
+          'created_at': '2026-08-28T07:00:00Z',
+        },
+      ],
+      groupDetail: _group(id: 'group-1', status: 'cancelled'),
+    );
+    await _landOnShell(tester, client);
+
+    await tester.tap(find.text('Orders'));
+    await _settle(tester);
+    // A cancelled group is settled — it lives under HISTORY.
+    await tester.tap(find.text('History'));
+    await _settle(tester);
+    await tester.tap(find.text("Aline's Kitchen").first);
+    await _settle(tester);
+
+    // The dedicated cancelled truth (review L4 / P22): the hero AND the
+    // red dot row say Cancelled — and the lifecycle stepper is gone
+    // entirely; nothing may read as progress on a dead order.
+    expect(find.text('Cancelled'), findsWidgets);
+    expect(find.text('Placed'), findsNothing);
+    expect(find.text('Preparing'), findsNothing);
+    expect(find.text('Picked up'), findsNothing);
+    expect(find.text('On the way'), findsNothing);
+    expect(find.text('Delivered'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testDesktop('no destination pin: no map, the honest text', (tester) async {
     _seedCart();
     final client = _apiClient(

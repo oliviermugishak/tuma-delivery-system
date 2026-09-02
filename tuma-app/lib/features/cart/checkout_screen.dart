@@ -181,16 +181,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  /// The honest local ETA preview: haversine store→destination at the
-  /// locked 25 km/h ride speed, rounded up, from the placed group's
-  /// stores. Without a pin, null (the success card states the outcome
-  /// without an invented number — P2).
-  int? _rideSpeedEtaMinutes(dynamic placed) {
-    // The placed response carries no coordinates; the estimate needs
-    // geocoding we don't do client-side. Honest: no number.
-    return null;
-  }
-
   /// A reasonably unique key without a uuid dependency: time + random.
   String _newIdempotencyKey() {
     final random = Random.secure();
@@ -262,18 +252,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final firstStore = placed.storeOrders.isNotEmpty
           ? placed.storeOrders.first.storeName
           : 'Your order';
-      // The server's per-delivery ETA rides the tracking endpoint; the
-      // ride-speed preview (haversine ÷ 25 km/h) is the honest local
-      // stand-in the success card shows before tracking loads (P2: it
-      // stays silent when there's no pin to estimate from).
-      final etaMinutes = _rideSpeedEtaMinutes(placed);
+      // No local ETA preview: the placed response carries no coordinates
+      // and the client doesn't geocode — the server's per-delivery ETA
+      // rides the tracking endpoint instead (the success card stays
+      // silent until then; P2: no invented numbers).
       if (!mounted) return;
       context.pushReplacement('/success', extra: SuccessScreenArgs(
         groupId: placed.id,
         orderNumber: placed.number,
         storeName: firstStore,
         total: placed.grandTotal,
-        etaMinutes: etaMinutes,
       ));
     } on ApiBadRequest catch (e) {
       _showPlacedError(e.message);

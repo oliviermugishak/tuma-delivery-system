@@ -6,8 +6,6 @@ application:
   host: 127.0.0.1
   port: 8080
   cookie_secure: false
-  # Serve a built web frontend (SPA fallback) from this directory.
-  # static_dir: /app/web-dist
 database:
   host: localhost
   port: 5432

@@ -11,6 +11,7 @@ import 'package:tuma_app/core/api/models/address.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/features/location/delivery_pin_map.dart'
     show PasteCoordinatesField, kigaliCenter;
@@ -185,7 +186,11 @@ class _DeliveryLocationScreenState
       );
     } on Object {
       if (mounted) {
-        _showSnack('Could not get your location — move the map instead.');
+        showAppSnack(
+          context,
+          'Could not get your location — move the map instead.',
+          duration: const Duration(seconds: 2),
+        );
       }
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -234,10 +239,12 @@ class _DeliveryLocationScreenState
       // Home's distances and any later map seed sharpen from this pin.
       await ref.read(customerLocationProvider.notifier).setPin(pin);
       if (!mounted) return;
-      _showSnack(
+      showAppSnack(
+        context,
         widget.edit == null
             ? '${saved.label} saved — ${saved.addressText}'
             : 'Location updated.',
+        duration: const Duration(seconds: 2),
       );
       // A cold start on /profile/location has nothing to pop — the saved
       // pin still deserves a landing, not a throw (review P16).
@@ -254,21 +261,6 @@ class _DeliveryLocationScreenState
         });
       }
     }
-  }
-
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(color: AppColors.onSurface),
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        backgroundColor: AppColors.surfaceAlt,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
   }
 
   // --- build ---------------------------------------------------------------

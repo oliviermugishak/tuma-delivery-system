@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 
 /// One store's contact surface, as the sheets show it: name, optional
 /// address, and the Call / Email actions. A missing fact renders an
@@ -104,7 +104,13 @@ class _ContactCard extends StatelessWidget {
                     icon: Icons.call_rounded,
                     label: entry.phone!,
                     onTap: () => unawaited(
-                      launchUrl(Uri(scheme: 'tel', path: entry.phone!)),
+                      launchDialer(
+                        entry.phone!,
+                        onFail: (sanitized) => showAppSnack(
+                          context,
+                          'Could not call $sanitized.',
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -119,7 +125,13 @@ class _ContactCard extends StatelessWidget {
                     icon: Icons.mail_outline_rounded,
                     label: entry.email!,
                     onTap: () => unawaited(
-                      launchUrl(Uri(scheme: 'mailto', path: entry.email!)),
+                      launchMail(
+                        entry.email!,
+                        onFail: () => showAppSnack(
+                          context,
+                          'Could not open a mail app for ${entry.email!}.',
+                        ),
+                      ),
                     ),
                   ),
                 ),

@@ -52,11 +52,9 @@ use validator::Validate;
 pub type AppResult<T> = Result<T, AppError>;
 
 /// The server-side Google Maps-platform keys. `None`/empty = that
-/// capability degrades honestly (no route, no geocode) — never a
-/// client-side key.
+/// capability degrades honestly (no geocode) — never a client-side key.
 #[derive(Debug, Clone, Default)]
 pub struct GoogleKeys {
-    pub directions: Option<String>,
     pub geocoding: Option<String>,
 }
 

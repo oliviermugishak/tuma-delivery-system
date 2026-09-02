@@ -44,7 +44,6 @@ async fn main() {
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
         tuma_server::app::GoogleKeys {
-            directions: None,
             geocoding: config
                 .routing
                 .geo_api_key

@@ -74,17 +74,38 @@ class ActiveOrdersNotifier extends AsyncNotifier<List<GroupSummary>>
   }
 
   /// One poll tick. A failure keeps the last good list and the cadence —
-  /// the next tick retries.
+  /// the next tick retries. An UNCHANGED list is not written: every write
+  /// rebuilds every watcher's card (review P18), so the tick compares
+  /// ids + statuses + etaTargets first.
   Future<void> _tick() async {
     if (_timer == null) return;
     try {
       final groups = await ref.read(orderApiProvider).listGroups();
       if (!ref.mounted) return;
+      final current = state.asData?.value;
+      if (current != null && _sameList(current, groups)) {
+        _syncPoll(groups);
+        return;
+      }
       state = AsyncData(groups);
       _syncPoll(groups);
     } on Object {
       // Keep polling; the rendered list stays honest-stale.
     }
+  }
+
+  /// Equality on what the cards actually render: identity, status, and
+  /// the ETA the countdown decays against.
+  bool _sameList(List<GroupSummary> a, List<GroupSummary> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id ||
+          a[i].status != b[i].status ||
+          a[i].etaTarget != b[i].etaTarget) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// A silent refresh for events that create or change orders right now

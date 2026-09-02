@@ -113,12 +113,7 @@ class CartView extends ConsumerWidget {
               _SummaryCard(
                 lines: [
                   (label: 'Subtotal', value: state.subtotal),
-                  (
-                    label: state.buckets.length > 1
-                        ? 'Delivery fee'
-                        : 'Delivery fee',
-                    value: state.deliveryTotal,
-                  ),
+                  (label: 'Delivery fee', value: state.deliveryTotal),
                 ],
                 total: state.total,
               ),

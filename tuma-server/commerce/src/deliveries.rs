@@ -732,6 +732,12 @@ pub async fn tracking_for_user(
                so.status AS "status: OrderStatus",
                d.handoff_at, d.route_polyline, d.eta_target,
                d.last_lat, d.last_lng, d.last_location_at,
+               -- Deliberate duplication (review S16): this is the same
+               -- haversine as `haversine_m` above, inlined into SQL so
+               -- the closeness fact is computed where the row already
+               -- lives (one query, no round-trip of every breadcrumb).
+               -- If the formula ever changes, change BOTH — the unit
+               -- tests on each side pin the same Kigali yardsticks.
                CASE WHEN d.last_lat IS NOT NULL AND d.last_lng IS NOT NULL
                          AND og.address_lat IS NOT NULL AND og.address_lng IS NOT NULL
                THEN (6371000.0 * 2.0 * asin(sqrt(

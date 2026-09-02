@@ -7,6 +7,7 @@ import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 
 /// Profile tab — the founder's example layout: identity card with the
 /// inline edit, rows to real destinations, sign out. Only rows backed by
@@ -83,20 +84,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _editingName = false;
         _currentName = name;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Name updated.',
-            style: TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 1),
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, 'Name updated.', duration: const Duration(seconds: 1));
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {

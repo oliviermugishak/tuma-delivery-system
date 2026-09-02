@@ -14,6 +14,7 @@ import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 import 'package:tuma_app/features/location/customer_location.dart';
 
 /// The honest line for a location failure — the rider must know whether
@@ -68,6 +69,10 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   Timer? _pushTimer;
   Timer? _listTimer;
   RiderTally? _tally;
+  /// Consecutive empty work-list polls while delivering (review P25):
+  /// the run ends only on the SECOND one — a single `[]` may be a
+  /// server hiccup, not a finished run.
+  int _emptyPolls = 0;
 
   /// Per-delivery stage: the rider CONFIRMS pickup on screen (the food
   /// is in hand) — the server status stays picked_up (six-value rule);
@@ -165,10 +170,18 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
         _deliveries = deliveries;
         _loadError = null;
       });
-      // The last job just left the list: delivering has nothing to push
-      // to — stop honestly instead of looping on an empty run.
+      // The work list went empty while delivering (review P25): ONE
+      // empty poll is not proof — a server hiccup or a reassignment race
+      // can return `[]` for a heartbeat. Only TWO consecutive empty
+      // polls end the run; any non-empty poll resets the count.
       if (_delivering && deliveries.isEmpty) {
-        await _stopDelivering();
+        _emptyPolls++;
+        if (_emptyPolls >= 2) {
+          _emptyPolls = 0;
+          await _stopDelivering();
+        }
+      } else {
+        _emptyPolls = 0;
       }
     } on ApiError catch (e) {
       if (!mounted) return;
@@ -224,19 +237,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
         StateError(:final message) => 'GPS: $message. Enable location and try again.',
         _ => gpsFailureReason(error),
       };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            reason,
-            style: const TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, reason);
     }
   }
 
@@ -369,48 +370,15 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       await ref.read(riderApiProvider).markDelivered(delivery.deliveryId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Delivered — cash received. The store sees it too.',
-            style: TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, 'Delivered — cash received. The store sees it too.');
       await _refreshList();
     } on ApiError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message, style: const TextStyle(color: AppColors.onSurface)),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, e.message);
       await _refreshList();
     } on Object {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Could not reach the server — try again.',
-            style: TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, 'Could not reach the server — try again.');
       // A failed handover must not leave a stale card claiming a job the
       // server may or may not have settled — re-check the real list.
       await _refreshList();
@@ -420,24 +388,18 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
   }
 
   Future<void> _call(String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not open the dialer — the number is $phone',
-            style: const TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
+    // Sanitized + failure-caught (review P24): a crafted number must not
+    // smuggle extra digits into the dialer, and a dead dialer lands on a
+    // snack, not an uncaught async error.
+    await launchDialer(
+      phone,
+      onFail: (sanitized) {
+        if (mounted) {
+          showAppSnack(
+              context, 'Could not open the dialer — the number is $sanitized');
+        }
+      },
+    );
   }
 
   Future<void> _navigateTo(RiderDelivery delivery) async {
@@ -450,19 +412,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Could not open Google Maps.',
-              style: TextStyle(color: AppColors.onSurface),
-            ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.surfaceAlt,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+        showAppSnack(context, 'Could not open Google Maps.');
       }
     }
   }

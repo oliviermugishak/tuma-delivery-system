@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +15,7 @@ import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 import 'package:tuma_app/shared/widgets/store_contact_sheet.dart';
 
 /// A store and its menu, the way customers see it: a fixed full-bleed
@@ -328,8 +328,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     MenuItem item, {
     int quantity = 1,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     await ref.read(cartProvider.notifier).add(
           item,
           storeId: store.id,
@@ -342,22 +341,10 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
           data: (v) => v.itemCount,
           orElse: () => 0,
         );
-    messenger.showSnackBar(
-      SnackBar(
-        // Explicit light text — the theme's snackbar default is dark text
-        // (onInverseSurface), invisible on our navy background.
-        content: Text(
-          'Added to cart ($count item${count > 1 ? 's' : ''})',
-          style: TextStyle(color: AppColors.onSurface),
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-        backgroundColor: AppColors.surfaceAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.primary),
-        ),
-      ),
+    showAppSnack(
+      this.context,
+      'Added to cart ($count item${count > 1 ? 's' : ''})',
+      duration: const Duration(seconds: 1),
     );
   }
 
@@ -874,120 +861,6 @@ class _StoreSkeleton extends StatelessWidget {
     );
   }
 }
-
-/// The product sheet's gallery: swipes through the product's images
-/// (cover first) with tappable position dots when there is more than
-/// one; a lone image renders without the machinery. Mouse drags page the
-/// view too — desktop users are first-class here. Honest icon fallback
-/// via [RemoteImage] — no fake photos, ever.
-class _SheetGallery extends StatefulWidget {
-  const _SheetGallery({required this.product});
-
-  final MenuItem product;
-
-  @override
-  State<_SheetGallery> createState() => _SheetGalleryState();
-}
-
-class _SheetGalleryState extends State<_SheetGallery> {
-  final _controller = PageController();
-  int _page = 0;
-
-  // Flutter's scrollables ignore mouse drags by default (dragDevices
-  // covers touch, stylus, trackpad) — which made the gallery dead on a
-  // desktop window. The mouse joins the list for this view only.
-  static const _dragDevices = {
-    PointerDeviceKind.touch,
-    PointerDeviceKind.mouse,
-  };
-
-  void _goTo(int page) {
-    _controller.animateToPage(
-      page,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final images = widget.product.images;
-    final single = ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: AspectRatio(
-        aspectRatio: 16 / 10,
-        child: RemoteImage(
-          url: widget.product.displayImage,
-          seed: widget.product.name,
-          memCacheSize: 1080,
-        ),
-      ),
-    );
-    if (images.length < 2) return single;
-
-    return Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: AspectRatio(
-            aspectRatio: 16 / 10,
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context)
-                  .copyWith(dragDevices: _dragDevices),
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: images.length,
-                onPageChanged: (page) => setState(() => _page = page),
-                itemBuilder: (context, index) => RemoteImage(
-                  url: images[index],
-                  seed: '${widget.product.name}:$index',
-                  borderRadius: 0,
-                  memCacheSize: 1080,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 0; i < images.length; i++)
-              // A real tap target around a small dot — the indicator is
-              // a control, not a decoration.
-              GestureDetector(
-                onTap: () => _goTo(i),
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 10,
-                  ),
-                  child: Container(
-                    width: _page == i ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: _page == i
-                          ? AppColors.primary
-                          : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
 
 /// The floating cart bar — the screen's one primary action (P5): items
 /// + live total over a shadow strong enough to separate it from

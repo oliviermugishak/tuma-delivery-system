@@ -172,8 +172,6 @@ pub struct AppConfig {
     pub port: u16,
     pub host: String,
     pub cookie_secure: bool,
-    #[serde(default)]
-    pub static_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -259,6 +259,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testDesktop('one empty poll does not end the run; two do', (tester) async {
+    final script = _Script()..jobs = [_job()];
+    await _landOnKiosk(tester, script);
+
+    // Go to work: the confirm arms the push loop and the run.
+    await tester.ensureVisible(find.text('Picked up').first);
+    await tester.pump();
+    await tester.tap(find.text('Picked up').first);
+    await tester.pump();
+
+    // The server hiccups: ONE empty work-list poll. The run must survive
+    // — still delivering (the status pill and Mark delivered stay).
+    script.jobs = [];
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Delivering'), findsOneWidget,
+        reason: 'one empty poll is a hiccup, not a finished run');
+
+    // A second consecutive empty poll IS proof: the run ends honestly.
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Start delivering'), findsOneWidget,
+        reason: 'two consecutive empties end the run');
+
+    // The marker: one more empty poll changes nothing (already stopped).
+    expect(tester.takeException(), isNull);
+  });
+
   testDesktop('delivered confirms, settles, and the job leaves the list',
       (tester) async {
     final script = _Script()..jobs = [_job()];

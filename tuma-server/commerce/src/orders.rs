@@ -1199,36 +1199,6 @@ pub struct MerchantStoreOrderRow {
     pub created_at: OffsetDateTime,
 }
 
-pub async fn store_orders_for_merchant_scoped(
-    conn: &mut PgConnection,
-    merchant_id: Uuid,
-    store_ids: Option<&[Uuid]>,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<MerchantStoreOrderRow>, sqlx::Error> {
-    sqlx::query_as!(
-        MerchantStoreOrderRow,
-        r#"
-        SELECT so.id, so.store_id, s.name AS store_name, so.number,
-               so.status AS "status: OrderStatus", so.total,
-               og.address_text, so.created_at
-        FROM commerce.store_orders so
-        JOIN marketplace.stores s ON s.id = so.store_id
-        JOIN commerce.order_groups og ON og.id = so.order_group_id
-        WHERE s.merchant_id = $1
-          AND ($2::uuid[] IS NULL OR cardinality($2::uuid[]) = 0 OR so.store_id = ANY($2::uuid[]))
-        ORDER BY so.created_at DESC
-        LIMIT $3 OFFSET $4
-        "#,
-        merchant_id,
-        store_ids,
-        limit,
-        offset,
-    )
-    .fetch_all(&mut *conn)
-    .await
-}
-
 /// The merchant board across ALL of an operator's grants in ONE paged
 /// query. An owner grant admits every store of that merchant (its id goes
 /// in `owner_merchant_ids`); a scoped manager grant admits exactly its

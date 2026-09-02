@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
 import 'package:tuma_app/core/api/models/order.dart';
@@ -15,6 +14,7 @@ import 'package:tuma_app/features/tracking/delivery_map.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 import 'package:tuma_app/shared/widgets/store_contact_sheet.dart';
 
 /// Order group detail — the one purchase the customer placed, rendered as
@@ -245,48 +245,18 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       _syncPolling();
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Your ${order.storeName} order was cancelled.',
-            style: const TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      showAppSnack(
+        context,
+        'Your ${order.storeName} order was cancelled.',
+        duration: const Duration(seconds: 2),
       );
     } on ApiBadRequest catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message, style: const TextStyle(color: AppColors.onSurface)),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, e.message);
       await _refresh();
     } on Object {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Could not cancel right now. Try again.',
-            style: TextStyle(color: AppColors.onSurface),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      showAppSnack(context, 'Could not cancel right now. Try again.');
     }
   }
 
@@ -437,14 +407,46 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
             // The ladder's warning line: amber on lagging, the store
             // call when it's genuinely late (P14: delay is amber).
             ..._ladderWarningSliver(),
-            // The stepper — position in the story, labeled.
+            // The stepper — position in the story, labeled. A cancelled
+            // group has no story to step through: its own truth is a red
+            // dot row, not a "Placed" stepper that reads like progress
+            // (review L4 / P22).
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                child: OrderStepper.lifecycle(
-                  index: _stepperIndex(),
-                  completed: _effectiveGroupStatus == 'completed',
-                ),
+                child: _effectiveGroupStatus == 'cancelled'
+                    ? Row(
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Center(
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.error,
+                                  border: Border.all(
+                                      color: AppColors.error, width: 2),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Cancelled',
+                            style: AppTheme.bd(textTheme).copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      )
+                    : OrderStepper.lifecycle(
+                        index: _stepperIndex(),
+                        completed: _effectiveGroupStatus == 'completed',
+                      ),
               ),
             ),
             // ONE DELIVERY SECTION PER STORE — each store's own status,
@@ -638,8 +640,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
               const Spacer(),
               if (phone!.isNotEmpty)
                 GestureDetector(
-                  onTap: () =>
-                      unawaited(launchUrl(Uri(scheme: 'tel', path: phone))),
+                  // Sanitized + failure-caught (review P24).
+                  onTap: () => unawaited(
+                    launchDialer(
+                      phone,
+                      onFail: (sanitized) => showAppSnack(
+                        context,
+                        'Could not call $sanitized.',
+                      ),
+                    ),
+                  ),
                   child: Text(
                     'Call store',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -786,8 +796,15 @@ class _RiderCard extends StatelessWidget {
           ),
           if (phone != null)
             GestureDetector(
+              // Sanitized + failure-caught (review P24).
               onTap: () => unawaited(
-                launchUrl(Uri(scheme: 'tel', path: phone!)),
+                launchDialer(
+                  phone!,
+                  onFail: (sanitized) => showAppSnack(
+                    context,
+                    'Could not call $sanitized.',
+                  ),
+                ),
               ),
               child: Container(
                 width: 40,

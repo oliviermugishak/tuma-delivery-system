@@ -17,7 +17,10 @@ use utoipa::OpenApi;
 
 #[utoipa::path(
     get,
-    path = "/health",
+    // The route is mounted unversioned at /api (infra probe, not business
+    // API — see app.rs), so the declared path must include the /api root
+    // (review P26: clients generated against "/health" built broken URLs).
+    path = "/api/health",
     responses(
         (status = 200, description = "Server is healthy", body = String),
     ),
