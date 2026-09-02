@@ -62,6 +62,11 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     } on ApiError catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);
+    } on Object {
+      // A TypeError/FormatException from a bad body or model must leave
+      // the same honest error state — never a skeleton forever.
+      if (!mounted) return;
+      setState(() => _error = 'Something went wrong. Please try again.');
     }
   }
 

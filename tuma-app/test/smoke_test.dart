@@ -723,6 +723,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testDesktop('the home feed loads even when GPS never answers', (tester) async {
+    // No persisted pin, and acquireLocation throws in widget tests ('no
+    // GPS in widget tests') — the launch flow must never let the GPS fix
+    // block or break the feed. The store card on screen is the
+    // user-facing promise; the honest location hint rides along.
+    SharedPreferences.setMockInitialValues({});
+    final seen = <http.Request>[];
+    await _landOnShell(tester, _apiClient(seen: seen));
+
+    expect(find.text("Aline's Kitchen"), findsOneWidget);
+    expect(find.text('Stores near you'), findsOneWidget);
+    // GPS failed and no pin exists: distances are hidden, honestly.
+    expect(find.text("Add your location to see what's closest."),
+        findsOneWidget);
+    // Exactly one feed request — the GPS failure triggered no re-fetch.
+    expect(seen.where((r) => r.url.path.endsWith('/stores')), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
   testDesktop('checkout sends the pinned delivery coordinates with the order',
       (tester) async {
     SharedPreferences.setMockInitialValues({
@@ -897,6 +916,51 @@ void main() {
 
     // Detail screen renders.
     expect(find.textContaining('Track order #'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('double-tapping Track order opens exactly one detail',
+      (tester) async {
+    final client = _apiClient(groups: [
+      {
+        'id': 'group-9',
+        'number': 999,
+        'grand_total': 8500,
+        'status': 'completed',
+        'stores': ["Aline's Kitchen"],
+        'created_at': '2026-08-28T07:00:00Z',
+      },
+    ]);
+    await _landOnShell(tester, client);
+
+    await tester.tap(find.text('Orders'));
+    await _settle(tester);
+    await tester.tap(find.text('History'));
+    await _settle(tester);
+
+    // The eager double-tap: two taps dispatched in the same frame, no
+    // pump between — the second must be swallowed by pushOnce's
+    // in-flight key, never stacked as a second identical route (A32).
+    final card = find.text("Aline's Kitchen").first;
+    await tester.tap(card);
+    await tester.tap(card);
+    await _settle(tester);
+
+    // The detail renders exactly once, and nothing threw.
+    expect(find.textContaining('Track order #'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // The stronger observable: ONE back lands on the orders list. A
+    // stacked duplicate detail would still show 'Track order #' after
+    // the first back.
+    final back = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byIcon(Icons.arrow_back_rounded),
+    );
+    await tester.tap(back);
+    await _settle(tester);
+    expect(find.textContaining('Track order #'), findsNothing);
+    expect(find.text('History'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

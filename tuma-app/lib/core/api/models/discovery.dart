@@ -1,3 +1,4 @@
+import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/api/models/store.dart';
 
 /// One product hit from `GET /v1/search` (`ProductHitResponse`): the
@@ -34,10 +35,10 @@ class ProductHit {
         storeName: json['store_name'] as String,
         name: json['name'] as String,
         description: json['description'] as String?,
-        price: json['price'] as int,
+        price: asInt(json['price']),
         imageUrl: json['image_url'] as String?,
-        distanceM: json['distance_m'] as int?,
-        etaMin: json['eta_min'] as int?,
+        distanceM: (json['distance_m'] as num?)?.toInt(),
+        etaMin: (json['eta_min'] as num?)?.toInt(),
       );
 }
 

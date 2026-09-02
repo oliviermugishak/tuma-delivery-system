@@ -196,7 +196,14 @@ class ApiClient {
   dynamic _decode(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
-      return jsonDecode(response.body);
+      try {
+        return jsonDecode(response.body);
+      } on Object {
+        // A 2xx with a non-JSON body is the server misbehaving, not the
+        // caller's bug — it must surface as an ApiError like every other
+        // failure, never as a raw FormatException out of every call.
+        throw const ApiServer('The server sent something we could not read.');
+      }
     }
     final parsed = _parseError(response);
     switch (response.statusCode) {

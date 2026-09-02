@@ -16,6 +16,7 @@ import 'package:tuma_app/features/location/customer_location.dart';
 import 'package:tuma_app/features/orders/active_orders_provider.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/push_once.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 import 'package:tuma_app/shared/widgets/sliver_row_grid.dart';
 
@@ -64,13 +65,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
   }
 
-  /// First mount: locate (GPS or the persisted pin), then the feed. The
-  /// active orders come from the shared realtime poller (Home only
-  /// renders them) — the feed fetch is stores + addresses.
+  /// First mount: the feed fires immediately with the persisted pin, and
+  /// a fresh GPS fix — when the device can (the OS prompt on first run)
+  /// — lands afterwards and re-anchors it. Feed first, GPS refines: the
+  /// fix can take 10s or never come, and it must never block or break
+  /// the feed. The active orders come from the shared realtime poller
+  /// (Home only renders them) — the feed fetch is stores + addresses.
   Future<void> _load() async {
-    setState(() => _error = null);
-    final located = await _locate();
-    await _fetchFeed(located);
+    final pin = await ref.read(customerLocationProvider.future);
+    if (!mounted) return;
+    await _fetchFeed(pin);
+    // GPS refines: best-effort, no spinners — the feed is already on
+    // screen; a fix only sharpens the distances.
+    unawaited(_locate());
   }
 
   /// Pull-to-refresh: refresh the FEED only. A fresh GPS fix on every
@@ -82,6 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _fetchFeed(CustomerLocation? located) async {
+    if (!mounted) return;
     setState(() => _error = null);
     try {
       final api = ref.read(storeApiProvider);
@@ -106,6 +114,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // A refresh failure with a list on screen keeps the list; the error
       // state is for first loads with nothing to show.
       if (_stores == null) setState(() => _error = error.message);
+    } on Object {
+      // A TypeError/FormatException from a bad body or model must leave
+      // the same honest error state — never a skeleton forever.
+      if (!mounted) return;
+      if (_stores == null) {
+        setState(() => _error = 'Something went wrong. Please try again.');
+      }
     }
   }
 
@@ -114,20 +129,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await _load();
   }
 
-  /// Locate once per load, the founder-chosen launch flow: a fresh GPS
-  /// fix when the device can (the OS prompt on first run), else the
+  /// Locate once per launch, the founder-chosen flow: a fresh GPS fix
+  /// when the device can (the OS prompt on first run), else the
   /// persisted pin, else null — the bare feed with no distances. GPS is
-  /// best-effort by design: it must never block or break the feed.
+  /// best-effort by design: it must never block or break the feed — it
+  /// runs after the feed is on screen, and a fix re-anchors it via the
+  /// same silent refresh pull-to-refresh uses.
   Future<CustomerLocation?> _locate() async {
     try {
       final acquire = ref.read(acquireLocationProvider);
       final fix = await acquire();
       await ref.read(customerLocationProvider.notifier).setPin(fix);
+      await _refresh();
       return fix;
     } on Object {
-      // No GPS (desktop dev), services off, permission denied — fall
-      // back to the pin the checkout map persisted, if there is one.
-      return await ref.read(customerLocationProvider.future);
+      // No GPS (desktop dev), services off, permission denied — the
+      // persisted pin (if there is one) already drove the feed; the
+      // location hint owns the retry.
+      return null;
     }
   }
 
@@ -280,7 +299,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           itemBuilder: (BuildContext context, int index) => _StoreCard(
                             store: filtered[index],
                             onTap: () => unawaited(
-                              context.push('/stores/${filtered[index].id}'),
+                              pushOnce(context, '/stores/${filtered[index].id}'),
                             ),
                           ),
                         );
@@ -316,15 +335,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 const double _cardSpacing = 12;
 
-/// Two columns on a phone, three on wide windows — the spec's 1fr 1fr
-/// grid with 12px gaps.
+/// Two columns on a phone, up to three on wide windows — the same grid
+/// math as the Search shelf, with the spec's 12px gaps.
 ({int columns, double cardWidth}) _cardMetrics(double width) {
-  if (width < 400) {
-    return (columns: 1, cardWidth: width);
-  }
-  var columns = (width / 300).floor();
-  if (columns < 2) columns = 2;
-  if (columns > 4) columns = 4;
+  final columns = width < 400 ? 2 : (width ~/ 220).clamp(2, 3);
   final cardWidth = (width - _cardSpacing * (columns - 1)) / columns;
   return (columns: columns, cardWidth: cardWidth);
 }
@@ -423,7 +437,9 @@ class _LiveOrderCard extends StatelessWidget {
               ],
             ),
           ),
-          TrackPill(onTap: () => context.push('/orders/${order.id}')),
+          TrackPill(
+              onTap: () =>
+                  unawaited(pushOnce(context, '/orders/${order.id}'))),
         ],
       ),
     );
@@ -516,16 +532,24 @@ class _StoreCard extends StatelessWidget {
                           const Icon(Icons.schedule_rounded,
                               size: 14, color: AppColors.onSurfaceMuted),
                           const SizedBox(width: 4),
-                          Text(
-                            '~${store.etaMin} min',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.onSurfaceMuted,
+                          // Expanded, not fixed + Spacer: the fee pill
+                          // keeps its full price and the eta absorbs the
+                          // squeeze — a Row of fixed children overflows
+                          // on a narrow card.
+                          Expanded(
+                            child: Text(
+                              '~${store.etaMin} min',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.onSurfaceMuted,
+                              ),
                             ),
                           ),
-                        ],
-                        const Spacer(),
+                        ] else
+                          const Spacer(),
                         _FeePill(fee: store.deliveryFee),
                       ],
                     ),

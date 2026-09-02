@@ -181,6 +181,9 @@ class _DeliveryLocationScreenState
     setState(() => _locating = true);
     try {
       final fix = await ref.read(acquireLocationProvider)();
+      // The acquire can take seconds; this State (and the controller
+      // with it) may be gone by the time the fix lands (A40).
+      if (!mounted) return;
       await _map?.animateCamera(
         CameraUpdate.newLatLngZoom(LatLng(fix.lat, fix.lng), 17),
       );

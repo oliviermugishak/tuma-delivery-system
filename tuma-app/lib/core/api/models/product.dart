@@ -1,3 +1,5 @@
+import 'package:tuma_app/core/api/models/order.dart';
+
 /// One sellable line of a store's menu — the `MenuItemResponse` of the
 /// OpenAPI contract: a store_product joined with its catalog identity.
 /// The customer buys this (per-store price), never an abstract product.
@@ -35,7 +37,7 @@ class MenuItem {
         id: json['id'] as String,
         name: json['name'] as String,
         description: json['description'] as String?,
-        price: json['price'] as int,
+        price: asInt(json['price']),
         imageUrl: json['image_url'] as String?,
         images: (json['images'] as List?)
                 ?.whereType<String>()

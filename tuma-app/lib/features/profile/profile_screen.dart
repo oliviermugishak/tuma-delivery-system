@@ -37,10 +37,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _signOut() async {
     setState(() => _signingOut = true);
-    await ref.read(sessionProvider.notifier).signOut();
-    // The router redirect does the navigating; re-arm only if we somehow
-    // survive the transition.
-    if (mounted) setState(() => _signingOut = false);
+    try {
+      await ref.read(sessionProvider.notifier).signOut();
+    } on Object {
+      // Still here — the throw left the session untouched. Say so (the
+      // rider kiosk's sign-out has the same shape, minus the toast).
+      if (!mounted) return;
+      showAppSnack(context, 'Could not sign out — try again.');
+    } finally {
+      // The router redirect does the navigating on success; re-arm only
+      // if we somehow survive the transition.
+      if (mounted) setState(() => _signingOut = false);
+    }
   }
 
   void _toggleNameEdit() {
@@ -283,34 +291,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.credit_card_rounded,
                     label: 'Payment methods',
                     sub: 'Cash · MoMo (coming soon)',
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // SUPPORT section.
-            const Padding(
-              padding: EdgeInsets.fromLTRB(2, 0, 2, 8),
-              child: MicroLabel('Support'),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                children: [
-                  _ProfileRow(
-                    icon: Icons.help_outline_rounded,
-                    label: 'Help center',
-                    onTap: () {},
-                  ),
-                  const Divider(height: 1, indent: 14, endIndent: 14),
-                  _ProfileRow(
-                    icon: Icons.description_rounded,
-                    label: 'Terms & privacy',
                     onTap: () {},
                   ),
                 ],

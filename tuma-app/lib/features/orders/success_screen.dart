@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
 import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
+import 'package:tuma_app/shared/widgets/push_once.dart';
 
 /// The checkout's success screen — the redesign's screen 05: celebration,
 /// the order's facts (number · store), the ETA + cash card, and a
@@ -100,7 +101,9 @@ class SuccessScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: FilledButton(
-                  onPressed: () => context.push('/orders/$groupId'),
+                  // The one next step — a double-tap must not stack two
+                  // tracking screens (A32).
+                  onPressed: () => pushOnce(context, '/orders/$groupId'),
                   child: const Text(
                     'Track order',
                     style: TextStyle(

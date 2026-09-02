@@ -137,6 +137,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       // A failed refresh keeps the last good discovery state; the error
       // state is for first loads with nothing on screen.
       if (_result == null) setState(() => _error = error.message);
+    } on Object {
+      // A TypeError/FormatException from a bad body or model must leave
+      // the same honest error state — never a spinner forever.
+      if (!mounted || seq != _seq) return;
+      if (_result == null) {
+        setState(() => _error = 'Something went wrong. Please try again.');
+      }
     }
   }
 

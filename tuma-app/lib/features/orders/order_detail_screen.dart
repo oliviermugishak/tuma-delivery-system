@@ -221,6 +221,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       ),
     );
     if (confirmed != true) return;
+    // The dialog's await gap: this State (and the `ref` it owns) may not
+    // have survived it.
+    if (!mounted) return;
 
     try {
       await ref
@@ -566,8 +569,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       final at = _tracking?.deliveries
           .map((d) => d.updatedAt)
           .fold<DateTime?>(null, (max, t) => max == null || t.isAfter(max) ? t : max);
-      final when = at != null ? 'Today at ${_clockTime(at)}' : 'Today';
-      return '$when · ${_order?.addressText ?? ''}';
+      return '${_deliveredWhen(at)} · ${_order?.addressText ?? ''}';
     }
     // The ladder's promise (P11: a delay warning ALWAYS pairs with the
     // revised ETA — even when the revised answer is "now").
@@ -605,6 +607,27 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// The delivered moment, honestly dated (review A35): a delivery
+  /// viewed the next day must not still claim "Today". Calendar days
+  /// are compared in local time; anything older than yesterday gets its
+  /// date spelled out instead of a day word.
+  String _deliveredWhen(DateTime? at) {
+    if (at == null) return 'Today';
+    final local = at.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final thatDay = DateTime(local.year, local.month, local.day);
+    final diff = today.difference(thatDay).inDays;
+    if (diff <= 0) return 'Today at ${_clockTime(at)}';
+    if (diff == 1) return 'Yesterday at ${_clockTime(at)}';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final day = local.day.toString().padLeft(2, '0');
+    return 'on $day ${months[local.month - 1]} at ${_clockTime(at)}';
   }
 
   /// The lagging/ended warning: amber dot row + the store-call escape.

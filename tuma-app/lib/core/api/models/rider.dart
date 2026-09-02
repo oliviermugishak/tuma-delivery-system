@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:tuma_app/core/api/models/order.dart';
+
 /// One active delivery on the rider's work list (GET /v1/deliveries) —
 /// the kiosk's job card. Everything the run needs rides along: where it
 /// is, where it goes, who receives it (name + `tel:`), the cached road
@@ -65,8 +67,8 @@ class RiderDelivery {
   factory RiderDelivery.fromJson(Map<String, dynamic> json) => RiderDelivery(
         deliveryId: json['delivery_id'] as String,
         storeOrderId: json['store_order_id'] as String,
-        number: json['number'] as int,
-        total: json['total'] as int,
+        number: asInt(json['number']),
+        total: asInt(json['total']),
         storeName: json['store_name'] as String,
         storeAddress: json['store_address'] as String?,
         storeLat: (json['store_lat'] as num?)?.toDouble(),
@@ -125,8 +127,8 @@ class RiderTally {
   final int collected;
 
   factory RiderTally.fromJson(Map<String, dynamic> json) => RiderTally(
-        deliveries: json['deliveries'] as int,
-        collected: json['collected'] as int,
+        deliveries: asInt(json['deliveries']),
+        collected: asInt(json['collected']),
       );
 }
 
@@ -160,8 +162,8 @@ class RiderHistoryEntry {
   factory RiderHistoryEntry.fromJson(Map<String, dynamic> json) =>
       RiderHistoryEntry(
         deliveryId: json['delivery_id'] as String,
-        number: json['number'] as int,
-        total: json['total'] as int,
+        number: asInt(json['number']),
+        total: asInt(json['total']),
         storeName: json['store_name'] as String,
         destinationAddress: json['destination_address'] as String,
         customerName: json['customer_name'] as String?,

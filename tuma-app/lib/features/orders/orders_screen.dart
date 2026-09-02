@@ -11,6 +11,7 @@ import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/orders/active_orders_provider.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
+import 'package:tuma_app/shared/widgets/push_once.dart';
 
 /// Orders — the redesign's screen 03: Active and History tabs. Live
 /// orders get rich cards (status story + progress + Track, P11/P13);
@@ -110,7 +111,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _ActiveOrderCard(
                   group: shown[index],
-                  onTap: () => context.push('/orders/${shown[index].id}'),
+                  // CTA-grade: Track opens the detail; a double-tap must
+                  // not stack two of it (A32).
+                  onTap: () =>
+                      pushOnce(context, '/orders/${shown[index].id}'),
                 ),
               ),
             )
@@ -352,7 +356,8 @@ class _HistoryList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: _HistoryRow(
                 group: group,
-                onTap: () => context.push('/orders/${group.id}'),
+                // CTA-grade tap, same guard as the active card (A32).
+                onTap: () => pushOnce(context, '/orders/${group.id}'),
               ),
             ),
         ]);

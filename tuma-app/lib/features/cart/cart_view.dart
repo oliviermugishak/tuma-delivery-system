@@ -13,6 +13,7 @@ import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
 import 'package:tuma_app/features/cart/cart_notifier.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
+import 'package:tuma_app/shared/widgets/push_once.dart';
 import 'package:tuma_app/shared/widgets/remote_image.dart';
 
 /// The cart — the redesign's screens 12/13: one store card per bucket
@@ -132,7 +133,9 @@ class CartView extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
             child: FilledButton(
-              onPressed: () => context.push('/checkout'),
+              // The app's money CTA — an eager double-tap must not stack
+              // two checkouts (A32).
+              onPressed: () => pushOnce(context, '/checkout'),
               child: Text(
                 'Checkout · ${formatRwf(state.total)}',
                 style: const TextStyle(

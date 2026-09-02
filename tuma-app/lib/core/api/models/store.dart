@@ -1,3 +1,4 @@
+import 'package:tuma_app/core/api/models/order.dart';
 import 'package:tuma_app/core/api/models/product.dart';
 
 /// A store as the API returns it (`StoreResponse` in the OpenAPI contract).
@@ -58,11 +59,11 @@ class Store {
         category: json['category'] as String?,
         lat: (json['lat'] as num?)?.toDouble(),
         lng: (json['lng'] as num?)?.toDouble(),
-        distanceM: json['distance_m'] as int?,
-        etaMin: json['eta_min'] as int?,
+        distanceM: (json['distance_m'] as num?)?.toInt(),
+        etaMin: (json['eta_min'] as num?)?.toInt(),
         contactPhone: json['contact_phone'] as String?,
         contactEmail: json['contact_email'] as String?,
-        deliveryFee: json['delivery_fee'] as int,
+        deliveryFee: asInt(json['delivery_fee']),
         isOpen: json['is_open'] as bool,
         createdAt: json['created_at'] as String,
         updatedAt: json['updated_at'] as String,
