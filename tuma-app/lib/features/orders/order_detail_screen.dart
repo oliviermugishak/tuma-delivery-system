@@ -121,6 +121,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
+    } on Object {
+      // Review P17: a malformed payload (a model's cast blowing up on a
+      // wire shape the parser didn't expect) must land as an honest error
+      // state, not crash the screen.
+      if (!mounted) return;
+      setState(() => _error = 'Something went wrong loading this order.');
+      _pollTimer?.cancel();
     }
   }
 

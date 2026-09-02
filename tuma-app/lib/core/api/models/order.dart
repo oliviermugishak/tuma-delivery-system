@@ -3,6 +3,13 @@
 // is integer RWF — the server owns every number; timestamps stay strings
 // until a screen needs them parsed.
 
+/// Money and counts arrive as JSON numbers: Dart's jsonDecode gives back
+/// `int` on the wire as sent but a `double` the moment anything upstream
+/// re-encodes through `num` (a proxy, a cache, a desktop port). Every
+/// integer field reads through [asInt] — a hard `as int` cast is the P17
+/// crash class.
+int asInt(Object? value) => (value as num).toInt();
+
 /// A frozen line of a store order: name + price snapshotted at order time.
 class OrderItem {
   OrderItem({
@@ -27,8 +34,8 @@ class OrderItem {
         storeProductId: json['store_product_id'] as String,
         productId: json['product_id'] as String,
         productName: json['product_name'] as String,
-        unitPrice: json['unit_price'] as int,
-        quantity: json['quantity'] as int,
+        unitPrice: asInt(json['unit_price']),
+        quantity: asInt(json['quantity']),
       );
 }
 
@@ -65,13 +72,13 @@ class StoreOrder {
 
   factory StoreOrder.fromJson(Map<String, dynamic> json) => StoreOrder(
         id: json['id'] as String,
-        number: json['number'] as int,
+        number: asInt(json['number']),
         storeId: json['store_id'] as String,
         storeName: json['store_name'] as String,
         status: json['status'] as String,
-        subtotal: json['subtotal'] as int,
-        deliveryFee: json['delivery_fee'] as int,
-        total: json['total'] as int,
+        subtotal: asInt(json['subtotal']),
+        deliveryFee: asInt(json['delivery_fee']),
+        total: asInt(json['total']),
         storeContactPhone: json['store_contact_phone'] as String?,
         storeContactEmail: json['store_contact_email'] as String?,
         items: (json['items'] as List)
@@ -124,13 +131,13 @@ class OrderGroup {
 
   factory OrderGroup.fromJson(Map<String, dynamic> json) => OrderGroup(
         id: json['id'] as String,
-        number: json['number'] as int,
+        number: asInt(json['number']),
         addressText: json['address_text'] as String,
         addressLat: (json['address_lat'] as num?)?.toDouble(),
         addressLng: (json['address_lng'] as num?)?.toDouble(),
-        subtotal: json['subtotal'] as int,
-        deliveryTotal: json['delivery_total'] as int,
-        grandTotal: json['grand_total'] as int,
+        subtotal: asInt(json['subtotal']),
+        deliveryTotal: asInt(json['delivery_total']),
+        grandTotal: asInt(json['grand_total']),
         status: json['status'] as String,
         paymentStatus: json['payment_status'] as String,
         customerNote: json['customer_note'] as String?,
@@ -175,8 +182,8 @@ class GroupSummary {
 
   factory GroupSummary.fromJson(Map<String, dynamic> json) => GroupSummary(
         id: json['id'] as String,
-        number: json['number'] as int,
-        grandTotal: json['grand_total'] as int,
+        number: asInt(json['number']),
+        grandTotal: asInt(json['grand_total']),
         status: json['status'] as String,
         stores: (json['stores'] as List).whereType<String>().toList(),
         itemsCount: (json['items_count'] as num?)?.toInt() ?? 0,
