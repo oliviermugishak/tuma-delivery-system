@@ -601,7 +601,15 @@ class CartScreen extends StatelessWidget {
       backgroundColor: AppColors.surface,
       body: SafeArea(
         child: CartView(
-          onBack: () => context.pop(),
+          // A cold start on /cart has nothing to pop — fall home instead
+          // of throwing (review P16).
+          onBack: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
         ),
       ),
     );

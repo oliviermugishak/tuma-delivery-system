@@ -239,7 +239,13 @@ class _DeliveryLocationScreenState
             ? '${saved.label} saved — ${saved.addressText}'
             : 'Location updated.',
       );
-      context.pop();
+      // A cold start on /profile/location has nothing to pop — the saved
+      // pin still deserves a landing, not a throw (review P16).
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/home');
+      }
     } on ApiError catch (e) {
       if (mounted) {
         setState(() {
@@ -341,7 +347,15 @@ class _DeliveryLocationScreenState
                       controller: _searchCtrl,
                       focusNode: _searchFocus,
                       onChanged: _onSearchChanged,
-                      onBack: () => context.pop(),
+                      // A cold start on /profile/location has nothing to
+                      // pop — fall home instead of throwing (review P16).
+                      onBack: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/home');
+                        }
+                      },
                     ),
                   ),
                   if (_hits.isNotEmpty)

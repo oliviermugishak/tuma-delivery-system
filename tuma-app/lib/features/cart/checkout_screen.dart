@@ -355,7 +355,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back_rounded, size: 22),
-                  onPressed: () => context.pop(),
+                  // A cold start on /checkout has nothing to pop — fall
+                  // home instead of throwing (review P16).
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
                 ),
                 const SizedBox(width: 8),
                 Text('Checkout',
