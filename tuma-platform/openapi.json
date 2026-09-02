@@ -9,7 +9,7 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/health": {
+    "/api/health": {
       "get": {
         "tags": [
           "health"
@@ -175,9 +175,31 @@
           "admin"
         ],
         "operationId": "list_customers",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "All customer accounts, oldest first",
+            "description": "Customer accounts, oldest first, one page",
             "content": {
               "application/json": {
                 "schema": {
@@ -294,9 +316,31 @@
           "admin"
         ],
         "operationId": "list_merchants",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "All merchant businesses, oldest first",
+            "description": "Merchant businesses, oldest first, one page",
             "content": {
               "application/json": {
                 "schema": {
@@ -428,6 +472,9 @@
           },
           "404": {
             "description": "No merchant business with that id"
+          },
+          "409": {
+            "description": "The business has order history — suspend it instead"
           }
         }
       },
@@ -490,9 +537,31 @@
           "admin"
         ],
         "operationId": "list_riders",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "All riders, oldest first",
+            "description": "Riders, oldest first, one page",
             "content": {
               "application/json": {
                 "schema": {
@@ -1244,9 +1313,31 @@
           "merchant"
         ],
         "operationId": "list_products",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "The business's catalog, oldest first",
+            "description": "The business's catalog, oldest first, one page",
             "content": {
               "application/json": {
                 "schema": {
@@ -1338,6 +1429,9 @@
           },
           "404": {
             "description": "Not one of this business's products"
+          },
+          "409": {
+            "description": "The product has order history — mark it unavailable instead"
           }
         }
       },
@@ -1737,9 +1831,31 @@
           "merchant"
         ],
         "operationId": "list_store_products",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Rows to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "The assortment across reachable stores, oldest first",
+            "description": "The assortment across reachable stores, oldest first, one page",
             "content": {
               "application/json": {
                 "schema": {
@@ -1834,6 +1950,9 @@
           },
           "404": {
             "description": "Not one of this business's store products"
+          },
+          "409": {
+            "description": "The store product has order history — mark it unavailable instead"
           }
         }
       },
@@ -1883,6 +2002,9 @@
           },
           "404": {
             "description": "Not one of this business's store products"
+          },
+          "409": {
+            "description": "Changed by someone else since the read — reload and retry"
           },
           "422": {
             "description": "Invalid input"
@@ -2029,6 +2151,9 @@
           },
           "404": {
             "description": "Not one of this operator's stores"
+          },
+          "409": {
+            "description": "The store has order history — close it instead"
           }
         }
       },
@@ -2078,6 +2203,9 @@
           },
           "404": {
             "description": "Not one of this operator's stores"
+          },
+          "409": {
+            "description": "Changed by someone else since the read — reload and retry"
           },
           "422": {
             "description": "Invalid input"
@@ -2857,7 +2985,7 @@
             "items": {
               "$ref": "#/components/schemas/CheckoutLineInput"
             },
-            "description": "At least one line. Each carries the store_product id and quantity."
+            "description": "At least one line, at most fifty (review P12: an unbounded cart is\na denial-of-wallet and a denial-of-database — 50 lines is generous\nfor real baskets). Each carries the store_product id and quantity."
           }
         }
       },

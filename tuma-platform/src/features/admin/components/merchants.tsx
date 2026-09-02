@@ -51,7 +51,11 @@ type MerchantRow = {
 export function MerchantsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const merchants = useQuery(listMerchantsOptions())
+  // The server caps unparameted lists at 50 rows (review S34); the
+  // console's search/filter runs client-side over the full book, so this
+  // asks for the server's maximum page. Real pagination UI is the
+  // follow-up if a wing ever outgrows 200.
+  const merchants = useQuery(listMerchantsOptions({ query: { limit: 200 } }))
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())

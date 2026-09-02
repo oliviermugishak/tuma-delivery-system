@@ -55,8 +55,12 @@ type CatalogRow = {
 export function CatalogScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const products = useQuery(listProductsOptions())
-  const storeProducts = useQuery(listStoreProductsOptions())
+  // The server caps unparameted lists at 50 rows (review S34); the
+  // console's search/filter runs client-side over the full book, so this
+  // asks for the server's maximum page. Real pagination UI is the
+  // follow-up if a wing ever outgrows 200.
+  const products = useQuery(listProductsOptions({ query: { limit: 200 } }))
+  const storeProducts = useQuery(listStoreProductsOptions({ query: { limit: 200 } }))
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string
@@ -297,7 +301,7 @@ function CatalogForm({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const products = useQuery(listProductsOptions())
+  const products = useQuery(listProductsOptions({ query: { limit: 200 } }))
   const images = useQuery({
     ...listProductImagesOptions({ path: { id: productId ?? '' } }),
     enabled: mode === 'edit' && !!productId,

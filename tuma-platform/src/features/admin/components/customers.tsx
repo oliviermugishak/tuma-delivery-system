@@ -46,7 +46,11 @@ interface CustomerRow {
 }
 
 export function CustomersPage() {
-  const customers = useQuery(listCustomersOptions())
+  // The server caps unparameted lists at 50 rows (review S34); the
+  // console's search/filter runs client-side over the full book, so this
+  // asks for the server's maximum page. Real pagination UI is the
+  // follow-up if a wing ever outgrows 200.
+  const customers = useQuery(listCustomersOptions({ query: { limit: 200 } }))
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)

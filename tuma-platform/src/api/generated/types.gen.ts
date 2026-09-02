@@ -5,6 +5,27 @@ export type ClientOptions = {
 };
 
 /**
+ * The wire shape of a saved address (timestamps as RFC-3339).
+ */
+export type AddressResponse = {
+    address_text: string;
+    created_at: string;
+    id: string;
+    is_default: boolean;
+    /**
+     * Home / work / other.
+     */
+    kind: string;
+    label: string;
+    lat?: number | null;
+    lng?: number | null;
+    /**
+     * The rider note that travels with the address.
+     */
+    note?: string | null;
+};
+
+/**
  * A store inside the admin's business detail — standing facts plus how
  * many store products it sells. No location or image until something
  * displays them.
@@ -64,12 +85,20 @@ export type CheckoutInput = {
     address_lng?: number | null;
     address_text: string;
     /**
+     * The checkout's "Note for rider · optional" — one line the rider
+     * sees on the Delivering card. Trimmed server-side; empty becomes
+     * None (P2: nothing renders for an unknown).
+     */
+    customer_note?: string | null;
+    /**
      * A client-generated key: retrying the same checkout with the same key
      * returns the group it already created instead of placing twice.
      */
     idempotency_key?: string | null;
     /**
-     * At least one line. Each carries the store_product id and quantity.
+     * At least one line, at most fifty (review P12: an unbounded cart is
+     * a denial-of-wallet and a denial-of-database — 50 lines is generous
+     * for real baskets). Each carries the store_product id and quantity.
      */
     items: Array<CheckoutLineInput>;
 };
@@ -77,6 +106,22 @@ export type CheckoutInput = {
 export type CheckoutLineInput = {
     quantity: number;
     store_product_id: string;
+};
+
+export type CreateAddressInput = {
+    address_text: string;
+    is_default?: boolean;
+    /**
+     * Home / work / other — the save screen's label chips.
+     */
+    kind?: string | null;
+    label: string;
+    lat?: number | null;
+    lng?: number | null;
+    /**
+     * The rider note — rides to the rider's Delivering card.
+     */
+    note?: string | null;
 };
 
 /**
@@ -115,6 +160,11 @@ export type CreateStoreInput = {
      * What the store sells, in one word or two (e.g. "Grill", "Bakery").
      */
     category?: string | null;
+    contact_email?: string | null;
+    /**
+     * The customer-facing contact surface (Get help / store info).
+     */
+    contact_phone?: string | null;
     /**
      * Integer RWF. Defaults to 0 (free delivery).
      */
@@ -183,6 +233,19 @@ export type DeliveryTrackingResponse = {
     last_lng?: number | null;
     last_location_at?: string | null;
     /**
+     * Straight-line meters from the rider's freshest fix to the
+     * destination — the customer's "your driver is close" line. Null
+     * until the rider's phone has checked in.
+     */
+    rider_distance_m?: number | null;
+    /**
+     * The assigned rider's identity for the tracking card ("Amani N. ·
+     * Moto · MUP 1234") — hidden until a rider exists (P2).
+     */
+    rider_name?: string | null;
+    rider_plate?: string | null;
+    rider_vehicle?: string | null;
+    /**
      * The road route cached at handoff, or null when no routing backend
      * is configured — never invented geometry.
      */
@@ -204,12 +267,41 @@ export type DeliveryTrackingResponse = {
      * The recent real positions (tail), oldest first.
      */
     trail: Array<TrailResponse>;
+    /**
+     * The delivery's last write — for a settled delivery, the delivered
+     * moment the customer's "Delivered · time" line shows (D5).
+     */
+    updated_at: string;
+};
+
+/**
+ * One geocode hit: what the location editor renders and what Save
+ * stores.
+ */
+export type GeoHit = {
+    address_text: string;
+    lat: number;
+    lng: number;
 };
 
 export type GroupSummaryResponse = {
     created_at: string;
+    /**
+     * The soonest ETA among the group's out-for-delivery deliveries
+     * (null unless something is picked_up).
+     */
+    eta_target?: string | null;
+    /**
+     * The first item's snapshot name — the active card's sub-line.
+     */
+    first_item_name?: string | null;
     grand_total: number;
     id: string;
+    /**
+     * Total frozen items across the group's store orders — the active
+     * cards' "4 items" line and the history rows' distinguishing fact.
+     */
+    items_count: number;
     number: number;
     status: string;
     /**
@@ -383,6 +475,10 @@ export type OrderGroupResponse = {
     address_lng?: number | null;
     address_text: string;
     created_at: string;
+    /**
+     * The checkout's rider note — the rider's Delivering card renders it.
+     */
+    customer_note?: string | null;
     delivery_total: number;
     grand_total: number;
     id: string;
@@ -491,6 +587,10 @@ export type RiderAdminResponse = {
 
 export type RiderDeliveryResponse = {
     customer_name?: string | null;
+    /**
+     * The checkout's rider note ("blue gate, ring the bell").
+     */
+    customer_note?: string | null;
     customer_phone?: string | null;
     delivery_id: string;
     destination_address: string;
@@ -501,13 +601,43 @@ export type RiderDeliveryResponse = {
     last_lat?: number | null;
     last_lng?: number | null;
     last_location_at?: string | null;
+    number: number;
     route_polyline?: string | null;
     status: string;
     store_address?: string | null;
+    /**
+     * The store's phone — the Pick-up stage's Call-the-store action.
+     */
+    store_contact_phone?: string | null;
     store_lat?: number | null;
     store_lng?: number | null;
     store_name: string;
     store_order_id: string;
+    /**
+     * The cash this stop collects — the Delivering card's accent strip.
+     */
+    total: number;
+};
+
+/**
+ * The rider's delivered history — every stop they completed, newest
+ * first. The rider app's history list (the day's tally shows the money;
+ * this shows the runs).
+ */
+export type RiderHistoryEntryResponse = {
+    customer_name?: string | null;
+    delivered_at: string;
+    delivery_id: string;
+    destination_address: string;
+    /**
+     * The customer-facing order number ("Order #8").
+     */
+    number: number;
+    store_name: string;
+    /**
+     * The cash this stop collected.
+     */
+    total: number;
 };
 
 /**
@@ -521,6 +651,15 @@ export type RiderProfileResponse = {
     is_active: boolean;
     name: string;
     rider_number: number;
+};
+
+/**
+ * The rider's day so far — the Waiting card's "3 deliveries · 12,000
+ * RWF collected" line. Real money, really settled today (P8, P13).
+ */
+export type RiderTallyResponse = {
+    collected: number;
+    deliveries: number;
 };
 
 export type SearchResponse = {
@@ -547,6 +686,15 @@ export type StoreOrderResponse = {
     items: Array<OrderItemResponse>;
     number: number;
     status: string;
+    /**
+     * The store's email — the Get help sheet's Email row.
+     */
+    store_contact_email?: string | null;
+    /**
+     * The store's phone — the Get help sheet's Call row (absent on the
+     * checkout response; the detail is the contact surface).
+     */
+    store_contact_phone?: string | null;
     store_id: string;
     store_name: string;
     subtotal: number;
@@ -582,6 +730,12 @@ export type StoreProductResponse = {
 export type StoreResponse = {
     address_text?: string | null;
     category?: string | null;
+    contact_email?: string | null;
+    /**
+     * The store's contact surface — the app's Get-help / store-info
+     * sheets call and email the store with these.
+     */
+    contact_phone?: string | null;
     created_at: string;
     delivery_fee: number;
     description?: string | null;
@@ -626,6 +780,16 @@ export type TrailResponse = {
     lat: number;
     lng: number;
     recorded_at: string;
+};
+
+export type UpdateAddressInput = {
+    address_text?: string | null;
+    is_default?: boolean | null;
+    kind?: string | null;
+    label?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    note?: string | null;
 };
 
 /**
@@ -679,6 +843,8 @@ export type UpdateRiderInput = {
 export type UpdateStoreInput = {
     address_text?: string | null;
     category?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
     delivery_fee?: number | null;
     description?: string | null;
     image_url?: string | null;
@@ -707,7 +873,7 @@ export type HealthCheckData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/health';
+    url: '/api/health';
 };
 
 export type HealthCheckResponses = {
@@ -719,10 +885,137 @@ export type HealthCheckResponses = {
 
 export type HealthCheckResponse = HealthCheckResponses[keyof HealthCheckResponses];
 
-export type ListCustomersData = {
+export type ListAddressesData = {
     body?: never;
     path?: never;
     query?: never;
+    url: '/v1/addresses';
+};
+
+export type ListAddressesErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+};
+
+export type ListAddressesResponses = {
+    /**
+     * The caller's saved addresses, default first
+     */
+    200: Array<AddressResponse>;
+};
+
+export type ListAddressesResponse = ListAddressesResponses[keyof ListAddressesResponses];
+
+export type CreateAddressData = {
+    body: CreateAddressInput;
+    path?: never;
+    query?: never;
+    url: '/v1/addresses';
+};
+
+export type CreateAddressErrors = {
+    /**
+     * Validation failed
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+};
+
+export type CreateAddressResponses = {
+    /**
+     * The saved address (first one becomes the default)
+     */
+    201: AddressResponse;
+};
+
+export type CreateAddressResponse = CreateAddressResponses[keyof CreateAddressResponses];
+
+export type DeleteAddressData = {
+    body?: never;
+    path: {
+        /**
+         * Address id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/addresses/{id}';
+};
+
+export type DeleteAddressErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Address not found (or not yours)
+     */
+    404: unknown;
+};
+
+export type DeleteAddressResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeleteAddressResponse = DeleteAddressResponses[keyof DeleteAddressResponses];
+
+export type UpdateAddressData = {
+    body: UpdateAddressInput;
+    path: {
+        /**
+         * Address id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/v1/addresses/{id}';
+};
+
+export type UpdateAddressErrors = {
+    /**
+     * Validation failed
+     */
+    400: unknown;
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Address not found (or not yours)
+     */
+    404: unknown;
+};
+
+export type UpdateAddressResponses = {
+    /**
+     * The updated address
+     */
+    200: AddressResponse;
+};
+
+export type UpdateAddressResponse = UpdateAddressResponses[keyof UpdateAddressResponses];
+
+export type ListCustomersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
     url: '/v1/admin/customers';
 };
 
@@ -739,7 +1032,7 @@ export type ListCustomersErrors = {
 
 export type ListCustomersResponses = {
     /**
-     * All customer accounts, oldest first
+     * Customer accounts, oldest first, one page
      */
     200: Array<CustomerAdminResponse>;
 };
@@ -829,7 +1122,16 @@ export type UpdateCustomerResponse = UpdateCustomerResponses[keyof UpdateCustome
 export type ListMerchantsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
     url: '/v1/admin/merchants';
 };
 
@@ -846,7 +1148,7 @@ export type ListMerchantsErrors = {
 
 export type ListMerchantsResponses = {
     /**
-     * All merchant businesses, oldest first
+     * Merchant businesses, oldest first, one page
      */
     200: Array<MerchantResponse>;
 };
@@ -913,6 +1215,10 @@ export type DeleteMerchantErrors = {
      * No merchant business with that id
      */
     404: unknown;
+    /**
+     * The business has order history — suspend it instead
+     */
+    409: unknown;
 };
 
 export type DeleteMerchantResponses = {
@@ -1003,7 +1309,16 @@ export type UpdateMerchantResponse = UpdateMerchantResponses[keyof UpdateMerchan
 export type ListRidersData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
     url: '/v1/admin/riders';
 };
 
@@ -1020,7 +1335,7 @@ export type ListRidersErrors = {
 
 export type ListRidersResponses = {
     /**
-     * All riders, oldest first
+     * Riders, oldest first, one page
      */
     200: Array<RiderAdminResponse>;
 };
@@ -1335,6 +1650,60 @@ export type ListRiderDeliveriesResponses = {
 
 export type ListRiderDeliveriesResponse = ListRiderDeliveriesResponses[keyof ListRiderDeliveriesResponses];
 
+export type RiderHistoryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/deliveries/history';
+};
+
+export type RiderHistoryErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a rider
+     */
+    403: unknown;
+};
+
+export type RiderHistoryResponses = {
+    /**
+     * The rider's delivered deliveries, newest first (latest 50)
+     */
+    200: Array<RiderHistoryEntryResponse>;
+};
+
+export type RiderHistoryResponse = RiderHistoryResponses[keyof RiderHistoryResponses];
+
+export type RiderTodayData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/deliveries/today';
+};
+
+export type RiderTodayErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Not a rider
+     */
+    403: unknown;
+};
+
+export type RiderTodayResponses = {
+    /**
+     * Deliveries + cash settled today (UTC)
+     */
+    200: RiderTallyResponse;
+};
+
+export type RiderTodayResponse = RiderTodayResponses[keyof RiderTodayResponses];
+
 export type MarkDeliveredData = {
     body?: never;
     path: {
@@ -1447,6 +1816,74 @@ export type GetFileResponses = {
 
 export type GetFileResponse = GetFileResponses[keyof GetFileResponses];
 
+export type ReverseGeocodeData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Latitude
+         */
+        lat: number;
+        /**
+         * Longitude
+         */
+        lng: number;
+    };
+    url: '/v1/geo/reverse';
+};
+
+export type ReverseGeocodeErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Geocoding backend failed or is not configured
+     */
+    502: unknown;
+};
+
+export type ReverseGeocodeResponses = {
+    /**
+     * Addresses for the point, best first
+     */
+    200: Array<GeoHit>;
+};
+
+export type ReverseGeocodeResponse = ReverseGeocodeResponses[keyof ReverseGeocodeResponses];
+
+export type SearchGeocodeData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Street or place text
+         */
+        q: string;
+    };
+    url: '/v1/geo/search';
+};
+
+export type SearchGeocodeErrors = {
+    /**
+     * Not authenticated
+     */
+    401: unknown;
+    /**
+     * Geocoding backend failed or is not configured
+     */
+    502: unknown;
+};
+
+export type SearchGeocodeResponses = {
+    /**
+     * Address suggestions for the text
+     */
+    200: Array<GeoHit>;
+};
+
+export type SearchGeocodeResponse = SearchGeocodeResponses[keyof SearchGeocodeResponses];
+
 export type MeData = {
     body?: never;
     path?: never;
@@ -1540,7 +1977,16 @@ export type ListMerchantOrdersResponse = ListMerchantOrdersResponses[keyof ListM
 export type ListProductsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
     url: '/v1/merchant/products';
 };
 
@@ -1557,7 +2003,7 @@ export type ListProductsErrors = {
 
 export type ListProductsResponses = {
     /**
-     * The business's catalog, oldest first
+     * The business's catalog, oldest first, one page
      */
     200: Array<ProductResponse>;
 };
@@ -1624,6 +2070,10 @@ export type DeleteProductErrors = {
      * Not one of this business's products
      */
     404: unknown;
+    /**
+     * The product has order history — mark it unavailable instead
+     */
+    409: unknown;
 };
 
 export type DeleteProductResponses = {
@@ -1954,7 +2404,16 @@ export type HandoffStoreOrderResponse = HandoffStoreOrderResponses[keyof Handoff
 export type ListStoreProductsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Page size, 1-200 (default 50)
+         */
+        limit?: number;
+        /**
+         * Rows to skip
+         */
+        offset?: number;
+    };
     url: '/v1/merchant/store-products';
 };
 
@@ -1971,7 +2430,7 @@ export type ListStoreProductsErrors = {
 
 export type ListStoreProductsResponses = {
     /**
-     * The assortment across reachable stores, oldest first
+     * The assortment across reachable stores, oldest first, one page
      */
     200: Array<StoreProductResponse>;
 };
@@ -2042,6 +2501,10 @@ export type DeleteStoreProductErrors = {
      * Not one of this business's store products
      */
     404: unknown;
+    /**
+     * The store product has order history — mark it unavailable instead
+     */
+    409: unknown;
 };
 
 export type DeleteStoreProductResponses = {
@@ -2078,6 +2541,10 @@ export type UpdateStoreProductErrors = {
      * Not one of this business's store products
      */
     404: unknown;
+    /**
+     * Changed by someone else since the read — reload and retry
+     */
+    409: unknown;
     /**
      * Invalid input
      */
@@ -2180,6 +2647,10 @@ export type DeleteOwnStoreErrors = {
      * Not one of this operator's stores
      */
     404: unknown;
+    /**
+     * The store has order history — close it instead
+     */
+    409: unknown;
 };
 
 export type DeleteOwnStoreResponses = {
@@ -2252,6 +2723,10 @@ export type UpdateOwnStoreErrors = {
      * Not one of this operator's stores
      */
     404: unknown;
+    /**
+     * Changed by someone else since the read — reload and retry
+     */
+    409: unknown;
     /**
      * Invalid input
      */

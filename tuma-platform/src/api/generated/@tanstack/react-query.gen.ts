@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createMerchant, createOwnStore, createProduct, createRider, createStoreProduct, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteRider, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, handoffStoreOrder, healthCheck, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listRiderDeliveries, listRiders, listStoreProducts, listStores, login, logout, markDelivered, me, openapiJson, type Options, orderTracking, otpRequest, otpVerify, pushLocation, search, setProductCover, summary, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateRider, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
-import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateRiderData, CreateRiderResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteRiderData, DeleteRiderResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HandoffStoreOrderData, HandoffStoreOrderResponse, HealthCheckData, HealthCheckResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListRiderDeliveriesData, ListRiderDeliveriesResponse, ListRidersData, ListRidersResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MarkDeliveredData, MarkDeliveredResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OrderTrackingData, OrderTrackingResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, PushLocationData, PushLocationResponse, SearchData, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateRiderData, UpdateRiderResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
+import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createAddress, createMerchant, createOwnStore, createProduct, createRider, createStoreProduct, deleteAddress, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteRider, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, handoffStoreOrder, healthCheck, listAddresses, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listRiderDeliveries, listRiders, listStoreProducts, listStores, login, logout, markDelivered, me, openapiJson, type Options, orderTracking, otpRequest, otpVerify, pushLocation, reverseGeocode, riderHistory, riderToday, search, searchGeocode, setProductCover, summary, updateAddress, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateRider, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateAddressData, CreateAddressResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateRiderData, CreateRiderResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteAddressData, DeleteAddressResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteRiderData, DeleteRiderResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HandoffStoreOrderData, HandoffStoreOrderResponse, HealthCheckData, HealthCheckResponse, ListAddressesData, ListAddressesResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListRiderDeliveriesData, ListRiderDeliveriesResponse, ListRidersData, ListRidersResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MarkDeliveredData, MarkDeliveredResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OrderTrackingData, OrderTrackingResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, PushLocationData, PushLocationResponse, ReverseGeocodeData, ReverseGeocodeResponse, RiderHistoryData, RiderHistoryResponse, RiderTodayData, RiderTodayResponse, SearchData, SearchGeocodeData, SearchGeocodeResponse, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateAddressData, UpdateAddressResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateRiderData, UpdateRiderResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -54,6 +54,63 @@ export const healthCheckOptions = (options?: Options<HealthCheckData>) => queryO
     queryKey: healthCheckQueryKey(options)
 });
 
+export const listAddressesQueryKey = (options?: Options<ListAddressesData>) => createQueryKey('listAddresses', options);
+
+export const listAddressesOptions = (options?: Options<ListAddressesData>) => queryOptions<ListAddressesResponse, DefaultError, ListAddressesResponse, ReturnType<typeof listAddressesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAddresses({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAddressesQueryKey(options)
+});
+
+export const createAddressMutation = (options?: Partial<Options<CreateAddressData>>): UseMutationOptions<CreateAddressResponse, DefaultError, Options<CreateAddressData>> => {
+    const mutationOptions: UseMutationOptions<CreateAddressResponse, DefaultError, Options<CreateAddressData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAddress({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const deleteAddressMutation = (options?: Partial<Options<DeleteAddressData>>): UseMutationOptions<DeleteAddressResponse, DefaultError, Options<DeleteAddressData>> => {
+    const mutationOptions: UseMutationOptions<DeleteAddressResponse, DefaultError, Options<DeleteAddressData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteAddress({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const updateAddressMutation = (options?: Partial<Options<UpdateAddressData>>): UseMutationOptions<UpdateAddressResponse, DefaultError, Options<UpdateAddressData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAddressResponse, DefaultError, Options<UpdateAddressData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAddress({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listCustomersQueryKey = (options?: Options<ListCustomersData>) => createQueryKey('listCustomers', options);
 
 export const listCustomersOptions = (options?: Options<ListCustomersData>) => queryOptions<ListCustomersResponse, DefaultError, ListCustomersResponse, ReturnType<typeof listCustomersQueryKey>>({
@@ -68,6 +125,62 @@ export const listCustomersOptions = (options?: Options<ListCustomersData>) => qu
     },
     queryKey: listCustomersQueryKey(options)
 });
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const listCustomersInfiniteQueryKey = (options?: Options<ListCustomersData>): QueryKey<Options<ListCustomersData>> => createQueryKey('listCustomers', options, true);
+
+export const listCustomersInfiniteOptions = (options?: Options<ListCustomersData>) => {
+    const opts = infiniteQueryOptions<ListCustomersResponse, DefaultError, InfiniteData<ListCustomersResponse>, QueryKey<Options<ListCustomersData>>, number | Pick<QueryKey<Options<ListCustomersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListCustomersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listCustomers({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listCustomersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Hard-delete a customer account. The profile, refresh tokens, and order
@@ -117,6 +230,33 @@ export const listMerchantsOptions = (options?: Options<ListMerchantsData>) => qu
     },
     queryKey: listMerchantsQueryKey(options)
 });
+
+export const listMerchantsInfiniteQueryKey = (options?: Options<ListMerchantsData>): QueryKey<Options<ListMerchantsData>> => createQueryKey('listMerchants', options, true);
+
+export const listMerchantsInfiniteOptions = (options?: Options<ListMerchantsData>) => {
+    const opts = infiniteQueryOptions<ListMerchantsResponse, DefaultError, InfiniteData<ListMerchantsResponse>, QueryKey<Options<ListMerchantsData>>, number | Pick<QueryKey<Options<ListMerchantsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListMerchantsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listMerchants({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listMerchantsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const createMerchantMutation = (options?: Partial<Options<CreateMerchantData>>): UseMutationOptions<CreateMerchantResponse, DefaultError, Options<CreateMerchantData>> => {
     const mutationOptions: UseMutationOptions<CreateMerchantResponse, DefaultError, Options<CreateMerchantData>> = {
@@ -199,6 +339,33 @@ export const listRidersOptions = (options?: Options<ListRidersData>) => queryOpt
     },
     queryKey: listRidersQueryKey(options)
 });
+
+export const listRidersInfiniteQueryKey = (options?: Options<ListRidersData>): QueryKey<Options<ListRidersData>> => createQueryKey('listRiders', options, true);
+
+export const listRidersInfiniteOptions = (options?: Options<ListRidersData>) => {
+    const opts = infiniteQueryOptions<ListRidersResponse, DefaultError, InfiniteData<ListRidersResponse>, QueryKey<Options<ListRidersData>>, number | Pick<QueryKey<Options<ListRidersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListRidersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listRiders({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listRidersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const createRiderMutation = (options?: Partial<Options<CreateRiderData>>): UseMutationOptions<CreateRiderResponse, DefaultError, Options<CreateRiderData>> => {
     const mutationOptions: UseMutationOptions<CreateRiderResponse, DefaultError, Options<CreateRiderData>> = {
@@ -367,6 +534,36 @@ export const listRiderDeliveriesOptions = (options?: Options<ListRiderDeliveries
     queryKey: listRiderDeliveriesQueryKey(options)
 });
 
+export const riderHistoryQueryKey = (options?: Options<RiderHistoryData>) => createQueryKey('riderHistory', options);
+
+export const riderHistoryOptions = (options?: Options<RiderHistoryData>) => queryOptions<RiderHistoryResponse, DefaultError, RiderHistoryResponse, ReturnType<typeof riderHistoryQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await riderHistory({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: riderHistoryQueryKey(options)
+});
+
+export const riderTodayQueryKey = (options?: Options<RiderTodayData>) => createQueryKey('riderToday', options);
+
+export const riderTodayOptions = (options?: Options<RiderTodayData>) => queryOptions<RiderTodayResponse, DefaultError, RiderTodayResponse, ReturnType<typeof riderTodayQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await riderToday({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: riderTodayQueryKey(options)
+});
+
 /**
  * The rider's Delivered action: food handed over + cash received, one
  * real event. Advances the store order and settles that delivery's
@@ -422,6 +619,36 @@ export const getFileOptions = (options: Options<GetFileData>) => queryOptions<Ge
     queryKey: getFileQueryKey(options)
 });
 
+export const reverseGeocodeQueryKey = (options: Options<ReverseGeocodeData>) => createQueryKey('reverseGeocode', options);
+
+export const reverseGeocodeOptions = (options: Options<ReverseGeocodeData>) => queryOptions<ReverseGeocodeResponse, DefaultError, ReverseGeocodeResponse, ReturnType<typeof reverseGeocodeQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await reverseGeocode({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: reverseGeocodeQueryKey(options)
+});
+
+export const searchGeocodeQueryKey = (options: Options<SearchGeocodeData>) => createQueryKey('searchGeocode', options);
+
+export const searchGeocodeOptions = (options: Options<SearchGeocodeData>) => queryOptions<SearchGeocodeResponse, DefaultError, SearchGeocodeResponse, ReturnType<typeof searchGeocodeQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await searchGeocode({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: searchGeocodeQueryKey(options)
+});
+
 export const meQueryKey = (options?: Options<MeData>) => createQueryKey('me', options);
 
 export const meOptions = (options?: Options<MeData>) => queryOptions<MeResponse2, DefaultError, MeResponse2, ReturnType<typeof meQueryKey>>({
@@ -471,35 +698,6 @@ export const listMerchantOrdersOptions = (options?: Options<ListMerchantOrdersDa
     queryKey: listMerchantOrdersQueryKey(options)
 });
 
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
-
 export const listMerchantOrdersInfiniteQueryKey = (options?: Options<ListMerchantOrdersData>): QueryKey<Options<ListMerchantOrdersData>> => createQueryKey('listMerchantOrders', options, true);
 
 export const listMerchantOrdersInfiniteOptions = (options?: Options<ListMerchantOrdersData>) => {
@@ -541,6 +739,33 @@ export const listProductsOptions = (options?: Options<ListProductsData>) => quer
     },
     queryKey: listProductsQueryKey(options)
 });
+
+export const listProductsInfiniteQueryKey = (options?: Options<ListProductsData>): QueryKey<Options<ListProductsData>> => createQueryKey('listProducts', options, true);
+
+export const listProductsInfiniteOptions = (options?: Options<ListProductsData>) => {
+    const opts = infiniteQueryOptions<ListProductsResponse, DefaultError, InfiniteData<ListProductsResponse>, QueryKey<Options<ListProductsData>>, number | Pick<QueryKey<Options<ListProductsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListProductsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listProducts({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listProductsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const createProductMutation = (options?: Partial<Options<CreateProductData>>): UseMutationOptions<CreateProductResponse, DefaultError, Options<CreateProductData>> => {
     const mutationOptions: UseMutationOptions<CreateProductResponse, DefaultError, Options<CreateProductData>> = {
@@ -718,6 +943,33 @@ export const listStoreProductsOptions = (options?: Options<ListStoreProductsData
     },
     queryKey: listStoreProductsQueryKey(options)
 });
+
+export const listStoreProductsInfiniteQueryKey = (options?: Options<ListStoreProductsData>): QueryKey<Options<ListStoreProductsData>> => createQueryKey('listStoreProducts', options, true);
+
+export const listStoreProductsInfiniteOptions = (options?: Options<ListStoreProductsData>) => {
+    const opts = infiniteQueryOptions<ListStoreProductsResponse, DefaultError, InfiniteData<ListStoreProductsResponse>, QueryKey<Options<ListStoreProductsData>>, number | Pick<QueryKey<Options<ListStoreProductsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListStoreProductsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listStoreProducts({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listStoreProductsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const createStoreProductMutation = (options?: Partial<Options<CreateStoreProductData>>): UseMutationOptions<CreateStoreProductResponse, DefaultError, Options<CreateStoreProductData>> => {
     const mutationOptions: UseMutationOptions<CreateStoreProductResponse, DefaultError, Options<CreateStoreProductData>> = {
