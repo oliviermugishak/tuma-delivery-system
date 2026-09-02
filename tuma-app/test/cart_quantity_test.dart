@@ -42,4 +42,28 @@ void main() {
       2,
     );
   });
+
+  /// Review P14: two rapid adds must both land. The old `_emit` assigned
+  /// state only AFTER awaiting persistence, so the second add read the
+  /// pre-first cart while the first was still saving — one line lost.
+  test('two rapid adds both land', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final rice = MenuItem(id: 'sp-1', name: 'Rice', price: 3500, isAvailable: true);
+    final burger = MenuItem(id: 'sp-2', name: 'Burger', price: 4000, isAvailable: true);
+    final notifier = container.read(cartProvider.notifier);
+    // Fire both without awaiting the first — that is the race window.
+    final first = notifier.add(rice, storeId: 's1', storeName: 'A', deliveryFee: 0);
+    final second = notifier.add(burger, storeId: 's1', storeName: 'A', deliveryFee: 0);
+    await Future.wait([first, second]);
+
+    final cart = container.read(cartProvider).requireValue;
+    expect(cart.itemCount, 2, reason: 'both rapid adds land, neither is lost');
+    expect(
+      cart.buckets.single.items.map((i) => i.name),
+      containsAll(['Rice', 'Burger']),
+    );
+  });
 }

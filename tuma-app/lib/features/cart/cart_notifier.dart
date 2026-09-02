@@ -186,14 +186,18 @@ class CartNotifier extends AsyncNotifier<CartState> {
       );
 
   Future<void> _emit(CartState next) async {
-    // Persistence is best-effort: a storage failure (disk, plugin) must
-    // never break the in-memory cart or crash the add flow.
+    // The in-memory state moves FIRST, synchronously (review P14): the
+    // previous order — persist, then assign — let two rapid `add`s race,
+    // the second reading the pre-first cart while the first awaited
+    // storage, and one of the two lines landing lost. Persistence is
+    // still best-effort: a storage failure (disk, plugin) must never
+    // break the in-memory cart or crash the add flow.
+    state = AsyncData(next);
     try {
       await _saveCart(next);
     } on Object {
       // keep the in-memory state; it just won't survive this restart.
     }
-    state = AsyncData(next);
   }
 
   /// Add a menu item to its store's bucket (opening the bucket when this
