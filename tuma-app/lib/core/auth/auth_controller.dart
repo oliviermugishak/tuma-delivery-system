@@ -157,8 +157,15 @@ class SessionNotifier extends AsyncNotifier<SessionState> {
       try {
         final user = await ref.read(authApiProvider).me();
         outcome = SessionState.user(user);
-      } on Object {
+      } on ApiUnauthorized {
+        // The token is dead (expired or revoked): clearing it is correct.
         await ref.read(authTokenProvider.notifier).clear();
+        outcome = const SessionState.anon();
+      } on Object {
+        // A network failure is NOT a dead token — the 30-day credential
+        // stays put and the app degrades to a retryable anonymous state
+        // (the user is not punished for an elevator with no signal by
+        // being signed out). The next bootstrap/foreground retries /me.
         outcome = const SessionState.anon();
       }
     }
