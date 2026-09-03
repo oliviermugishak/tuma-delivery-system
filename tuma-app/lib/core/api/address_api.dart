@@ -25,8 +25,11 @@ class AddressApi {
   }
 
   /// Patch an existing address with the full editable surface (the
-  /// location screen's edit mode). The note rides along — an explicit
-  /// null clears it under the server's provided-overwrites semantics.
+  /// location screen's edit mode). The note rides along: under the
+  /// server's S32 semantics an absent/null field KEEPS the saved note,
+  /// so a cleared note field must send the empty string — the wire's
+  /// explicit-clear value — or the rider would keep a note the customer
+  /// deleted.
   Future<Address> update(Address address) async {
     final response = await _client.patch(
       '/addresses/${address.id}',
@@ -37,7 +40,7 @@ class AddressApi {
         'lng': address.lng,
         'is_default': address.isDefault,
         'kind': address.kind,
-        'note': address.note,
+        'note': address.note ?? '',
       },
     );
     return Address.fromJson(response as Map<String, dynamic>);
