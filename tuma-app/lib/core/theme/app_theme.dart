@@ -1,32 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
 
-/// Tuma v2 theme — the redesigns' exact component values.
+/// Tuma v3 theme — Light / Green.
 ///
-/// Inter carries EVERYTHING (the redesign spec dropped the Poppins mix).
-/// Depth is surface layering + 8%-white hairlines, never shadows (P6).
-/// Type scale from the spec: d1 23/800 · d2 22/800 · sec 17/700 ·
-/// hd 15/600 · bd 14/500 · sub 12.5 · cap 11/600 +0.9 tracking upper.
+/// Poppins carries EVERYTHING, weights 400/500/600 only (ceiling 600).
+/// Depth = white surfaces on the warm canvas; shadows only on floating
+/// elements (cart bar, search, FABs); hairlines only for chips/OTP/tab
+/// tracks. Type scale: d1 23/600 · d2 22/600 · sec 17/600 · hd 15/600 ·
+/// bd 14/500 · sub 12.5 · cap 11/500 (sentence case, no tracking).
 /// This file holds global defaults only; screens compose from here.
 abstract final class AppTheme {
-  // Type scale (spec-exact) ------------------------------------------------
+  // Type scale -------------------------------------------------------------
   static TextStyle d1(TextTheme t) => t.titleLarge!.copyWith(
         fontSize: 23,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
         color: AppColors.onSurface,
       );
   static TextStyle d2(TextTheme t) => t.titleLarge!.copyWith(
         fontSize: 22,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
         color: AppColors.onSurface,
       );
   static TextStyle sec(TextTheme t) => t.titleMedium!.copyWith(
         fontSize: 17,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: AppColors.onSurface,
       );
   static TextStyle hd(TextTheme t) => t.titleSmall!.copyWith(
@@ -45,78 +47,82 @@ abstract final class AppTheme {
       );
   static TextStyle cap(TextTheme t) => t.labelSmall!.copyWith(
         fontSize: 11,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.9,
+        fontWeight: FontWeight.w500,
         color: AppColors.onSurfaceMuted,
       );
 
-  static ThemeData dark() {
+  static ThemeData light() {
     final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: const ColorScheme.dark(
+      brightness: Brightness.light,
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: AppColors.onPrimary,
-        secondary: AppColors.surfaceHigh,
+        secondary: AppColors.fill,
         onSecondary: AppColors.onSurface,
-        surface: AppColors.surface,
+        surface: AppColors.canvas,
         onSurface: AppColors.onSurface,
         error: AppColors.error,
       ),
-      scaffoldBackgroundColor: AppColors.surface,
+      scaffoldBackgroundColor: AppColors.canvas,
+      // Green ripple at 8% everywhere.
+      splashColor: const Color(0x14156B4C),
+      highlightColor: const Color(0x0A156B4C),
     );
 
-    final textTheme = GoogleFonts.interTextTheme(base.textTheme);
+    final textTheme = GoogleFonts.poppinsTextTheme(base.textTheme);
 
     return base.copyWith(
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.canvas,
         foregroundColor: AppColors.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: textTheme.titleMedium?.copyWith(
           fontSize: 16,
           color: AppColors.onSurface,
           fontWeight: FontWeight.w600,
         ),
       ),
+      // White cards on canvas: no border, no shadow.
       cardTheme: CardThemeData(
         elevation: 0,
-        color: AppColors.surfaceAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.surfaceBorder),
+        color: AppColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),
-      // The spec's .btn: 50px, r14, 600 15px — primary (accent) is the
-      // one per screen (P5); outline + outline-danger + outline-okay are
-      // the secondary ranks.
+      // The button: 50px, r12, flat green, 600 15px. Disabled = fill well
+      // with muted text — never an alpha fade.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(50),
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
+          disabledBackgroundColor: AppColors.fill,
+          disabledForegroundColor: AppColors.onSurfaceMuted,
           textStyle: textTheme.titleSmall?.copyWith(
             fontSize: 15,
             fontWeight: FontWeight.w600,
             color: AppColors.onPrimary,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(50),
           foregroundColor: AppColors.onSurface,
-          side: const BorderSide(color: AppColors.line),
+          side: const BorderSide(color: AppColors.hairline),
           textStyle: textTheme.titleSmall?.copyWith(
             fontSize: 15,
             fontWeight: FontWeight.w600,
             color: AppColors.onSurface,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -129,10 +135,10 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      // Inputs: surface-high wells, r12, no border until focus.
+      // Inputs: fill wells, r12, no border until green focus.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceHigh,
+        fillColor: AppColors.fill,
         hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
@@ -149,14 +155,13 @@ abstract final class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: const Color(0xFF0D1530),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.surfaceBorder),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
         ),
         titleTextStyle: textTheme.titleMedium?.copyWith(
           fontSize: 17,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: AppColors.onSurface,
         ),
         contentTextStyle: textTheme.bodyMedium?.copyWith(
@@ -167,20 +172,22 @@ abstract final class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.surfaceHigh,
+        backgroundColor: AppColors.surface,
+        elevation: 3,
+        actionTextColor: AppColors.primary,
         contentTextStyle: textTheme.bodyMedium?.copyWith(
           color: AppColors.onSurface,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       dividerTheme: const DividerThemeData(
-        color: AppColors.surfaceBorder,
+        color: AppColors.line,
         thickness: 1,
         space: 1,
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppColors.primary,
-        linearTrackColor: AppColors.surfaceHigh,
+        linearTrackColor: AppColors.fill,
       ),
     );
   }

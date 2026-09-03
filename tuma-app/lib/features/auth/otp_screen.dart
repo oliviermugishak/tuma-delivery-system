@@ -135,7 +135,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
             ? AppColors.error
             : isCurrent
                 ? AppColors.primary
-                : AppColors.surfaceBorder;
+                : AppColors.hairline;
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -144,7 +144,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.fill,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: borderColor,
@@ -156,7 +156,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
                     filled ? code[index] : '',
                     style: textTheme.titleLarge?.copyWith(
                       color: AppColors.onSurface,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -172,7 +172,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       // Scroll-safe, same as the phone screen: the keyboard must never
       // stripe the fixed content on a small phone.
       body: SafeArea(
@@ -200,7 +200,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> with TickerProviderStateM
                 'Enter the code',
                 style: textTheme.headlineSmall?.copyWith(
                   color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),

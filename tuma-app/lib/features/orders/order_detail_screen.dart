@@ -201,7 +201,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surfaceAlt,
+        backgroundColor: AppColors.surface,
         title: const Text('Cancel this order?'),
         content: Text(
           'Your order from ${order.storeName} will be cancelled. '
@@ -311,7 +311,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                 Text(
                   'Order not found',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
                 const SizedBox(height: 8),
@@ -349,7 +349,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
       // checkout push, deep link, restored session), there is always a way
       // out of this screen.
       appBar: AppBar(
-        backgroundColor: AppColors.surfaceAlt,
+        backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -441,7 +441,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                             'Cancelled',
                             style: AppTheme.bd(textTheme).copyWith(
                               color: AppColors.error,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -465,10 +465,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceAlt,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.surfaceBorder),
-                  ),
+                              ),
                   child: Row(
                     children: [
                       const Icon(Icons.location_on_rounded,
@@ -653,7 +652,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen>
               // in a bare Row).
               Flexible(
                 child: StatusRow(
-                  color: AppColors.warning,
+                  color: AppColors.orange,
                   label: ladder.rung == 'ended'
                       ? 'Ended · contact the store'
                       : 'Running late',
@@ -796,9 +795,8 @@ class _RiderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Row(
         children: [
@@ -835,7 +833,7 @@ class _RiderCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.4),
+                    color: AppColors.primary,
                   ),
                 ),
                 child: const Icon(Icons.call_rounded,
@@ -877,9 +875,8 @@ class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         children: [
@@ -936,7 +933,7 @@ class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
                 ],
               ),
             ),
-            const Divider(color: AppColors.surfaceBorder),
+            const Divider(color: AppColors.hairline),
           ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -956,7 +953,7 @@ class _CollapsibleSummaryState extends State<_CollapsibleSummary> {
                 style: textTheme.titleSmall?.copyWith(
                   fontSize: 15,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -1001,12 +998,12 @@ class _StoreDeliverySection extends StatelessWidget {
     final status = tracking?.status ?? storeOrder.status;
     return switch (status) {
       'picked_up' => (
-        color: AppColors.success,
+        color: AppColors.primary,
         label: 'On the way',
         pulsing: true,
       ),
       'delivered' => (
-        color: AppColors.success,
+        color: AppColors.primary,
         label: 'Delivered',
         pulsing: false,
       ),
@@ -1047,10 +1044,9 @@ class _StoreDeliverySection extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceAlt,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.surfaceBorder),
-          ),
+              ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1067,7 +1063,7 @@ class _StoreDeliverySection extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.titleSmall?.copyWith(
                           fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -1077,7 +1073,7 @@ class _StoreDeliverySection extends StatelessWidget {
                       style: textTheme.titleSmall?.copyWith(
                         fontSize: 14,
                         color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1123,14 +1119,14 @@ class _StoreDeliverySection extends StatelessWidget {
                             ? Icons.near_me_rounded
                             : Icons.local_shipping_rounded,
                         size: 15,
-                        color: AppColors.success,
+                        color: AppColors.primary,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           _closenessLine(),
                           style: AppTheme.sub(textTheme)
-                              .copyWith(color: AppColors.success),
+                              .copyWith(color: AppColors.primary),
                         ),
                       ),
                     ],
@@ -1180,8 +1176,8 @@ class _StoreDeliverySection extends StatelessWidget {
                       onPressed: onCancel,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: BorderSide(
-                          color: AppColors.error.withValues(alpha: 0.35),
+                        side: const BorderSide(
+                          color: AppColors.error,
                         ),
                       ),
                       child: Text(

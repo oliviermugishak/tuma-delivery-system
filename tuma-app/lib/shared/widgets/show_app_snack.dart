@@ -5,8 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
 
-/// The app's one snack bar (review P19): floating, the navy `surfaceAlt`
-/// card, light text. A dozen copies of this styling had drifted across
+/// The app's one snack bar (review P19): floating, the white card, ink
+/// text, green action. A dozen copies of this styling had drifted across
 /// the screens; every surface shows a toast through here.
 ///
 /// [duration] defaults to Material's 4s; call sites that had a shorter
@@ -18,12 +18,11 @@ void showAppSnack(
 }) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      // Explicit light text — the theme's snackbar default is dark text
-      // (onInverseSurface), invisible on our navy background.
       content: Text(message, style: const TextStyle(color: AppColors.onSurface)),
       behavior: SnackBarBehavior.floating,
       duration: duration,
-      backgroundColor: AppColors.surfaceAlt,
+      backgroundColor: AppColors.surface,
+      elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
   );

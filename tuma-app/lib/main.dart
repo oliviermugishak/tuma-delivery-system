@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tuma_app/core/auth/auth_controller.dart';
@@ -29,11 +30,14 @@ class _TumaAppState extends ConsumerState<TumaApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Tuma',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      routerConfig: appRouter,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: MaterialApp.router(
+        title: 'Tuma',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        routerConfig: appRouter,
+      ),
     );
   }
 }

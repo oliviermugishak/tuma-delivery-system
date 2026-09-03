@@ -101,8 +101,13 @@ GoRouter buildRouter() => GoRouter(
     ),
     GoRoute(
       path: '/profile/location',
-      builder: (_, state) =>
-          DeliveryLocationScreen(edit: state.extra as Address?),
+      builder: (_, state) => DeliveryLocationScreen(
+        edit: state.extra as Address?,
+        // `?mode=new` opens the blank editor — the list's "Add new
+        // location" door. Without it (and without an address extra) the
+        // route means the LIST; an address extra means edit that address.
+        fresh: state.uri.queryParameters['mode'] == 'new',
+      ),
     ),
     GoRoute(path: '/rider', builder: (_, _) => const RiderScreen()),
     GoRoute(

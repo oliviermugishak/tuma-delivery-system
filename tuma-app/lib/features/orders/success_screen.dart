@@ -41,13 +41,13 @@ class SuccessScreen extends StatelessWidget {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.14),
+                  color: AppColors.greenSoft,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.check_circle_rounded,
                   size: 52,
-                  color: AppColors.success,
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(height: 22),
@@ -64,14 +64,13 @@ class SuccessScreen extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 margin: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surfaceBorder),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.schedule_rounded,
-                        size: 20, color: AppColors.success),
+                        size: 20, color: AppColors.primary),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(

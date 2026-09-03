@@ -8,7 +8,7 @@
  * Live data: getOwnStore / updateOwnStore / uploadStoreBanner /
  * deleteStoreBanner / deleteOwnStore — all real endpoints.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -36,6 +36,7 @@ import {
   Textarea,
   Toggle,
 } from '@/components/ds'
+import { FileDrop } from '@/components/file-drop'
 import { PinPicker } from './pin-picker'
 import { date, dateTime, num, rwf } from '@/lib/format'
 import { storeStatusLabel, storeStatusTone } from '@/lib/status'
@@ -66,6 +67,7 @@ export function StoreDetailScreen() {
 
   const [showPin, setShowPin] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
   // null = the form mirrors the server row; edits fill it. Discarding
   // returns to null, and every fresh fetch (save, banner) reseeds.
   const [form, setForm] = useState<StoreFormState | null>(null)
@@ -95,6 +97,12 @@ export function StoreDetailScreen() {
     },
     onError: () => toast.error('Could not upload the banner'),
   })
+
+  // The drop zone's contract: a banner is ONE image — the first drop wins.
+  const uploadFiles = (files: File[]) => {
+    const file = files[0]
+    if (file) uploadBanner.mutate({ path: { id: storeId }, body: { file } })
+  }
 
   const removeBanner = useMutation({
     ...deleteStoreBannerMutation(),
@@ -314,22 +322,20 @@ export function StoreDetailScreen() {
         <div className="flex flex-col gap-4">
           <Card>
             <div className="mb-3 text-[17px] font-bold">Banner</div>
-            <div className="grid h-30 place-items-center overflow-hidden rounded-xl border border-dashed border-line">
-              {s.image_url ? (
-                <img
-                  src={s.image_url}
-                  alt="Store banner"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="flex flex-col items-center gap-1.5 text-[12.5px] text-text3">
-                  <Icon name="image" label="" size={18} />
-                  Banner · shown on the customer app
-                </span>
-              )}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <label className="cursor-pointer">
+            {/* FileDrop gives the zone drag-and-drop (the founder's bug:
+                the old zone had no handlers); the zone itself is the
+                label for the hidden file input so clicking ANYWHERE in
+                it opens the picker (a real <button> inside a <label>
+                swallowed the click — interactive content inside a label
+                never activates it). */}
+            <FileDrop
+              onFiles={uploadFiles}
+              disabled={uploadBanner.isPending}
+            >
+              <label
+                className="block cursor-pointer"
+                title="Click to browse, or drop an image"
+              >
                 <span className="sr-only">Upload banner</span>
                 <input
                   type="file"
@@ -338,15 +344,55 @@ export function StoreDetailScreen() {
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (file)
-                      uploadBanner.mutate({ path: { id: storeId }, body: { file } })
+                      uploadBanner.mutate({
+                        path: { id: storeId },
+                        body: { file },
+                      })
                     e.target.value = ''
                   }}
                 />
-                <Button small variant="outline">
-                  <Icon name="image" label="" size={16} />
-                  {s.image_url ? 'Replace banner' : 'Upload banner'}
-                </Button>
+                <div className="grid h-30 place-items-center overflow-hidden rounded-xl border border-dashed border-line">
+                  {s.image_url ? (
+                    <img
+                      src={s.image_url}
+                      alt="Store banner"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex flex-col items-center gap-1.5 text-[12.5px] text-text3">
+                      <Icon name="image" label="" size={18} />
+                      {uploadBanner.isPending
+                        ? 'Uploading…'
+                        : 'Banner · click or drop an image'}
+                    </span>
+                  )}
+                </div>
               </label>
+            </FileDrop>
+            <div className="mt-3 flex gap-2">
+              {/* The picker opens from the button's own handler: a real
+                  <button> inside a <label> swallows label activation, so
+                  the old markup never opened the file dialog. */}
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file)
+                    uploadBanner.mutate({ path: { id: storeId }, body: { file } })
+                  e.target.value = ''
+                }}
+              />
+              <Button
+                small
+                variant="outline"
+                onClick={() => bannerInputRef.current?.click()}
+              >
+                <Icon name="image" label="" size={16} />
+                {s.image_url ? 'Replace banner' : 'Upload banner'}
+              </Button>
               {s.image_url ? (
                 <Button
                   small

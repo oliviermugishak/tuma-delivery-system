@@ -34,9 +34,9 @@ Future<void> showStoreContactSheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: AppColors.surface,
+    backgroundColor: AppColors.canvas,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     isScrollControlled: true,
     builder: (sheetContext) => SafeArea(
@@ -51,7 +51,7 @@ Future<void> showStoreContactSheet(
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceBorder,
+                  color: AppColors.hairline,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -82,9 +82,9 @@ class _ContactCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
+        border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,7 +171,7 @@ class _ContactAction extends StatelessWidget {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceHigh,
+          color: AppColors.fill,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

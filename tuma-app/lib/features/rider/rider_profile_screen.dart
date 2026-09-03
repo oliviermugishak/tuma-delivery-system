@@ -76,9 +76,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.canvas,
         title: Text('Profile', style: AppTheme.d2(textTheme)),
       ),
       body: ListView(
@@ -88,9 +88,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.surfaceBorder),
             ),
             child: Row(
               children: [
@@ -118,11 +117,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
+              color: AppColors.greenSoft,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.28),
-              ),
             ),
             child: Row(
               children: [
@@ -142,7 +138,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                         '#${rider?.riderNumber ?? '—'}',
                         style: textTheme.titleMedium?.copyWith(
                           fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
@@ -158,9 +154,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
               ),
               child: Row(
                 children: [
@@ -208,9 +203,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           else
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
               ),
               child: Column(
                 children: [
@@ -219,7 +213,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                       Container(
                         height: 1,
                         margin: const EdgeInsets.symmetric(horizontal: 14),
-                        color: AppColors.surfaceBorder,
+                        color: AppColors.hairline,
                       ),
                     _HistoryRow(entry: _history![i]),
                   ],
@@ -292,8 +286,8 @@ class _HistoryRow extends StatelessWidget {
             formatRwf(entry.total),
             style: textTheme.titleSmall?.copyWith(
               fontSize: 14,
-              color: AppColors.success,
-              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

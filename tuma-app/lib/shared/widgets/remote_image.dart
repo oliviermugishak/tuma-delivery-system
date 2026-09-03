@@ -68,7 +68,7 @@ class RemoteImage extends StatelessWidget {
       placeholder: (context, url) => Container(
         width: width,
         height: height,
-        color: AppColors.onSurface.withValues(alpha: 0.06),
+        color: AppColors.skeletonBase,
       ),
       errorWidget: (context, url, error) => _buildIconBlock(),
     );
@@ -80,8 +80,8 @@ class RemoteImage extends StatelessWidget {
     );
   }
 
-  /// The honest fallback: a quiet block and the thing's glyph — the same
-  /// recipe as the closed-store state, never a stock photo.
+  /// The honest fallback: a quiet warm block and the thing's glyph — the
+  /// same recipe as the closed-store state, never a stock photo.
   Widget _buildIconBlock() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -95,12 +95,11 @@ class RemoteImage extends StatelessWidget {
           width: width,
           height: height,
           decoration: BoxDecoration(
-            color: AppColors.onSurface.withValues(alpha: 0.06),
-            border: Border.all(color: AppColors.surfaceBorder),
+            color: AppColors.fallbackTile,
           ),
           child: Icon(
             fallbackIcon,
-            color: AppColors.onSurfaceMuted,
+            color: AppColors.fallbackIcon,
             size: side * 0.32,
           ),
         );

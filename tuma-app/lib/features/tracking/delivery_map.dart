@@ -167,7 +167,7 @@ class _DeliveryMapState extends State<DeliveryMap>
           markerId: const MarkerId('store'),
           position: store,
           infoWindow: InfoWindow(title: widget.tracking.storeName),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: BitmapDescriptor.defaultMarker,
         ),
       Marker(
         markerId: const MarkerId('destination'),
@@ -201,7 +201,7 @@ class _DeliveryMapState extends State<DeliveryMap>
           points: widget.tracking.trail
               .map((point) => LatLng(point.lat, point.lng))
               .toList(),
-          color: AppColors.success,
+          color: AppColors.primary.withValues(alpha: 0.35),
           width: 3,
         ),
     };
@@ -237,7 +237,7 @@ class _DeliveryMapState extends State<DeliveryMap>
               bottom: 12,
               child: FloatingActionButton.small(
                 heroTag: 'recenter-tracking',
-                backgroundColor: AppColors.surfaceAlt,
+                backgroundColor: AppColors.surface,
                 foregroundColor: AppColors.primary,
                 onPressed: () {
                   setState(() => _followRider = true);
@@ -307,15 +307,14 @@ class _DesktopMapPlaceholder extends StatelessWidget {
       height: 180,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.motorcycle_rounded, color: AppColors.primaryDeep),
+          const Icon(Icons.motorcycle_rounded, color: AppColors.primary),
           const SizedBox(height: 8),
           Text(
             tracking.hasRiderPosition

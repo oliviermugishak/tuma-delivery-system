@@ -176,15 +176,12 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
           children: [
             SizedBox(height: bannerHeight - imagePeek),
             Container(
-              // The spec's sheet-card: bg-colored, 26px overlap over the
-              // hero, hairline top edge — depth through surface (P6).
+              // The sheet-card: bg-colored, 20px overlap over the
+              // hero, no border — white-on-canvas depth (P6 v3).
               margin: const EdgeInsets.only(top: 8),
               decoration: const BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-                border: Border(
-                  top: BorderSide(color: AppColors.surfaceBorder),
-                ),
+                color: AppColors.canvas,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 96),
@@ -211,7 +208,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceHigh,
+                              color: AppColors.fill,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Row(
@@ -236,11 +233,9 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                           child: Container(
                             width: 36,
                             height: 36,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surfaceBorder,
-                              ),
+                              color: AppColors.fill,
                             ),
                             child: const Icon(
                               Icons.info_outline_rounded,
@@ -267,9 +262,8 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                     else
                       Container(
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceAlt,
+                          color: AppColors.surface,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.surfaceBorder),
                         ),
                         child: Column(
                           children: [
@@ -287,7 +281,7 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
                                   height: 1,
                                   margin: const EdgeInsets.symmetric(
                                       horizontal: 12),
-                                  color: AppColors.surfaceBorder,
+                                  color: AppColors.line,
                                 ),
                             ],
                           ],
@@ -370,9 +364,9 @@ class _StoreScreenState extends ConsumerState<StoreScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => _ProductSheet(
         store: store,
@@ -406,7 +400,7 @@ class _FeePill extends StatelessWidget {
         label,
         style: const TextStyle(
           fontSize: 11.5,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: AppColors.onPrimary,
         ),
       ),
@@ -488,7 +482,7 @@ class _ProductRow extends StatelessWidget {
                       style: textTheme.titleSmall?.copyWith(
                         fontSize: 14,
                         color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -529,8 +523,8 @@ class _AddButton extends StatelessWidget {
   }
 }
 
-/// Ghost button over the banner: no chrome, just the icon with a soft
-/// shadow — the scrim above it does the legibility work.
+/// Ghost button over the banner: the dark-translucent circle with a
+/// white icon — the scrim above it does the legibility work.
 class _BackButton extends StatelessWidget {
   const _BackButton({required this.onTap});
 
@@ -539,24 +533,18 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: AppColors.ghostBg,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: SizedBox(
+        child: const SizedBox(
           width: 40,
           height: 40,
           child: Icon(
             Icons.arrow_back_rounded,
             size: 22,
-            color: AppColors.onSurface,
-            shadows: [
-              Shadow(
-                color: AppColors.surface.withValues(alpha: 0.8),
-                blurRadius: 8,
-              ),
-            ],
+            color: AppColors.onPrimary,
           ),
         ),
       ),
@@ -578,7 +566,7 @@ class _CartButton extends ConsumerWidget {
       orElse: () => 0,
     );
     return Material(
-      color: Colors.transparent,
+      color: AppColors.ghostBg,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -590,16 +578,10 @@ class _CartButton extends ConsumerWidget {
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.shopping_cart_rounded,
                 size: 22,
-                color: AppColors.onSurface,
-                shadows: [
-                  Shadow(
-                    color: AppColors.surface.withValues(alpha: 0.8),
-                    blurRadius: 8,
-                  ),
-                ],
+                color: AppColors.onPrimary,
               ),
               if (count > 0)
                 Positioned(
@@ -609,7 +591,7 @@ class _CartButton extends ConsumerWidget {
                     constraints:
                         const BoxConstraints(minWidth: 18, minHeight: 18),
                     decoration: const BoxDecoration(
-                      color: AppColors.primary,
+                      color: AppColors.orange,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
@@ -619,7 +601,7 @@ class _CartButton extends ConsumerWidget {
                       style: const TextStyle(
                         color: AppColors.onPrimary,
                         fontSize: 9,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -652,10 +634,9 @@ class _ClosedState extends StatelessWidget {
             Container(
               width: 64,
               height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.surfaceBorder),
+              decoration: const BoxDecoration(
+                color: AppColors.fill,
+                shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.storefront_rounded,
@@ -668,7 +649,7 @@ class _ClosedState extends StatelessWidget {
               'This store isn\'t taking orders right now.',
               textAlign: TextAlign.center,
               style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 6),
@@ -704,14 +685,14 @@ class _TopScrim extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: const [0, 1],
+          stops: [0, 1],
           colors: [
-            AppColors.surface.withValues(alpha: 0.72),
-            AppColors.surface.withValues(alpha: 0),
+            AppColors.scrim,
+            Color(0x00141512),
           ],
         ),
       ),
@@ -728,7 +709,7 @@ class _StoreSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final block = AppColors.onSurface.withValues(alpha: 0.07);
+    final block = AppColors.skeletonBase;
     final topInset = MediaQuery.paddingOf(context).top;
     const imagePeek = 24.0;
     return Stack(
@@ -739,7 +720,7 @@ class _StoreSkeleton extends StatelessWidget {
           right: 0,
           child: SizedBox(
             height: topInset + _bannerHeight,
-            child: const ColoredBox(color: AppColors.surfaceAlt),
+            child: const ColoredBox(color: AppColors.surface),
           ),
         ),
         ListView(
@@ -748,8 +729,8 @@ class _StoreSkeleton extends StatelessWidget {
             SizedBox(height: topInset + _bannerHeight - imagePeek),
             Container(
               decoration: const BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                color: AppColors.canvas,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -761,7 +742,7 @@ class _StoreSkeleton extends StatelessWidget {
                       height: 18,
                       decoration: BoxDecoration(
                         color: block,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -770,7 +751,7 @@ class _StoreSkeleton extends StatelessWidget {
                       height: 12,
                       decoration: BoxDecoration(
                         color: block,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -801,7 +782,7 @@ class _StoreSkeleton extends StatelessWidget {
                       height: 14,
                       decoration: BoxDecoration(
                         color: block,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -829,7 +810,7 @@ class _StoreSkeleton extends StatelessWidget {
                                     height: 12,
                                     decoration: BoxDecoration(
                                       color: block,
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -838,7 +819,7 @@ class _StoreSkeleton extends StatelessWidget {
                                     height: 10,
                                     decoration: BoxDecoration(
                                       color: block,
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ],
@@ -849,7 +830,7 @@ class _StoreSkeleton extends StatelessWidget {
                               width: 36,
                               height: 36,
                               decoration: const BoxDecoration(
-                                color: AppColors.surfaceAlt,
+                                color: AppColors.surface,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -889,9 +870,9 @@ class _FloatingCartBar extends ConsumerWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 30,
-              offset: const Offset(0, 12),
+              color: const Color(0x1A1C1D1A),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -1022,7 +1003,7 @@ class _ProductSheetState extends State<_ProductSheet> {
                           style: textTheme.titleSmall?.copyWith(
                             fontSize: 15,
                             color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -1044,7 +1025,7 @@ class _ProductSheetState extends State<_ProductSheet> {
                           '$_quantity',
                           textAlign: TextAlign.center,
                           style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -1097,7 +1078,7 @@ class _SheetHandle extends StatelessWidget {
       width: 36,
       height: 4,
       decoration: BoxDecoration(
-        color: AppColors.surfaceHigh,
+        color: AppColors.fill,
         borderRadius: BorderRadius.circular(999),
       ),
     );
@@ -1117,7 +1098,7 @@ class _SheetCloseButton extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: const BoxDecoration(
-          color: AppColors.surfaceHigh,
+          color: AppColors.fill,
           shape: BoxShape.circle,
         ),
         child: const Icon(
@@ -1144,7 +1125,7 @@ class _QtyButton extends StatelessWidget {
         width: 38,
         height: 38,
         decoration: const BoxDecoration(
-          color: AppColors.surfaceHigh,
+          color: AppColors.fill,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 18, color: AppColors.onSurface),

@@ -175,12 +175,11 @@ export function AppShell({
 
         {/* Role chip + user row */}
         <SidebarFooter className="border-t border-sidebar-border">
-          <div className="flex flex-col gap-2 px-2 py-1">
-            <span className="w-fit rounded-full border border-brand/35 px-2.5 py-0.5 text-[10.5px] font-bold tracking-[0.09em] uppercase text-brand">
-              {roleChip}
-            </span>
-            <UserRow user={user} settingsTo={settingsTo} />
-          </div>
+          <CollapsedAwareFooter
+            roleChip={roleChip}
+            user={user}
+            settingsTo={settingsTo}
+          />
         </SidebarFooter>
 
         <SidebarRail />
@@ -243,6 +242,37 @@ function CloseSheetOnNavigate() {
   }, [pathname, isMobile, setOpenMobile])
 
   return null
+}
+
+/**
+ * The sidebar footer, collapse-aware (the founder's "merchant indicator
+ * pops out" bug): in the 48px icon rail the old chip + padded wrapper
+ * wrapped and spilled outside the sidebar. Collapsed, the chip hides and
+ * the row shrinks to the 32px avatar exactly filling the rail.
+ */
+function CollapsedAwareFooter({
+  roleChip,
+  user,
+  settingsTo,
+}: {
+  roleChip: string
+  user: SessionUser
+  settingsTo: string
+}) {
+  const { state } = useSidebar()
+  const collapsed = state === 'collapsed'
+
+  if (collapsed) {
+    return <UserRow user={user} settingsTo={settingsTo} />
+  }
+  return (
+    <div className="flex flex-col gap-2 px-2 py-1">
+      <span className="w-fit rounded-full border border-brand/35 px-2.5 py-0.5 text-[10.5px] font-bold tracking-[0.09em] uppercase text-brand">
+        {roleChip}
+      </span>
+      <UserRow user={user} settingsTo={settingsTo} />
+    </div>
+  )
 }
 
 function UserRow({

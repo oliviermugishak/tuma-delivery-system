@@ -22,10 +22,9 @@ class ErrorState extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.surfaceBorder),
+              decoration: const BoxDecoration(
+                color: AppColors.fill,
+                shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.wifi_off_rounded,

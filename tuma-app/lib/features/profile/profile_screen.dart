@@ -139,9 +139,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
               ),
               child: Row(
                 children: [
@@ -156,7 +155,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (phone != null) ...[
@@ -190,10 +189,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.4),
+                    color: AppColors.primary,
                   ),
                 ),
                 child: Column(
@@ -246,8 +245,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           // kiosk's row actions.
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(0, 44),
-                            disabledBackgroundColor: AppColors.onSurface
-                                .withValues(alpha: 0.15),
+                            disabledBackgroundColor: AppColors.fill,
+                            disabledForegroundColor: AppColors.onSurfaceMuted,
                           ),
                           child: _savingName
                               ? const SizedBox(
@@ -274,9 +273,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
               ),
               child: Column(
                 children: [

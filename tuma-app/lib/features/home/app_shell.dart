@@ -46,7 +46,7 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
           color: AppColors.navSurface,
-          border: Border(top: BorderSide(color: AppColors.surfaceBorder)),
+          border: Border(top: BorderSide(color: AppColors.hairline)),
         ),
         child: SafeArea(
           top: false,
@@ -121,7 +121,7 @@ class _NavItem extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: selected ? AppColors.surfaceHigh : Colors.transparent,
+              color: selected ? AppColors.greenSoft : Colors.transparent,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Stack(
@@ -146,7 +146,7 @@ class _NavItem extends StatelessWidget {
                         style: const TextStyle(
                           color: AppColors.onPrimary,
                           fontSize: 10,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           height: 16 / 10,
                         ),
                         textAlign: TextAlign.center,

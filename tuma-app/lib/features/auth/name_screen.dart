@@ -86,7 +86,7 @@ class _NameScreenState extends ConsumerState<NameScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       // Scroll-safe like its auth siblings (phone/OTP): the autofocus
       // keyboard must never stripe the fixed content on a small phone.
       body: SafeArea(
@@ -106,7 +106,7 @@ class _NameScreenState extends ConsumerState<NameScreen> {
                     'What should we call you?',
                     style: textTheme.headlineSmall?.copyWith(
                       color: AppColors.onSurface,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),

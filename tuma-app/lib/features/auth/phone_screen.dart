@@ -89,7 +89,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   Future<void> _pickCountry() async {
     final picked = await showModalBottomSheet<_Country>(
       context: context,
-      backgroundColor: AppColors.surfaceAlt,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -121,7 +121,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       // Scroll-safe (the keyboard overflow on small phones): the fixed
       // content + keyboard exceed the shrunken body, so the column lives
       // in a scroll view with a minimum height — the Spacer breathes on
@@ -146,7 +146,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                     textAlign: TextAlign.center,
                     style: textTheme.headlineSmall?.copyWith(
                       color: AppColors.onSurface,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -228,7 +228,7 @@ class _CountryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceAlt,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),

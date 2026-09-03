@@ -294,14 +294,14 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.canvas,
         title: Row(
           children: [
             Container(
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: AppColors.greenSoft,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(Icons.payments_rounded,
@@ -317,7 +317,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
               'Deliver to ${delivery.customerName ?? 'the customer'}?',
               style: Theme.of(dialogContext).textTheme.titleMedium?.copyWith(
                     fontSize: 17,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
             const SizedBox(height: 6),
@@ -329,7 +329,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                     text: '${formatRwf(delivery.total)} cash',
                     style: TextStyle(
                       color: AppColors.onSurface,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const TextSpan(text: ' from the customer.'),
@@ -431,7 +431,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
     final online = _delivering;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(0, 10, 0, 24),
@@ -451,7 +451,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                       children: [
                         Text(user?.displayName ?? 'Rider',
                             style: AppTheme.bd(textTheme)
-                                .copyWith(fontWeight: FontWeight.w700)),
+                                .copyWith(fontWeight: FontWeight.w600)),
                         Text(user?.phone ?? '',
                             style: AppTheme.sub(textTheme)),
                       ],
@@ -470,14 +470,14 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: AppColors.error.withValues(alpha: 0.35),
+                            color: AppColors.error,
                           ),
                         ),
                         child: const Text(
                           'Stop',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                             color: AppColors.error,
                           ),
                         ),
@@ -506,14 +506,14 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 13, vertical: 7),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12),
+                    color: AppColors.greenSoft,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       PulsingDot(
-                          color: AppColors.success,
+                          color: AppColors.primary,
                           pulsing: online,
                           size: 7),
                       const SizedBox(width: 6),
@@ -521,8 +521,8 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                         online ? 'Delivering' : 'Online',
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.success,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
@@ -610,7 +610,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
             child: Column(
               children: [
                 const SizedBox(height: 14),
-                const PulsingDot(color: AppColors.success, pulsing: true, size: 16),
+                const PulsingDot(color: AppColors.primary, pulsing: true, size: 16),
                 const SizedBox(height: 16),
                 Text("You're online", style: AppTheme.d2(textTheme)),
                 const SizedBox(height: 5),
@@ -622,11 +622,8 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.10),
+                    color: AppColors.greenSoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.28),
-                    ),
                   ),
                   child: Row(
                     children: [
@@ -642,7 +639,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                             '#${rider?.riderNumber ?? '—'}',
                             style: textTheme.titleMedium?.copyWith(
                               fontSize: 20,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.primary,
                             ),
                           ),
@@ -685,7 +682,7 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
                                     ' · ${formatRwf(tally.collected)} collected',
                                 style: AppTheme.bd(textTheme).copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.success,
+                                  color: AppColors.primary,
                                 ),
                               ),
                             ],
@@ -763,9 +760,8 @@ class _RiderScreenState extends ConsumerState<RiderScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: child,
     );
@@ -878,9 +874,8 @@ class _StageStop extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.surfaceBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -889,7 +884,7 @@ class _StageStop extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(Icons.check_circle_rounded,
-                          size: 20, color: AppColors.success),
+                          size: 20, color: AppColors.primary),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -917,8 +912,7 @@ class _StageStop extends StatelessWidget {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.12),
+                              color: AppColors.greenSoft,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(Icons.storefront_rounded,
@@ -1018,10 +1012,9 @@ class _StageStop extends StatelessWidget {
                       : OutlinedButton.icon(
                           onPressed: onConfirmPickup,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.success,
-                            side: BorderSide(
-                              color:
-                                  AppColors.success.withValues(alpha: 0.4),
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(
+                              color: AppColors.primary,
                             ),
                           ),
                           icon: const Icon(Icons.check_circle_rounded,
@@ -1038,9 +1031,8 @@ class _StageStop extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
               ),
               child: Row(
                 children: [
@@ -1056,7 +1048,7 @@ class _StageStop extends StatelessWidget {
                       '${stopNumber + 1}',
                       style: const TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.onSurfaceMuted,
                       ),
                     ),

@@ -102,7 +102,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       color: AppColors.primary,
-      backgroundColor: AppColors.surfaceAlt,
+      backgroundColor: AppColors.surface,
       child: _showActive
           ? ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -144,7 +144,7 @@ class _Tabs extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.surfaceBorder)),
+        border: Border(bottom: BorderSide(color: AppColors.hairline)),
       ),
       child: Row(
         children: [
@@ -210,16 +210,14 @@ class _Tab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : AppColors.surfaceHigh,
+                  color: selected ? AppColors.greenSoft : AppColors.fill,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: selected ? AppColors.primary : AppColors.onSurfaceMuted,
                   ),
                 ),
@@ -250,6 +248,7 @@ class _ActiveOrderCard extends StatelessWidget {
         : group.stores.join(' · ');
     final story = activeOrderStory(group);
     final color = story.color;
+    final textColor = story.textColor;
     final label = story.label;
     final progress = story.progress;
     final pulsing = story.pulsing;
@@ -260,9 +259,8 @@ class _ActiveOrderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,7 +275,7 @@ class _ActiveOrderCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.titleSmall?.copyWith(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -286,13 +284,18 @@ class _ActiveOrderCard extends StatelessWidget {
                 style: textTheme.titleSmall?.copyWith(
                   fontSize: 14,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 5),
-          StatusRow(color: color, label: label, pulsing: pulsing),
+          StatusRow(
+            color: color,
+            textColor: textColor,
+            label: label,
+            pulsing: pulsing,
+          ),
           const SizedBox(height: 3),
           Text(subline, style: AppTheme.sub(textTheme)),
           const SizedBox(height: 10),
@@ -304,7 +307,7 @@ class _ActiveOrderCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 4,
-                    backgroundColor: AppColors.surfaceHigh,
+                    backgroundColor: AppColors.fill,
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 ),
@@ -346,7 +349,7 @@ class _HistoryList extends StatelessWidget {
         ..add(Padding(
           padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
           child: Text(
-            label.toUpperCase(),
+            label,
             style: AppTheme.cap(context.textTheme),
           ),
         ))
@@ -402,7 +405,7 @@ class _HistoryRow extends StatelessWidget {
     final label = story.label;
 
     return Material(
-      color: AppColors.surfaceAlt,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -428,7 +431,7 @@ class _HistoryRow extends StatelessWidget {
                           formatRwf(group.grandTotal),
                           style: textTheme.titleSmall?.copyWith(
                             fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -453,7 +456,7 @@ class _HistoryRow extends StatelessWidget {
   ({Color color, String label}) _historyStatus(String status) {
     switch (status) {
       case 'completed':
-        return (color: AppColors.success, label: 'Delivered');
+        return (color: AppColors.primary, label: 'Delivered');
       case 'cancelled':
         return (color: AppColors.error, label: 'Cancelled');
       default:
@@ -477,7 +480,7 @@ class _EmptyOrders extends StatelessWidget {
             width: 96,
             height: 96,
             decoration: const BoxDecoration(
-              color: AppColors.surfaceHigh,
+              color: AppColors.fill,
               shape: BoxShape.circle,
             ),
             child: const Icon(

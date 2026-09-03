@@ -144,12 +144,15 @@ final activeOrdersProvider = AsyncNotifierProvider<ActiveOrdersNotifier,
 /// dot row and progress bar, derived from the server's own summary (the
 /// ETA target means the delivery is actually moving). One derivation for
 /// every surface (Home's live card, the Orders Active card), never two.
-({Color color, String label, double progress, bool pulsing})
+/// v3 adds the calm tier: preparing/confirmed get a neutral dot and
+/// muted words — non-urgent states stop borrowing the action color.
+({Color color, Color? textColor, String label, double progress, bool pulsing})
     activeOrderStory(GroupSummary group) {
   switch (group.status) {
     case 'partially_fulfilled':
       return (
-        color: AppColors.success,
+        color: AppColors.primary,
+        textColor: null,
         label: 'Out for delivery',
         progress: 0.65,
         pulsing: true,
@@ -157,21 +160,24 @@ final activeOrdersProvider = AsyncNotifierProvider<ActiveOrdersNotifier,
     case 'in_progress':
       if (group.etaTarget != null) {
         return (
-          color: AppColors.success,
+          color: AppColors.primary,
+          textColor: null,
           label: 'Out for delivery',
           progress: 0.65,
           pulsing: true,
         );
       }
       return (
-        color: AppColors.primary,
+        color: AppColors.dotNeutral,
+        textColor: AppColors.onSurfaceMuted,
         label: 'Preparing',
         progress: 0.35,
         pulsing: false,
       );
     default:
       return (
-        color: AppColors.primary,
+        color: AppColors.dotNeutral,
+        textColor: AppColors.onSurfaceMuted,
         label: 'Confirmed',
         progress: 0.15,
         pulsing: false,

@@ -49,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         'Tuma',
                         style: textTheme.displaySmall?.copyWith(
                           color: AppColors.onSurface,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -105,16 +105,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       height: 3,
                       child: Stack(
                         children: [
-                          Container(color: AppColors.surfaceAlt),
+                          Container(color: AppColors.canvas),
                           Align(
                             alignment: Alignment(-1 + 2 * _bar.value, 0),
                             child: FractionallySizedBox(
                               widthFactor: 0.35,
                               child: Container(
                                 decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [AppColors.primary, AppColors.primaryDeep],
-                                  ),
+                                  color: AppColors.primary,
                                   borderRadius: BorderRadius.all(Radius.circular(2)),
                                 ),
                               ),

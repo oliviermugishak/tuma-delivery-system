@@ -234,6 +234,22 @@ ApiClient _apiClient({
 }) {
   final feed = stores ?? [_store];
   var ordersFetchCount = 0;
+  // The saved-address book — MUTABLE and created ONCE per client: the
+  // delete test's DELETE removes the row and every later GET serves the
+  // changed book, the way the real server would.
+  final book = (addresses ?? <Map<String, dynamic>>[
+    {
+      'id': 'addr-1',
+      'label': 'Home',
+      'address_text': 'KK 40 Street, Kigali',
+      'lat': -1.9449,
+      'lng': 30.0619,
+      'is_default': true,
+      'kind': 'home',
+      'note': 'Gate on the left side',
+      'created_at': '2026-08-30T08:00:00Z',
+    },
+  ]).map((e) => Map<String, dynamic>.from(e)).toList();
   final handler = MockClient((request) async {
     seen?.add(request);
     final path = request.url.path;
@@ -343,25 +359,13 @@ ApiClient _apiClient({
           : {..._menuItem, 'images': menuImages};
       return _json({'store': _store, 'products': [item]}, 200);
     }
+    if (method == 'DELETE' && RegExp(r'/addresses/[^/]+$').hasMatch(path)) {
+      final id = path.split('/').last;
+      book.removeWhere((a) => a['id'] == id);
+      return http.Response('', 204);
+    }
     if (method == 'GET' && path.endsWith('/addresses')) {
-      // The saved-address book: one pinned default by default (the
-      // production shape checkout assumes — location is a first-class,
-      // required choice). Tests can pass a bigger book via `addresses`;
-      // the first address must keep is_default true.
-      return _json(addresses ??
-          [
-            {
-              'id': 'addr-1',
-              'label': 'Home',
-              'address_text': 'KK 40 Street, Kigali',
-              'lat': -1.9449,
-              'lng': 30.0619,
-              'is_default': true,
-              'kind': 'home',
-              'note': 'Gate on the left side',
-              'created_at': '2026-08-30T08:00:00Z',
-            },
-          ], 200);
+      return _json(book, 200);
     }
     if (path.endsWith('/me')) {
       if (method == 'PATCH') {
@@ -434,7 +438,7 @@ Widget _harness(ApiClient client) {
       ),
     ],
     child: MaterialApp.router(
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
       routerConfig: buildRouter(), // fresh router per test
     ),
   );
@@ -469,7 +473,7 @@ Future<void> _landOnRider(WidgetTester tester) async {
         ),
       ],
       child: MaterialApp.router(
-        theme: AppTheme.dark(),
+        theme: AppTheme.light(),
         routerConfig: buildRouter(), // fresh router per test
       ),
     ),
@@ -709,7 +713,6 @@ void main() {
     });
     final seen = <http.Request>[];
     await _landOnShell(tester, _apiClient(seen: seen));
-
     // The feed request carried the pin…
     final storesCall =
         seen.singleWhere((r) => r.url.path.endsWith('/stores'));
@@ -720,6 +723,185 @@ void main() {
     // numbers anywhere.
     expect(find.text('~3 min'), findsOneWidget);
     expect(find.text('1,500 RWF'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('a fresh location entry lists saved locations with a back button',
+      (tester) async {
+    // No edit argument: the screen opens on the address book, not the
+    // editor. Two saved rows render with their labels, lines, and notes;
+    // the real back affordance is present on both platforms.
+    SharedPreferences.setMockInitialValues({});
+    final client = _apiClient(
+      addresses: [
+        {
+          'id': 'addr-1',
+          'label': 'Home',
+          'address_text': 'KK 40 Street, Kigali',
+          'lat': -1.9449,
+          'lng': 30.0619,
+          'is_default': true,
+          'kind': 'home',
+          'note': 'Gate on the left side',
+          'created_at': '2026-08-30T08:00:00Z',
+        },
+        {
+          'id': 'addr-2',
+          'label': 'Work',
+          'address_text': 'KN 30 Ave, Remera',
+          'lat': -1.9590,
+          'lng': 30.1050,
+          'is_default': false,
+          'kind': 'work',
+          'note': 'Ring the bell at reception',
+          'created_at': '2026-08-30T08:05:00Z',
+        },
+      ],
+    );
+    await _landOnShell(tester, client);
+    GoRouter.of(tester.element(find.byType(AppShell).first))
+        .go('/profile/location');
+    await _settle(tester);
+
+    // The list panel: title, the real rows (label + address + note as the
+    // second line), and the add button. No editor chrome.
+    expect(find.text('Your saved locations'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+    expect(find.text('Gate on the left side'), findsOneWidget);
+    expect(find.text('Work'), findsOneWidget);
+    expect(find.text('KN 30 Ave, Remera'), findsOneWidget);
+    expect(find.text('Ring the bell at reception'), findsOneWidget);
+    expect(find.text('Add new location'), findsOneWidget);
+    expect(find.text('Save location'), findsNothing);
+    // The floating back affordance (the Claim 1 fix).
+    expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // Back pops to where we came from — the shell, not a dead end.
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await _settle(tester);
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.text('Your saved locations'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('the add-new button opens the blank editor, not the list again',
+      (tester) async {
+    // The list's "Add new location" door: it must land on the BLANK
+    // editor (Save location, empty fields), never re-push the list on
+    // itself — the founder's catch.
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+    GoRouter.of(tester.element(find.byType(AppShell).first))
+        .go('/profile/location');
+    await _settle(tester);
+
+    expect(find.text('Your saved locations'), findsOneWidget);
+    await tester.tap(find.text('Add new location'));
+    await _settle(tester);
+
+    // The blank editor — not another list.
+    expect(find.text('Save location'), findsOneWidget);
+    expect(find.text('Your saved locations'), findsNothing);
+    expect(find.text('Update location'), findsNothing);
+    // The fields start empty: no address carried over from anywhere.
+    final addressField = tester.widget<TextField>(
+      find.byType(TextField).first,
+    );
+    expect(addressField.controller?.text, isEmpty);
+    expect(tester.takeException(), isNull);
+
+    // Back from the editor returns to the list (it is still beneath).
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await _settle(tester);
+    expect(find.text('Your saved locations'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('tapping a saved location opens the editor pre-filled',
+      (tester) async {
+    // Tap a card → editor seeded with that address: the text, the note,
+    // and the matching kind chip carry over; the CTA says update.
+    SharedPreferences.setMockInitialValues({});
+    await _landOnShell(tester, _apiClient());
+    GoRouter.of(tester.element(find.byType(AppShell).first))
+        .go('/profile/location');
+    await _settle(tester);
+
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+    await tester.tap(find.text('KK 40 Street, Kigali'));
+    await _settle(tester);
+
+    // The editor: the address line and note pre-filled from the row, the
+    // Home chip selected, and the update verb on the CTA.
+    expect(find.text('Update location'), findsOneWidget);
+    expect(find.text('Save location'), findsNothing);
+    // The address field carries the row's text; the note field carries
+    // the row's rider note. (Widget order varies by platform panels —
+    // assert on the CONTENT, whichever field holds it.)
+    final fieldTexts = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .map((f) => f.controller?.text ?? '')
+        .toList();
+    expect(fieldTexts, contains('KK 40 Street, Kigali'));
+    expect(fieldTexts, contains('Gate on the left side'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testDesktop('deleting a saved location confirms then removes the row',
+      (tester) async {
+    // The trash icon asks first (P10); confirm sends
+    // DELETE /addresses/{id} and the refreshed list no longer shows the
+    // row. Cancel keeps it.
+    SharedPreferences.setMockInitialValues({});
+    final seen = <http.Request>[];
+    final client = _apiClient(
+      seen: seen,
+      addresses: [
+        {
+          'id': 'addr-1',
+          'label': 'Home',
+          'address_text': 'KK 40 Street, Kigali',
+          'lat': -1.9449,
+          'lng': 30.0619,
+          'is_default': true,
+          'kind': 'home',
+          'note': 'Gate on the left side',
+          'created_at': '2026-08-30T08:00:00Z',
+        },
+      ],
+    );
+    await _landOnShell(tester, client);
+    GoRouter.of(tester.element(find.byType(AppShell).first))
+        .go('/profile/location');
+    await _settle(tester);
+
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+
+    // Cancel first: the dialog appears, the row survives, no DELETE sent.
+    await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+    await _settle(tester);
+    expect(find.text('Delete this location?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await _settle(tester);
+    expect(find.text('KK 40 Street, Kigali'), findsOneWidget);
+    expect(
+      seen.where((r) => r.method == 'DELETE' && r.url.path.contains('/addresses/')),
+      isEmpty,
+    );
+
+    // Confirm: the DELETE goes out and the refreshed book is empty.
+    await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+    await _settle(tester);
+    await tester.tap(find.text('Delete'));
+    await _settle(tester);
+    expect(
+      seen.where((r) =>
+          r.method == 'DELETE' && r.url.path.endsWith('/addresses/addr-1')),
+      hasLength(1),
+    );
+    expect(find.text('No saved locations yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

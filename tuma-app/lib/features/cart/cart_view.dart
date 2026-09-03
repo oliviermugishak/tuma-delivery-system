@@ -169,9 +169,8 @@ class _StoreHeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Row(
         children: [
@@ -217,9 +216,8 @@ class _CartItemCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +264,7 @@ class _CartItemCard extends ConsumerWidget {
                 style: textTheme.titleSmall?.copyWith(
                   fontSize: 14,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 7),
@@ -289,7 +287,7 @@ class _CartItemCard extends ConsumerWidget {
                     child: Text(
                       '${item.quantity}',
                       style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -323,7 +321,7 @@ class _StepperButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceHigh,
+      color: AppColors.fill,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -351,9 +349,8 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         children: [
@@ -370,7 +367,7 @@ class _SummaryCard extends StatelessWidget {
                 ],
               ),
             ),
-          const Divider(color: AppColors.surfaceBorder),
+          const Divider(color: AppColors.hairline),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -381,7 +378,7 @@ class _SummaryCard extends StatelessWidget {
                 style: textTheme.titleSmall?.copyWith(
                   fontSize: 15,
                   color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -456,7 +453,7 @@ class _CartEmptyStateState extends ConsumerState<CartEmptyState> {
                   width: 96,
                   height: 96,
                   decoration: const BoxDecoration(
-                    color: AppColors.surfaceHigh,
+                    color: AppColors.fill,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -523,9 +520,8 @@ class _PopularMiniCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Row(
         children: [
@@ -561,7 +557,7 @@ class _PopularMiniCard extends ConsumerWidget {
                   style: textTheme.titleSmall?.copyWith(
                     fontSize: 13,
                     color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -596,7 +592,7 @@ class CartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: CartView(
           // A cold start on /cart has nothing to pop — fall home instead

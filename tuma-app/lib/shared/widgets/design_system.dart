@@ -5,20 +5,27 @@ import 'package:tuma_app/core/theme/app_theme.dart';
 
 /// The redesign's shared primitives — the signature moves (DESIGN
 /// PRINCIPLES.md Part 2). Screens compose from these; per-screen
-/// inventions need justification (P15).
+/// inventions need justification (P15). v3: green means go, orange
+/// means look, calm states are neutral.
 
 /// The status dot row (P14's vocabulary): colored dot + status words.
 /// Colors come from [statusColor], one meaning per color everywhere.
+/// [textColor] lets calm states split the pair — neutral dot, muted
+/// words — without a second widget.
 class StatusRow extends StatelessWidget {
   const StatusRow({
     super.key,
     required this.color,
     required this.label,
+    this.textColor,
     this.pulsing = false,
   });
 
   final Color color;
   final String label;
+
+  /// Defaults to [color]; the calm tier passes onSurfaceMuted here.
+  final Color? textColor;
   final bool pulsing;
 
   @override
@@ -38,7 +45,7 @@ class StatusRow extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sub(context.textTheme).copyWith(
-              color: color,
+              color: textColor ?? color,
               fontWeight: FontWeight.w600,
               fontSize: 12.5,
             ),
@@ -49,8 +56,8 @@ class StatusRow extends StatelessWidget {
   }
 }
 
-/// The pulsing dot — teal-and-live (signature move 2): a solid dot with
-/// an expanding ring on a 2s loop when [pulsing]. Never more than one
+/// The pulsing dot — green-and-live (signature move 2): a solid dot with
+/// an expanding ring on a 2.2s loop when [pulsing]. Never more than one
 /// pulsing element per screen.
 class PulsingDot extends StatefulWidget {
   const PulsingDot({
@@ -88,7 +95,7 @@ class _PulsingDotState extends State<PulsingDot>
   void _start() {
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2200),
     )..repeat();
   }
 
@@ -128,8 +135,8 @@ class _PulsingDotState extends State<PulsingDot>
         animation: controller,
         builder: (context, _) {
           final t = controller.value;
-          // The ring expands to ~2.2× the dot while fading out — the
-          // spec's `box-shadow 0 0 0 9px` loop, layout-stable.
+          // The ring expands to ~2.2× the dot while fading out to 30%
+          // alpha — layout-stable.
           return Stack(
             alignment: Alignment.center,
             children: [
@@ -139,7 +146,7 @@ class _PulsingDotState extends State<PulsingDot>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: widget.color.withValues(alpha: 0.45 * (1 - t)),
+                    color: widget.color.withValues(alpha: 0.30 * (1 - t)),
                     width: 2,
                   ),
                 ),
@@ -153,9 +160,9 @@ class _PulsingDotState extends State<PulsingDot>
   }
 }
 
-/// The uppercase micro-label (signature move 4): "DELIVER TO",
-/// "ORDER SUMMARY", "ACCOUNT" — quiet section structure without
-/// dividers.
+/// The micro-label (signature move 4): "Deliver to", "Order summary",
+/// "Account" — quiet section structure without dividers. Sentence case
+/// (v3), no tracking.
 class MicroLabel extends StatelessWidget {
   const MicroLabel(this.text, {super.key});
 
@@ -164,14 +171,14 @@ class MicroLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      text.toUpperCase(),
+      text,
       style: AppTheme.cap(context.textTheme),
     );
   }
 }
 
-/// The stat label (signature move 5): the accent, 800-weight, wider
-/// tracking variant — "STOP 1 OF 2 · PICK UP". Marks rider stages.
+/// The stat label (signature move 5): the green, 600-weight variant —
+/// "Stop 1 of 2 · Pick up". Marks rider stages. Sentence case (v3).
 class StatLabel extends StatelessWidget {
   const StatLabel(this.text, {super.key});
 
@@ -180,18 +187,17 @@ class StatLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      text.toUpperCase(),
+      text,
       style: AppTheme.cap(context.textTheme).copyWith(
         color: AppColors.primary,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.2,
+        fontWeight: FontWeight.w600,
         fontSize: 11,
       ),
     );
   }
 }
 
-/// The accent strip (signature move 1): a full-width yellow bar for the
+/// The money strip (signature move 1): a full-width green bar for the
 /// single most important fact — "Collect 8,000 RWF cash". One per screen,
 /// only when money or the critical fact is present (P8's carrier).
 class AccentStrip extends StatelessWidget {
@@ -221,7 +227,7 @@ class AccentStrip extends StatelessWidget {
               text,
               style: AppTheme.hd(context.textTheme).copyWith(
                 color: AppColors.onPrimary,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -232,8 +238,8 @@ class AccentStrip extends StatelessWidget {
 }
 
 /// The lifecycle stepper (P11): Placed → Preparing → Picked up →
-/// On the way → Delivered. Done dots are accent, the current dot is the
-/// pulsing teal, future dots are quiet wells. Labels under dots.
+/// On the way → Delivered. Done dots are green, the current dot is the
+/// pulsing green, future dots are quiet fill wells. Labels under dots.
 class OrderStepper extends StatelessWidget {
   const OrderStepper({
     super.key,
@@ -264,7 +270,7 @@ class OrderStepper extends StatelessWidget {
                 height: 2,
                 margin: const EdgeInsets.only(bottom: 18),
                 color: i <= currentIndex
-                    ? (completed ? AppColors.success : AppColors.primary)
+                    ? AppColors.primary
                     : AppColors.line,
               ),
             ),
@@ -297,9 +303,9 @@ class _Step extends StatelessWidget {
     final isOk = state == _StepState.doneOk;
     final color = switch (state) {
       _StepState.done => AppColors.primary,
-      _StepState.current => AppColors.success,
-      _StepState.doneOk => AppColors.success,
-      _StepState.future => AppColors.line,
+      _StepState.current => AppColors.primary,
+      _StepState.doneOk => AppColors.primary,
+      _StepState.future => AppColors.stepFuture,
     };
     return Column(
       children: [
@@ -314,14 +320,14 @@ class _Step extends StatelessWidget {
           child: Center(
             child: state == _StepState.current
                 ? const PulsingDot(
-                    color: AppColors.success, pulsing: true, size: 14)
+                    color: AppColors.primary, pulsing: true, size: 14)
                 : Container(
                     width: 14,
                     height: 14,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: state == _StepState.future
-                          ? AppColors.surfaceHigh
+                          ? AppColors.fill
                           : color,
                       border: Border.all(color: color, width: 2),
                     ),
@@ -339,10 +345,10 @@ class _Step extends StatelessWidget {
             style: AppTheme.sub(context.textTheme).copyWith(
               fontSize: 9.5,
               color: state == _StepState.current || isOk
-                  ? AppColors.success
+                  ? AppColors.primary
                   : AppColors.onSurfaceMuted,
               fontWeight: state == _StepState.current || isOk
-                  ? FontWeight.w700
+                  ? FontWeight.w600
                   : FontWeight.w500,
             ),
           ),
@@ -369,7 +375,8 @@ class DashedAddRow extends StatelessWidget {
     return CustomPaint(
       foregroundPainter: _DashedBorderPainter(
         radius: 14,
-        color: AppColors.line,
+        // Green at 35% — the brief's dashed affordance color.
+        color: AppColors.primary.withValues(alpha: 0.35),
       ),
       child: Material(
         color: Colors.transparent,
@@ -438,7 +445,7 @@ class _DashedBorderPainter extends CustomPainter {
 }
 
 /// The elongated dot carousel indicators (signature move 6): 6dp dots,
-/// the active grows to a 16dp accent pill.
+/// the active grows to a 16dp green pill.
 class DotIndicators extends StatelessWidget {
   const DotIndicators({
     super.key,
@@ -461,7 +468,7 @@ class DotIndicators extends StatelessWidget {
             height: 6,
             margin: const EdgeInsets.symmetric(horizontal: 2.5),
             decoration: BoxDecoration(
-              color: i == activeIndex ? AppColors.primary : AppColors.surfaceHigh,
+              color: i == activeIndex ? AppColors.primary : AppColors.dotInactive,
               borderRadius: BorderRadius.circular(999),
             ),
           ),
@@ -470,10 +477,11 @@ class DotIndicators extends StatelessWidget {
   }
 }
 
-/// The category tint (P15's carrier): a merchant category resolves to a
-/// 135° two-stop gradient + an icon. The merchant's identity at a glance
-/// wherever photography is absent — and beneath photography as the
-/// loading/fallback surface, so empty media looks intentional.
+/// The category tile (P15's carrier): a merchant category resolves to a
+/// neutral tile + an icon. It stands in for photography wherever media
+/// is absent — and beneath photography as the loading/fallback surface,
+/// so empty media looks intentional. v3 retires the per-category tints:
+/// every category maps to the same warm neutral.
 class CategoryTint {
   const CategoryTint({
     required this.begin,
@@ -488,7 +496,9 @@ class CategoryTint {
   final Color iconColor;
 
   /// The tint for a category/store name. Matching is by keywords; the
-  /// generic white-tint is the honest fallback.
+  /// generic tile is the honest fallback. v3: every branch paints the
+  /// same neutral — the keyword walk stays only because the API is
+  /// called everywhere and its argument shape must not move.
   static CategoryTint forCategory(String category, {String? hint}) {
     final text = '$category ${hint ?? ''}'.toLowerCase();
     if (text.contains('coffee') || text.contains('café') || text.contains('cafe')) {
@@ -521,40 +531,23 @@ class CategoryTint {
     return generic;
   }
 
-  static final CategoryTint fastFood = CategoryTint(
-    begin: AppColors.tintKfc.withValues(alpha: 0.32),
-    end: AppColors.tintKfc.withValues(alpha: 0.06),
-    icon: Icons.restaurant_rounded,
-    iconColor: AppColors.tintKfcIcon,
-  );
-  static final CategoryTint supermarket = CategoryTint(
-    begin: AppColors.tintSupermarket.withValues(alpha: 0.30),
-    end: AppColors.tintSupermarket.withValues(alpha: 0.05),
-    icon: Icons.local_grocery_store_rounded,
-    iconColor: AppColors.tintSupermarketIcon,
-  );
-  static final CategoryTint coffee = CategoryTint(
-    begin: AppColors.tintCoffee.withValues(alpha: 0.38),
-    end: AppColors.tintCoffee.withValues(alpha: 0.08),
-    icon: Icons.coffee_rounded,
-    iconColor: AppColors.tintCoffeeIcon,
-  );
-  static final CategoryTint dairy = CategoryTint(
-    begin: AppColors.tintDairy.withValues(alpha: 0.28),
-    end: AppColors.tintDairy.withValues(alpha: 0.05),
-    icon: Icons.local_drink_rounded,
-    iconColor: AppColors.tintDairyIcon,
-  );
-  static final CategoryTint generic = CategoryTint(
-    begin: Colors.white.withValues(alpha: 0.07),
-    end: Colors.white.withValues(alpha: 0.02),
-    icon: Icons.shopping_basket_rounded,
-    iconColor: AppColors.tintGenericIcon,
-  );
+  static final CategoryTint fastFood = _neutral(Icons.restaurant_rounded);
+  static final CategoryTint supermarket =
+      _neutral(Icons.local_grocery_store_rounded);
+  static final CategoryTint coffee = _neutral(Icons.coffee_rounded);
+  static final CategoryTint dairy = _neutral(Icons.local_drink_rounded);
+  static final CategoryTint generic = _neutral(Icons.shopping_basket_rounded);
+
+  static CategoryTint _neutral(IconData icon) => CategoryTint(
+        begin: AppColors.fallbackTile,
+        end: AppColors.fallbackTile,
+        icon: icon,
+        iconColor: AppColors.fallbackIcon,
+      );
 }
 
-/// The tinted tile (signature move 3): the 135° category gradient with a
-/// white category icon — standing in for photography everywhere, and the
+/// The media tile (signature move 3): the solid fallback tile with a
+/// muted category icon — standing in for photography everywhere, and the
 /// fallback under a failing/absent RemoteImage.
 class TintedTile extends StatelessWidget {
   const TintedTile({
@@ -579,11 +572,7 @@ class TintedTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final decoration = BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [tint.begin, tint.end],
-      ),
+      color: tint.begin,
       borderRadius: BorderRadius.circular(borderRadius),
     );
     final content = child ??
@@ -607,7 +596,7 @@ class TintedTile extends StatelessWidget {
   }
 }
 
-/// The avatar: accent circle + initials (the profile/rider identity).
+/// The avatar: green circle + initials (the profile/rider identity).
 class AccentAvatar extends StatelessWidget {
   const AccentAvatar({
     super.key,
@@ -619,8 +608,8 @@ class AccentAvatar extends StatelessWidget {
   final String text;
   final double size;
 
-  /// The rider/customer card variant: tinted accent at 15% with accent
-  /// text instead of the solid accent fill.
+  /// The rider/customer card variant: greenSoft with green text instead
+  /// of the solid green fill.
   final bool tinted;
 
   String? get _initials {
@@ -644,16 +633,14 @@ class AccentAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: tinted
-            ? AppColors.primary.withValues(alpha: 0.15)
-            : AppColors.primary,
+        color: tinted ? AppColors.greenSoft : AppColors.primary,
       ),
       alignment: Alignment.center,
       child: Text(
         initials,
         style: TextStyle(
           fontSize: size * 0.33,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           color: tinted ? AppColors.primary : AppColors.onPrimary,
         ),
       ),
@@ -662,7 +649,7 @@ class AccentAvatar extends StatelessWidget {
 }
 
 /// The Track action pill (P5: the one clear next step): the navigate
-/// icon in an accent-well — unmistakably a button, never plain text.
+/// icon in a greenSoft well — unmistakably a button, never plain text.
 /// The one action every live order card carries.
 class TrackPill extends StatelessWidget {
   const TrackPill({super.key, required this.onTap});
@@ -672,7 +659,7 @@ class TrackPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.primary.withValues(alpha: 0.14),
+      color: AppColors.greenSoft,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
@@ -689,7 +676,7 @@ class TrackPill extends StatelessWidget {
                 'Track',
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.primary,
                 ),
               ),

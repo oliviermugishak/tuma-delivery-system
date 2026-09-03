@@ -142,7 +142,7 @@ Widget _harness(_Script script) {
       ),
     ],
     child: MaterialApp.router(
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
       routerConfig: buildRouter(),
     ),
   );
@@ -174,7 +174,7 @@ void main() {
 
     // The stage card: the stat label, the store stage, the destination,
     // and Navigate as the primary action.
-    expect(find.textContaining('STOP 1 OF 1 · PICK UP'), findsOneWidget);
+    expect(find.textContaining('Stop 1 of 1 · Pick up'), findsOneWidget);
     expect(find.text("Aline's Kitchen"), findsOneWidget);
     expect(find.text('KN 4 Ave, Kigali'), findsOneWidget);
     expect(find.text('Navigate to store'), findsOneWidget);

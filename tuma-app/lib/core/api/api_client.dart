@@ -132,6 +132,12 @@ class ApiClient {
     return _send('PATCH', path, body, token: token);
   }
 
+  /// A 204-mutation (address delete and friends). Returns void — the
+  /// success IS the empty body.
+  Future<void> delete(String path) async {
+    await _send('DELETE', path, null);
+  }
+
   /// The decoded JSON of a successful response, or `null` when the body
   /// is empty (204s and friends). Throws [ApiError] otherwise. Callers
   /// that expect a JSON list should go through [getList] so contract
@@ -181,6 +187,8 @@ class ApiClient {
                 body: body == null ? null : jsonEncode(body),
               )
               .timeout(_timeout);
+        case 'DELETE':
+          response = await _http.delete(url, headers: headers).timeout(_timeout);
         default:
           throw ArgumentError('unsupported method $method');
       }

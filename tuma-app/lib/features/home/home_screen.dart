@@ -177,7 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: RefreshIndicator(
           onRefresh: _refresh,
           color: AppColors.primary,
-          backgroundColor: AppColors.surfaceAlt,
+          backgroundColor: AppColors.surface,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -356,9 +356,8 @@ class _DeliverToBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: InkWell(
         onTap: onTap,
@@ -408,9 +407,8 @@ class _LiveOrderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.greenSoft,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: story.color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -431,6 +429,7 @@ class _LiveOrderCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 StatusRow(
                   color: story.color,
+                  textColor: story.textColor,
                   label: story.label,
                   pulsing: story.pulsing,
                 ),
@@ -463,9 +462,8 @@ class _StoreCard extends StatelessWidget {
     final tint = CategoryTint.forCategory(category ?? '', hint: store.name);
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -564,8 +562,8 @@ class _StoreCard extends StatelessWidget {
   }
 }
 
-/// The accent fee pill — the delivery fee in its yellow badge (P14:
-/// accent carries money).
+/// The fee pill — the delivery fee on its greenSoft badge (P14: green
+/// carries money).
 class _FeePill extends StatelessWidget {
   const _FeePill({required this.fee});
 
@@ -576,21 +574,21 @@ class _FeePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: AppColors.greenSoft,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.two_wheeler_rounded,
-              size: 13, color: AppColors.onPrimary),
+              size: 13, color: AppColors.primary),
           const SizedBox(width: 4),
           Text(
             formatRwf(fee),
             style: const TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onPrimary,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
             ),
           ),
         ],
@@ -618,7 +616,7 @@ class _CategoryChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
-        color: selected ? AppColors.primary : AppColors.surfaceHigh,
+        color: selected ? AppColors.primary : AppColors.fill,
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
@@ -650,7 +648,7 @@ class _LocationHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceAlt,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -783,7 +781,7 @@ class _FeedSkeleton extends StatelessWidget {
                                     Container(
                                       height: 86,
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceHigh,
+                                        color: AppColors.skeletonBase,
                                         borderRadius:
                                             BorderRadius.circular(16),
                                       ),
@@ -813,7 +811,7 @@ class _FeedSkeleton extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppColors.surfaceHigh,
+        color: AppColors.skeletonBase,
         borderRadius: BorderRadius.circular(8),
       ),
     );

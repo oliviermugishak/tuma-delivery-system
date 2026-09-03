@@ -46,6 +46,12 @@ class AddressApi {
     return Address.fromJson(response as Map<String, dynamic>);
   }
 
+  /// Removes one saved address. Another customer's id is a 404 —
+  /// indistinguishable from a missing one.
+  Future<void> delete(String id) async {
+    await _client.delete('/addresses/$id');
+  }
+
   /// The address book API grows (delete) when a screen needs it;
   /// checkout + profile-location read, create, and edit today.
 }

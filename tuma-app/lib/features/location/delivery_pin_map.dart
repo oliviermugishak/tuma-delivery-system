@@ -54,15 +54,14 @@ class _PasteCoordinatesFieldState extends State<PasteCoordinatesField> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Drop your delivery pin', style: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               )),
           const SizedBox(height: 4),
           Text(
@@ -81,7 +80,7 @@ class _PasteCoordinatesFieldState extends State<PasteCoordinatesField> {
               suffixIcon: parsed == null
                   ? null
                   : const Icon(Icons.check_circle_rounded,
-                      color: AppColors.success, size: 20),
+                      color: AppColors.primary, size: 20),
             ),
           ),
           const SizedBox(height: 10),
@@ -98,7 +97,7 @@ class _PasteCoordinatesFieldState extends State<PasteCoordinatesField> {
                 parsed == null
                     ? 'Use this pin'
                     : 'Use (${parsed.lat.toStringAsFixed(4)}, ${parsed.lng.toStringAsFixed(4)})',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),

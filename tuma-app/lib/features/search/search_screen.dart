@@ -163,7 +163,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 'Search',
                 style: textTheme.headlineSmall?.copyWith(
                   color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -196,15 +196,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           },
                         ),
                   filled: true,
-                  fillColor: AppColors.surfaceAlt,
+                  fillColor: AppColors.fill,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: AppColors.surfaceBorder),
+                    borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: AppColors.surfaceBorder),
+                    borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -240,7 +240,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               labelColor: AppColors.primary,
               unselectedLabelColor: AppColors.onSurfaceMuted,
               indicatorColor: AppColors.primary,
-              dividerColor: AppColors.surfaceBorder,
+              dividerColor: AppColors.hairline,
               tabs: const [
                 Tab(text: 'Products'),
                 Tab(text: 'Stores'),
@@ -331,10 +331,8 @@ class _RecentSearches extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Material(
-                    color: AppColors.surfaceAlt,
-                    shape: StadiumBorder(
-                      side: BorderSide(color: AppColors.surfaceBorder),
-                    ),
+                    color: AppColors.fill,
+                    shape: const StadiumBorder(),
                     child: InkWell(
                       customBorder: const StadiumBorder(),
                       onTap: () => onPick(term),
@@ -461,7 +459,7 @@ class _PopularHeader extends StatelessWidget {
         const Icon(
           Icons.local_fire_department_rounded,
           size: 18,
-          color: AppColors.warning,
+          color: AppColors.orange,
         ),
         const SizedBox(width: 8),
         Text('Popular near you',
@@ -487,7 +485,7 @@ class _ProductTile extends StatelessWidget {
     // for a product is "where from", answered by the store name below.
     final tint = CategoryTint.forCategory(hit.storeName, hint: hit.name);
     return Material(
-      color: AppColors.surfaceAlt,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -519,14 +517,14 @@ class _ProductTile extends StatelessWidget {
                       child: Container(
                         width: 22,
                         height: 22,
-                        decoration: BoxDecoration(
-                          color: AppColors.surface.withValues(alpha: 0.75),
+                        decoration: const BoxDecoration(
+                          color: AppColors.orangeSoft,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.local_fire_department_rounded,
                           size: 14,
-                          color: AppColors.warning,
+                          color: AppColors.orange,
                         ),
                       ),
                     ),
@@ -566,7 +564,7 @@ class _ProductTile extends StatelessWidget {
                     style: textTheme.titleSmall?.copyWith(
                       fontSize: 14,
                       color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -631,7 +629,7 @@ class _StoreRow extends StatelessWidget {
     final distance = store.distanceM;
     final tint = CategoryTint.forCategory(category ?? '', hint: store.name);
     return Material(
-      color: AppColors.surfaceAlt,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -723,10 +721,9 @@ class _DiscoveryEmpty extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.surfaceBorder),
+              decoration: const BoxDecoration(
+                color: AppColors.fill,
+                shape: BoxShape.circle,
               ),
               child: Icon(icon, color: AppColors.onSurfaceMuted),
             ),
@@ -735,7 +732,7 @@ class _DiscoveryEmpty extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 4),

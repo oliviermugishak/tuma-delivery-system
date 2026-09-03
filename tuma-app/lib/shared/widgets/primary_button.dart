@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:tuma_app/core/theme/app_colors.dart';
 
-/// The one dominant action per screen: full-width gold→orange CTA with an
-/// inline loading state.
+/// The one dominant action per screen: flat green CTA with an inline
+/// loading state.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -26,15 +26,13 @@ class PrimaryButton extends StatelessWidget {
         height: 52,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDeep],
-            ),
-            borderRadius: BorderRadius.circular(14),
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               onTap: enabled ? onPressed : null,
               child: Center(
                 child: loading
@@ -50,7 +48,7 @@ class PrimaryButton extends StatelessWidget {
                         label,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               color: AppColors.onPrimary,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
               ),

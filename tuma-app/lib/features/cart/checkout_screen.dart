@@ -106,12 +106,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final textTheme = Theme.of(context).textTheme;
     return showModalBottomSheet<Address>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.canvas,
       // A grown address book scrolls; fixed rows in a tight Column
       // overflowed the sheet (A31).
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => SafeArea(
         child: ConstrainedBox(
@@ -185,7 +185,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       const Divider(
                         height: 1,
                         indent: 20,
-                        color: AppColors.surfaceBorder,
+                        color: AppColors.hairline,
                       ),
                     ],
                   ],
@@ -434,9 +434,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surfaceBorder),
                 ),
                 child: _selectedAddress == null
                     ? InkWell(
@@ -576,9 +575,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surfaceBorder),
                 ),
                 child: Column(
                   children: [
@@ -621,7 +619,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceHigh,
+                                color: AppColors.fill,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
@@ -684,9 +682,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.surfaceBorder),
                 ),
                 child: Column(
                   children: [
@@ -730,7 +727,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ],
                       ),
                     ),
-                    const Divider(color: AppColors.surfaceBorder),
+                    const Divider(color: AppColors.hairline),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -744,7 +741,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           style: textTheme.titleSmall?.copyWith(
                             fontSize: 15,
                             color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -775,9 +772,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 FilledButton(
                   onPressed: _placing ? null : _placeOrder,
                   style: FilledButton.styleFrom(
-                    disabledBackgroundColor: AppColors.onSurface.withValues(
-                      alpha: 0.15,
-                    ),
+                    disabledBackgroundColor: AppColors.fill,
+                    disabledForegroundColor: AppColors.onSurfaceMuted,
                   ),
                   child: _placing
                       ? const SizedBox(
@@ -817,7 +813,7 @@ class _PaymentTile extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.12),
+        color: AppColors.greenSoft,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(icon, size: 20, color: AppColors.primary),
@@ -840,7 +836,7 @@ class _RadioDot extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? AppColors.primary : AppColors.line,
+          color: selected ? AppColors.primary : AppColors.hairline,
           width: 2,
         ),
       ),
