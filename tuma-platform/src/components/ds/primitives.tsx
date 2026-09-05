@@ -294,43 +294,16 @@ export function MicroLabel({
   )
 }
 
-/** Delta chip colored by good/bad, never by direction (P14). */
-export function Delta({
-  good,
-  children,
-}: {
-  good: boolean
-  children: ReactNode
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold',
-        good ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
-      )}
-    >
-      {children}
-    </span>
-  )
-}
-
 export function KpiCard({
   label,
   value,
   unit,
-  delta,
-  deltaGood,
   vs,
-  spark,
 }: {
   label: string
   value: string
   unit?: string
-  delta?: string
-  deltaGood?: boolean
   vs?: string
-  /** 0..1 series, rendered in the given viz color. */
-  spark?: { points: number[]; color: string }
 }) {
   return (
     <div className="rounded-2xl border border-white/8 bg-surface p-5">
@@ -341,64 +314,19 @@ export function KpiCard({
           <span className="text-sm font-semibold text-text2">{unit}</span>
         ) : null}
       </div>
-      {delta || spark ? (
+      {vs ? (
         <div className="mt-2 flex items-center gap-2">
-          {delta ? (
-            <Delta good={deltaGood === true}>{delta}</Delta>
-          ) : null}
-          {vs ? <span className="text-[11.5px] text-text3">{vs}</span> : null}
-          {spark && spark.points.length > 1 ? (
-            <Sparkline
-              points={spark.points}
-              color={spark.color}
-              className="ml-auto"
-            />
-          ) : null}
+          <span className="text-[11.5px] text-text3">{vs}</span>
         </div>
       ) : null}
     </div>
   )
 }
 
-const VIZ: Record<string, string> = {
-  accent: 'var(--viz1)',
-  success: 'var(--viz2)',
-  blue: 'var(--viz3)',
-  pink: 'var(--viz4)',
-  lime: 'var(--viz5)',
-}
-
-/** Flat thin sparkline — the ≤10%-alpha fill is sanctioned (P14). */
-export function Sparkline({
-  points,
-  color,
-  className,
-}: {
-  points: number[]
-  color: keyof typeof VIZ | string
-  className?: string
-}) {
-  const stroke = VIZ[color] ?? color
-  const w = 64
-  const h = 24
-  const min = Math.min(...points)
-  const max = Math.max(...points)
-  const span = max - min || 1
-  const step = (w - 4) / (points.length - 1)
-  const coords = points
-    .map((p, i) => `${2 + i * step},${h - 4 - ((p - min) / span) * (h - 8)}`)
-    .join(' ')
+/** KPI row of the overview: 4 across, 2 on tablet, 1–2 on phones (Part 9). */
+export function KpiGrid({ children }: { children: React.ReactNode }) {
   return (
-    <svg width={w} height={h} className={className} aria-hidden>
-      <polyline
-        points={coords}
-        fill="none"
-        stroke={stroke}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
   )
 }
 

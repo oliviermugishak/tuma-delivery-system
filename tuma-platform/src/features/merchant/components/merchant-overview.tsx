@@ -1,13 +1,14 @@
 /**
- * Merchant — Overview (coverage §7.10, mockup M1): KPIs, live-orders
- * strip (one pulse, "Updated Xs ago", Accept carries the total), 7-day
- * orders chart.
+ * Merchant — Overview (coverage §7.10, mockup M1): KPIs and the
+ * live-orders strip (one pulse, "Updated Xs ago", Accept carries the
+ * total).
  *
  * Live data: /v1/merchant/orders (the board feed) + /v1/merchant/stores.
  * KPI aggregates (orders today, revenue today, items sold, avg prep
- * time) need the merchant-metrics endpoint (G9) — KPI cards carry their
- * designed empty state in words until it lands; the live strip and the
- * chart are built from real orders.
+ * time) need the merchant-metrics endpoint — KPI cards carry their
+ * designed empty state in words until it lands. No metrics endpoint
+ * exists, so no orders chart renders here — it returns with the metrics
+ * slice.
  */
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
@@ -23,20 +24,17 @@ import {
 } from '@/api/queries'
 import {
   Button,
-  ChartCard,
   EmptyState,
   ErrorState,
   Freshness,
   KpiCard,
   KpiGrid,
   KpiSkeleton,
-  LineChart,
   PageHead,
   Pulse,
   Skeleton,
   Status,
 } from '@/components/ds'
-import { demoMerchantOrders7d } from '@/features/demo/seed'
 import { num, rwf } from '@/lib/format'
 import { orderStatusLabel, orderStatusTone } from '@/lib/status'
 import { ApiError } from '@/api/client'
@@ -210,29 +208,6 @@ export function MerchantOverview() {
           </div>
         )}
       </div>
-
-      <ChartCard
-        title="Orders"
-        summary={
-          <>
-            Last 7 days ·{' '}
-            <b className="font-bold text-foreground">
-              {demoMerchantOrders7d.reduce((s, p) => s + p.value, 0)} orders
-            </b>
-          </>
-        }
-      >
-        {/* BACKEND GAP (G9): demo series until merchant metrics land. */}
-        <LineChart
-          points={demoMerchantOrders7d.map((p) => ({
-            label: p.date,
-            date: p.date,
-            value: p.value,
-          }))}
-          color="success"
-          formatValue={(v) => `${num(v)} orders`}
-        />
-      </ChartCard>
     </div>
   )
 }

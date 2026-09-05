@@ -114,8 +114,8 @@ export function paymentStatusLabel(status: string): string {
 
 /**
  * Rider availability as the platform sees it: active riders are
- * assignable; inactive are off duty. (Live "On delivery" needs the
- * deliveries feed — see BACKEND-GAPS.md.)
+ * assignable; inactive are off duty. (Live "On delivery" needs a
+ * deliveries feed — no such endpoint exists yet.)
  */
 export function riderStatusTone(isActive: boolean): Tone {
   return isActive ? 'success' : 'muted'

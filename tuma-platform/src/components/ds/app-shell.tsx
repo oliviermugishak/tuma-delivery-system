@@ -384,13 +384,13 @@ function UserMenu({
 
 /**
  * Notifications (coverage §7.19). The backend has no notifications feed
- * yet (BACKEND-GAPS.md) — the bell renders the drawer's designed empty
- * state and never a fake dot (P2): unread state can't be known.
+ * yet — the bell renders the drawer's designed empty state and never a
+ * fake dot (P2): unread state can't be known.
  */
 function NotificationsBell({ wing }: { wing: string }) {
   const [open, setOpen] = useState(false)
   const emptyHint = useMemo(
-    () => 'Payout requests, disputes and delays will land here.',
+    () => 'New-order and delivery events will land here.',
     [],
   )
 

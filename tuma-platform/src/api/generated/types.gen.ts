@@ -274,16 +274,6 @@ export type DeliveryTrackingResponse = {
     updated_at: string;
 };
 
-/**
- * One geocode hit: what the location editor renders and what Save
- * stores.
- */
-export type GeoHit = {
-    address_text: string;
-    lat: number;
-    lng: number;
-};
-
 export type GroupSummaryResponse = {
     created_at: string;
     /**
@@ -1815,74 +1805,6 @@ export type GetFileResponses = {
 };
 
 export type GetFileResponse = GetFileResponses[keyof GetFileResponses];
-
-export type ReverseGeocodeData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Latitude
-         */
-        lat: number;
-        /**
-         * Longitude
-         */
-        lng: number;
-    };
-    url: '/v1/geo/reverse';
-};
-
-export type ReverseGeocodeErrors = {
-    /**
-     * Not authenticated
-     */
-    401: unknown;
-    /**
-     * Geocoding backend failed or is not configured
-     */
-    502: unknown;
-};
-
-export type ReverseGeocodeResponses = {
-    /**
-     * Addresses for the point, best first
-     */
-    200: Array<GeoHit>;
-};
-
-export type ReverseGeocodeResponse = ReverseGeocodeResponses[keyof ReverseGeocodeResponses];
-
-export type SearchGeocodeData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Street or place text
-         */
-        q: string;
-    };
-    url: '/v1/geo/search';
-};
-
-export type SearchGeocodeErrors = {
-    /**
-     * Not authenticated
-     */
-    401: unknown;
-    /**
-     * Geocoding backend failed or is not configured
-     */
-    502: unknown;
-};
-
-export type SearchGeocodeResponses = {
-    /**
-     * Address suggestions for the text
-     */
-    200: Array<GeoHit>;
-};
-
-export type SearchGeocodeResponse = SearchGeocodeResponses[keyof SearchGeocodeResponses];
 
 export type MeData = {
     body?: never;

@@ -1104,97 +1104,6 @@
         }
       }
     },
-    "/v1/geo/reverse": {
-      "get": {
-        "tags": [
-          "geo"
-        ],
-        "operationId": "reverse_geocode",
-        "parameters": [
-          {
-            "name": "lat",
-            "in": "query",
-            "description": "Latitude",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          },
-          {
-            "name": "lng",
-            "in": "query",
-            "description": "Longitude",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "format": "double"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Addresses for the point, best first",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GeoHit"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated"
-          },
-          "502": {
-            "description": "Geocoding backend failed or is not configured"
-          }
-        }
-      }
-    },
-    "/v1/geo/search": {
-      "get": {
-        "tags": [
-          "geo"
-        ],
-        "operationId": "search_geocode",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "description": "Street or place text",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Address suggestions for the text",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GeoHit"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated"
-          },
-          "502": {
-            "description": "Geocoding backend failed or is not configured"
-          }
-        }
-      }
-    },
     "/v1/me": {
       "get": {
         "tags": [
@@ -3430,28 +3339,6 @@
             "type": "string",
             "format": "date-time",
             "description": "The delivery's last write — for a settled delivery, the delivered\nmoment the customer's \"Delivered · time\" line shows (D5)."
-          }
-        }
-      },
-      "GeoHit": {
-        "type": "object",
-        "description": "One geocode hit: what the location editor renders and what Save\nstores.",
-        "required": [
-          "address_text",
-          "lat",
-          "lng"
-        ],
-        "properties": {
-          "address_text": {
-            "type": "string"
-          },
-          "lat": {
-            "type": "number",
-            "format": "double"
-          },
-          "lng": {
-            "type": "number",
-            "format": "double"
           }
         }
       },

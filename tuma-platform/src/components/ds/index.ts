@@ -3,7 +3,6 @@
  */
 export * from './primitives'
 export * from './table'
-export * from './chart'
 export * from './guard-dialog'
 export * from './command-palette'
 export * from './app-shell'

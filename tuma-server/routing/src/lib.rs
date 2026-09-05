@@ -34,7 +34,6 @@ pub struct Coord {
 pub struct Route {
     /// The encoded Google polyline — decoded client-side, stored verbatim.
     pub polyline: String,
-    pub distance_m: i64,
     pub duration_secs: i64,
 }
 
@@ -104,13 +103,9 @@ fn parse_directions_response(body: &serde_json::Value) -> Result<Option<Route>, 
     let duration_secs = leg["duration"]["value"]
         .as_i64()
         .ok_or_else(|| RoutingError::Request("Directions leg has no duration".into()))?;
-    let distance_m = leg["distance"]["value"]
-        .as_i64()
-        .ok_or_else(|| RoutingError::Request("Directions leg has no distance".into()))?;
 
     Ok(Some(Route {
         polyline: polyline.to_string(),
-        distance_m,
         duration_secs,
     }))
 }
@@ -190,7 +185,6 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::None,
                 api_key: None,
-                geo_api_key: None,
             })
             .is_ok()
         );
@@ -200,7 +194,6 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: None,
-                geo_api_key: None,
             })
             .is_err()
         );
@@ -208,7 +201,6 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: Some(secrecy::SecretString::new("AIza-test".into())),
-                geo_api_key: None,
             })
             .is_ok()
         );
@@ -232,7 +224,6 @@ mod tests {
         });
         let route = parse_directions_response(&body).unwrap().unwrap();
         assert_eq!(route.polyline, "_p~iF~ps|U_ulLnnqC_mqNvxq`~");
-        assert_eq!(route.distance_m, 6421);
         assert_eq!(route.duration_secs, 917);
     }
 

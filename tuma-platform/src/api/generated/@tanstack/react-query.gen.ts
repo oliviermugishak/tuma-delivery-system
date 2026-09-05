@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createAddress, createMerchant, createOwnStore, createProduct, createRider, createStoreProduct, deleteAddress, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteRider, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, handoffStoreOrder, healthCheck, listAddresses, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listRiderDeliveries, listRiders, listStoreProducts, listStores, login, logout, markDelivered, me, openapiJson, type Options, orderTracking, otpRequest, otpVerify, pushLocation, reverseGeocode, riderHistory, riderToday, search, searchGeocode, setProductCover, summary, updateAddress, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateRider, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
-import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateAddressData, CreateAddressResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateRiderData, CreateRiderResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteAddressData, DeleteAddressResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteRiderData, DeleteRiderResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HandoffStoreOrderData, HandoffStoreOrderResponse, HealthCheckData, HealthCheckResponse, ListAddressesData, ListAddressesResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListRiderDeliveriesData, ListRiderDeliveriesResponse, ListRidersData, ListRidersResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MarkDeliveredData, MarkDeliveredResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OrderTrackingData, OrderTrackingResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, PushLocationData, PushLocationResponse, ReverseGeocodeData, ReverseGeocodeResponse, RiderHistoryData, RiderHistoryResponse, RiderTodayData, RiderTodayResponse, SearchData, SearchGeocodeData, SearchGeocodeResponse, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateAddressData, UpdateAddressResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateRiderData, UpdateRiderResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
+import { advanceStoreOrder, cancelStoreOrder, changePassword, checkout, createAddress, createMerchant, createOwnStore, createProduct, createRider, createStoreProduct, deleteAddress, deleteCustomer, deleteMerchant, deleteOwnStore, deleteProduct, deleteProductImage, deleteRider, deleteStoreBanner, deleteStoreProduct, getFile, getMerchant, getMerchantStoreOrder, getOrder, getOwnStore, getStore, handoffStoreOrder, healthCheck, listAddresses, listCustomers, listMerchantOrders, listMerchants, listOrders, listOwnStores, listProductImages, listProducts, listRiderDeliveries, listRiders, listStoreProducts, listStores, login, logout, markDelivered, me, openapiJson, type Options, orderTracking, otpRequest, otpVerify, pushLocation, riderHistory, riderToday, search, setProductCover, summary, updateAddress, updateCustomer, updateMe, updateMerchant, updateOwnStore, updateProduct, updateRider, updateStoreProduct, uploadProductImage, uploadStoreBanner } from '../sdk.gen';
+import type { AdvanceStoreOrderData, AdvanceStoreOrderResponse, CancelStoreOrderData, CancelStoreOrderResponse, ChangePasswordData, ChangePasswordResponse, CheckoutData, CheckoutResponse, CreateAddressData, CreateAddressResponse, CreateMerchantData, CreateMerchantResponse, CreateOwnStoreData, CreateOwnStoreResponse, CreateProductData, CreateProductResponse, CreateRiderData, CreateRiderResponse, CreateStoreProductData, CreateStoreProductResponse, DeleteAddressData, DeleteAddressResponse, DeleteCustomerData, DeleteCustomerResponse, DeleteMerchantData, DeleteMerchantResponse, DeleteOwnStoreData, DeleteOwnStoreResponse, DeleteProductData, DeleteProductImageData, DeleteProductImageResponse, DeleteProductResponse, DeleteRiderData, DeleteRiderResponse, DeleteStoreBannerData, DeleteStoreBannerResponse, DeleteStoreProductData, DeleteStoreProductResponse, GetFileData, GetFileResponse, GetMerchantData, GetMerchantResponse, GetMerchantStoreOrderData, GetMerchantStoreOrderResponse, GetOrderData, GetOrderResponse, GetOwnStoreData, GetOwnStoreResponse, GetStoreData, GetStoreResponse, HandoffStoreOrderData, HandoffStoreOrderResponse, HealthCheckData, HealthCheckResponse, ListAddressesData, ListAddressesResponse, ListCustomersData, ListCustomersResponse, ListMerchantOrdersData, ListMerchantOrdersResponse, ListMerchantsData, ListMerchantsResponse, ListOrdersData, ListOrdersResponse, ListOwnStoresData, ListOwnStoresResponse, ListProductImagesData, ListProductImagesResponse, ListProductsData, ListProductsResponse, ListRiderDeliveriesData, ListRiderDeliveriesResponse, ListRidersData, ListRidersResponse, ListStoreProductsData, ListStoreProductsResponse, ListStoresData, ListStoresResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, MarkDeliveredData, MarkDeliveredResponse, MeData, MeResponse2, OpenapiJsonData, OpenapiJsonResponse, OrderTrackingData, OrderTrackingResponse, OtpRequestData, OtpRequestResponse2, OtpVerifyData, OtpVerifyResponse2, PushLocationData, PushLocationResponse, RiderHistoryData, RiderHistoryResponse, RiderTodayData, RiderTodayResponse, SearchData, SearchResponse2, SetProductCoverData, SetProductCoverResponse, SummaryData, SummaryResponse, UpdateAddressData, UpdateAddressResponse, UpdateCustomerData, UpdateCustomerResponse, UpdateMeData, UpdateMerchantData, UpdateMerchantResponse, UpdateMeResponse, UpdateOwnStoreData, UpdateOwnStoreResponse, UpdateProductData, UpdateProductResponse, UpdateRiderData, UpdateRiderResponse, UpdateStoreProductData, UpdateStoreProductResponse, UploadProductImageData, UploadProductImageResponse, UploadStoreBannerData, UploadStoreBannerResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -617,36 +617,6 @@ export const getFileOptions = (options: Options<GetFileData>) => queryOptions<Ge
         return data;
     },
     queryKey: getFileQueryKey(options)
-});
-
-export const reverseGeocodeQueryKey = (options: Options<ReverseGeocodeData>) => createQueryKey('reverseGeocode', options);
-
-export const reverseGeocodeOptions = (options: Options<ReverseGeocodeData>) => queryOptions<ReverseGeocodeResponse, DefaultError, ReverseGeocodeResponse, ReturnType<typeof reverseGeocodeQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await reverseGeocode({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: reverseGeocodeQueryKey(options)
-});
-
-export const searchGeocodeQueryKey = (options: Options<SearchGeocodeData>) => createQueryKey('searchGeocode', options);
-
-export const searchGeocodeOptions = (options: Options<SearchGeocodeData>) => queryOptions<SearchGeocodeResponse, DefaultError, SearchGeocodeResponse, ReturnType<typeof searchGeocodeQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await searchGeocode({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: searchGeocodeQueryKey(options)
 });
 
 export const meQueryKey = (options?: Options<MeData>) => createQueryKey('me', options);

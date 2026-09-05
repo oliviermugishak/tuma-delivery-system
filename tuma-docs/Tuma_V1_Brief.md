@@ -17,7 +17,7 @@ This is the working source of truth for V1. The big blueprint (`Tuma_Master_Prod
 
 - **Backend: Rust** — Axum (HTTP), SQLx (PostgreSQL), serde. Chosen because the founder thinks in Rust.
 - **Database:** PostgreSQL.
-- **Mobile:** the Flutter app in `tuma-app/` — the contract between app and backend is the HTTP API.
+- **Mobile:** the Flutter app in `tuma-app/` — the contract between app and backend is the HTTP API. **Android is the only V1 target** (2026-09-05): the iOS Maps key is not wired; making iOS real later is a small key-wiring slice, nothing structural.
 - **Web platform:** `tuma-platform/` — React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query; API client generated from the server's OpenAPI (hey-api). Admin + merchant wings.
 - **Map:** Google Maps — `google_maps_flutter` on mobile (JS SDK on the platform in D4); road routes + ETA from Google Directions called by the server (tracking doc §4 supersedes the earlier flutter_map choice).
 - **Architecture docs:** `Tuma_Auth_and_RBAC_Architecture.md` and `Tuma_API_Architecture.md` — the foundations (auth sections predate the 2026-08-29 identity split; the split below wins where they disagree).

@@ -19,20 +19,12 @@ export const Route = createFileRoute('/admin')({
  * Admin nav (constitution Part 4): OPERATE / NETWORK. Founders' calls
  * (2026-09-01): admins never see orders — merchants own the order
  * lifecycle; Fees and Audit log were removed with the founder's product
- * direction (BACKEND-GAPS.md G5/G6 retired). Settings lives under the
- * avatar.
+ * direction. Settings lives under the avatar.
  */
 const navGroups: NavGroup[] = [
   {
     title: 'Operate',
-    items: [
-      { to: '/admin', label: 'Overview', icon: 'space_dashboard' },
-      {
-        to: '/admin/disputes',
-        label: 'Disputes & Refunds',
-        icon: 'gavel',
-      },
-    ],
+    items: [{ to: '/admin', label: 'Overview', icon: 'space_dashboard' }],
   },
   {
     title: 'Network',
@@ -46,7 +38,6 @@ const navGroups: NavGroup[] = [
 
 const staticPalette: PaletteItem[] = [
   { id: 'nav-overview', group: 'Go to', label: 'Overview', icon: 'space_dashboard', to: '/admin' },
-  { id: 'nav-disputes', group: 'Go to', label: 'Disputes & Refunds', icon: 'gavel', to: '/admin/disputes' },
   { id: 'nav-merchants', group: 'Go to', label: 'Merchants', icon: 'storefront', to: '/admin/merchants' },
   { id: 'nav-riders', group: 'Go to', label: 'Riders', icon: 'two_wheeler', to: '/admin/riders' },
   { id: 'nav-customers', group: 'Go to', label: 'Customers', icon: 'groups', to: '/admin/customers' },
@@ -57,7 +48,7 @@ function AdminWing() {
   const { data: user } = useSession()
   // The palette reads the wing's own lists — small in V1, cached, and
   // shared with the pages that render them. No dedicated search endpoint
-  // exists yet (BACKEND-GAPS.md): ID/phone search lands with it.
+  // exists yet: ID/phone search lands with it.
   const merchants = useQuery({ ...listMerchantsOptions(), staleTime: 60_000 })
   const riders = useQuery({ ...listRidersOptions(), staleTime: 60_000 })
   const customers = useQuery({ ...listCustomersOptions(), staleTime: 60_000 })

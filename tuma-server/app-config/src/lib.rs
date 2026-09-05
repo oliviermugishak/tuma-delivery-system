@@ -149,11 +149,6 @@ pub struct RoutingConfig {
     /// slices land. Absent/empty is valid while backend is `none`.
     #[serde(default)]
     pub api_key: Option<SecretString>,
-    /// The Geocoding API key — server-only, powers the location screen's
-    /// search + reverse geocoding. Absent = geocoding off; the screen
-    /// degrades to map-tap only (never a client-side key).
-    #[serde(default)]
-    pub geo_api_key: Option<SecretString>,
 }
 
 impl Default for RoutingConfig {
@@ -161,7 +156,6 @@ impl Default for RoutingConfig {
         Self {
             backend: RoutingBackend::None,
             api_key: None,
-            geo_api_key: None,
         }
     }
 }

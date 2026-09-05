@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tuma_app/core/api/api_client.dart';
-import 'package:tuma_app/core/api/geo_api.dart';
 import 'package:tuma_app/core/api/models/address.dart';
 import 'package:tuma_app/core/auth/auth_controller.dart';
 import 'package:tuma_app/core/theme/app_colors.dart';
@@ -25,18 +24,15 @@ import 'package:tuma_app/features/tracking/delivery_map.dart'
 /// rider note under it. Tap to edit (self-pushes this route with the
 /// address as extra), trash to delete (confirmed). An add button opens a
 /// blank editor. The map sits behind on mobile; desktop keeps its paste
-/// panel and reverse-geocodes pasted coordinates through the server
-/// proxy so the address line fills honestly even without a map.
+/// panel for coordinates.
 ///
 /// **Editor mode** ([edit] passed, or "add new" tapped): the full-screen
 /// map with the pin FIXED AT CENTER on mobile — the customer moves the
-/// map, never the pin; the reverse-geocoded street line fills itself in,
-/// a search jumps anywhere, and GPS is one button away. What saves is a
-/// real address row (pin + text + Home/Work/Other + rider note) —
-/// checkout and the rider's card both read from it.
-///
-/// Without a geocoding key behind the server's proxy, the map still
-/// works and the address line stays honestly empty for typing.
+/// map, never the pin; GPS is one button away. What saves is a real
+/// address row (pin + text + Home/Work/Other + rider note) — checkout
+/// and the rider's card both read from it. The pin is the truth; the
+/// text is a short human label ("Home", "near Simba") typed by the
+/// customer — nothing geocodes it.
 class DeliveryLocationScreen extends ConsumerStatefulWidget {
   const DeliveryLocationScreen({super.key, this.edit, this.fresh = false});
 
@@ -76,15 +72,8 @@ class _DeliveryLocationScreenState
 
   late final TextEditingController _addressCtrl;
   late final TextEditingController _noteCtrl;
-  late final FocusNode _searchFocus;
-  final _searchCtrl = TextEditingController();
-  Timer? _searchDebounce;
-  List<GeoHit> _hits = const [];
 
   String _kind = 'home';
-  bool _reverseBusy = false;
-  int _reverseSeq = 0;
-  bool _suppressIdleOnce = false;
   bool _locating = false;
   bool _saving = false;
   String? _editorError;
@@ -109,7 +98,6 @@ class _DeliveryLocationScreenState
       _noteCtrl = TextEditingController();
       if (!widget.fresh) unawaited(_loadAddresses());
     }
-    _searchFocus = FocusNode();
   }
 
   @override
@@ -117,9 +105,6 @@ class _DeliveryLocationScreenState
     _map?.dispose();
     _addressCtrl.dispose();
     _noteCtrl.dispose();
-    _searchCtrl.dispose();
-    _searchFocus.dispose();
-    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -214,57 +199,6 @@ class _DeliveryLocationScreenState
     _target = position.target;
   }
 
-  Future<void> _onCameraIdle() async {
-    if (!isMobilePlatform) return;
-    if (_suppressIdleOnce) {
-      _suppressIdleOnce = false;
-      return;
-    }
-    final target = _target;
-    final seq = ++_reverseSeq;
-    setState(() => _reverseBusy = true);
-    try {
-      final hits = await ref
-          .read(geoApiProvider)
-          .reverse(lat: target.latitude, lng: target.longitude);
-      if (!mounted || seq != _reverseSeq) return;
-      if (hits.isNotEmpty) _addressCtrl.text = hits.first.addressText;
-    } on ApiError {
-      // No geocoder behind the proxy: the field stays as-is for typing.
-    } finally {
-      if (mounted) setState(() => _reverseBusy = false);
-    }
-  }
-
-  // --- editor: search -----------------------------------------------------
-
-  void _onSearchChanged(String query) {
-    _searchDebounce?.cancel();
-    if (query.trim().length < 3) {
-      if (_hits.isNotEmpty) setState(() => _hits = const []);
-      return;
-    }
-    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      try {
-        final hits = await ref.read(geoApiProvider).search(query.trim());
-        if (mounted) setState(() => _hits = hits.take(5).toList());
-      } on ApiError {
-        if (mounted) setState(() => _hits = const []);
-      }
-    });
-  }
-
-  Future<void> _goTo(GeoHit hit) async {
-    _searchFocus.unfocus();
-    _searchCtrl.clear();
-    setState(() => _hits = const []);
-    _addressCtrl.text = hit.addressText;
-    _suppressIdleOnce = true;
-    await _map?.animateCamera(
-      CameraUpdate.newLatLngZoom(LatLng(hit.lat, hit.lng), 17),
-    );
-  }
-
   // --- editor: GPS --------------------------------------------------------
 
   Future<void> _useMyLocation() async {
@@ -351,7 +285,7 @@ class _DeliveryLocationScreenState
     }
   }
 
-  // --- editor: desktop reverse-geocode on paste ---------------------------
+  // --- editor: desktop paste ----------------------------------------------
 
   Future<void> _onDesktopPin(CustomerLocation pin) async {
     setState(() {
@@ -359,19 +293,6 @@ class _DeliveryLocationScreenState
       _addressCtrl.text =
           '${pin.lat.toStringAsFixed(6)}, ${pin.lng.toStringAsFixed(6)}';
     });
-    final seq = ++_reverseSeq;
-    setState(() => _reverseBusy = true);
-    try {
-      final hits = await ref
-          .read(geoApiProvider)
-          .reverse(lat: pin.lat, lng: pin.lng);
-      if (!mounted || seq != _reverseSeq) return;
-      if (hits.isNotEmpty) _addressCtrl.text = hits.first.addressText;
-    } on ApiError {
-      // No geocoder behind the proxy: the pasted pair stays for typing.
-    } finally {
-      if (mounted) setState(() => _reverseBusy = false);
-    }
   }
 
   // --- build --------------------------------------------------------------
@@ -496,7 +417,6 @@ class _DeliveryLocationScreenState
               initialCameraPosition: CameraPosition(target: _target, zoom: 16),
               onMapCreated: (controller) => _map = controller,
               onCameraMove: _onCameraMove,
-              onCameraIdle: _onCameraIdle,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
@@ -530,55 +450,19 @@ class _DeliveryLocationScreenState
               ),
             ),
 
-          // SEARCH + BACK — over the map, under the status bar.
-          if (mobile)
-            SafeArea(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 16, 0),
-                    child: Row(
-                      children: [
-                        _BackFab(onPressed: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.go('/home');
-                          }
-                        }),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _SearchBar(
-                            controller: _searchCtrl,
-                            focusNode: _searchFocus,
-                            onChanged: _onSearchChanged,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_hits.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: _SearchResults(hits: _hits, onTap: _goTo),
-                    ),
-                ],
-              ),
-            )
-          else
-            // Desktop: back button top-left over the paste panel.
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 0, 0),
-                child: _BackFab(onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/home');
-                  }
-                }),
-              ),
+          // BACK — over the map on mobile, over the paste panel on desktop.
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 0, 0),
+              child: _BackFab(onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              }),
             ),
+          ),
 
           // BOTTOM SECTION — locate FAB + "map moves" pill + save card.
           Positioned(
@@ -614,7 +498,6 @@ class _DeliveryLocationScreenState
                   noteCtrl: _noteCtrl,
                   kind: _kind,
                   onKind: (kind) => setState(() => _kind = kind),
-                  reverseBusy: _reverseBusy,
                   saving: _saving,
                   error: _editorError,
                   onSave: _save,
@@ -804,110 +687,6 @@ class _BackFab extends StatelessWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 46,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F1C1D1A),
-            blurRadius: 8,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: onChanged,
-              style: AppTheme.bd(Theme.of(context).textTheme),
-              decoration: const InputDecoration(
-                hintText: 'Search a street or place…',
-                prefixIcon: Icon(Icons.search_rounded,
-                    size: 20, color: AppColors.onSurfaceMuted),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchResults extends StatelessWidget {
-  const _SearchResults({required this.hits, required this.onTap});
-
-  final List<GeoHit> hits;
-  final ValueChanged<GeoHit> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Material(
-          color: AppColors.surface,
-          child: Column(
-            children: [
-              for (final (index, hit) in hits.indexed) ...[
-                if (index > 0)
-                  const Divider(height: 1, color: AppColors.hairline),
-                InkWell(
-                  onTap: () => onTap(hit),
-                  borderRadius: index == 0
-                      ? const BorderRadius.vertical(top: Radius.circular(16))
-                      : index == hits.length - 1
-                          ? const BorderRadius.vertical(
-                              bottom: Radius.circular(16))
-                          : null,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        hit.addressText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.bd(Theme.of(context).textTheme),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MoveTheMapPill extends StatelessWidget {
   const _MoveTheMapPill();
 
@@ -982,7 +761,6 @@ class _SaveCard extends StatelessWidget {
     required this.noteCtrl,
     required this.kind,
     required this.onKind,
-    required this.reverseBusy,
     required this.saving,
     required this.error,
     required this.onSave,
@@ -994,7 +772,6 @@ class _SaveCard extends StatelessWidget {
   final TextEditingController noteCtrl;
   final String kind;
   final ValueChanged<String> onKind;
-  final bool reverseBusy;
   final bool saving;
   final String? error;
   final VoidCallback onSave;
@@ -1040,18 +817,6 @@ class _SaveCard extends StatelessWidget {
                       hintText: 'Street, building, landmark…',
                       isDense: true,
                       border: InputBorder.none,
-                      suffixIcon: reverseBusy
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : null,
                     ),
                   ),
                 ),

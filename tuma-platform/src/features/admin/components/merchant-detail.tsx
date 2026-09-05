@@ -1,9 +1,10 @@
 /**
  * Admin — Merchant detail page (coverage §7.4): the single owner of a
  * business's facts AND actions (founder call: keep the page, no duplicate
- * drawer). Identity header with status dot, contact, stores list, members,
- * and the real lifecycle controls — Activate / Suspend (PATCH status,
- * guarded), Delete (guarded) — with pending states on every dialog.
+ * drawer). Identity header with status dot, contact, stores list, and the
+ * real lifecycle controls — Activate / Suspend (PATCH status, guarded),
+ * Delete (guarded) — with pending states on every dialog. Every merchant
+ * is a single owner today; members arrive with the invite slice.
  */
 import { useState } from 'react'
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
@@ -171,34 +172,6 @@ export function MerchantDetailPage() {
                   </Status>
                   <span className="w-27.5 text-right text-text2">
                     {rwf(s.delivery_fee)}
-                  </span>
-                </div>
-              ))
-            )}
-          </Card>
-
-          <Card className="p-0">
-            <div className="flex items-center gap-3 px-6 pt-5 pb-3">
-              <div className="text-[17px] font-bold">
-                Members · {num(m.members.length)}
-              </div>
-            </div>
-            {m.members.length === 0 ? (
-              <div className="px-6 pb-5 text-sm text-text2">
-                Only the owner account signs into this business.
-              </div>
-            ) : (
-              m.members.map((mem) => (
-                <div
-                  key={mem.user_id}
-                  className="flex items-center gap-3 border-t border-white/8 px-6 py-3 text-[13.5px]"
-                >
-                  <span className="min-w-0 flex-1 truncate font-semibold">
-                    {mem.email ?? 'Member'}
-                  </span>
-                  <span className="text-xs text-text3">
-                    {mem.role}
-                    {mem.store_id ? ' · one store' : ''}
                   </span>
                 </div>
               ))

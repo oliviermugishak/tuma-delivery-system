@@ -39,8 +39,12 @@ overrides the "what".
 | `MAPS_API_KEY` | `tuma-app/.env` (gitignored) | `run.sh` sources it → Gradle reads `System.getenv` at **configuration time** → `manifestPlaceholders` → `AndroidManifest.xml` meta-data `com.google.android.geo.API_KEY` → the native Maps SDK | Google Cloud key: Android-app restriction = package `com.tuma.tuma_app` + the **debug keystore SHA-1**, API restriction = **Maps SDK for Android** |
 | `TUMA_API_BASE_URL` | **NOT a file — a `--dart-define` at build time** | Baked into the binary. Nothing reads env at runtime. | n/a |
 | `APP_ROUTING__BACKEND` / `APP_ROUTING__API_KEY` | `tuma-server/.env` (gitignored) | dotenvy → `RoutingConfig` → the `routing` crate's Google Directions client (server-side only; the key NEVER reaches a client) | Google Cloud key: Directions API enabled |
-| `APP_ROUTING__GEO_API_KEY` | `tuma-server/.env` | `GoogleKeys.geocoding` → `GET /v1/geo/search` + `/v1/geo/reverse` proxies | Geocoding API enabled. **Unset = the address screen's search degrades honestly to map-drag + typing.** |
+| `VITE_GOOGLE_MAPS_API_KEY` | `tuma-platform/.env` (gitignored) | Vite `import.meta.env` → the store pin picker's Maps JS SDK | Google Cloud key: Maps JavaScript API, localhost + deployed domains |
 | `APP_STORAGE__PUBLIC_BASE_URL` | `tuma-server/.env` or env var | Composed into every image URL as `{base}/{key}` | — |
+
+**No geocoding key exists anymore** (removed 2026-09-05): delivery
+locations are pins + a human-typed label; nothing geocodes address
+text anywhere in the system.
 
 **The debug keystore never changes.** `~/.android/debug.keystore` is created
 once and signs every debug build. Its SHA-1 (extract with

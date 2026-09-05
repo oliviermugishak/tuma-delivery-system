@@ -14,7 +14,6 @@ import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MerchantRouteRouteImport } from './routes/merchant/route'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminDisputesRouteRouteImport } from './routes/admin/disputes/route'
 import { Route as AdminMerchantsRouteRouteImport } from './routes/admin/merchants/route'
 import { Route as AdminRidersRouteRouteImport } from './routes/admin/riders/route'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
@@ -22,8 +21,6 @@ import { Route as MerchantCatalogRouteRouteImport } from './routes/merchant/cata
 import { Route as MerchantMenuRouteRouteImport } from './routes/merchant/menu/route'
 import { Route as MerchantStoreRouteRouteImport } from './routes/merchant/store/route'
 import { Route as AdminCustomersIndexRouteImport } from './routes/admin/customers/index'
-import { Route as AdminDisputesIndexRouteImport } from './routes/admin/disputes/index'
-import { Route as AdminDisputesDisputeIdRouteImport } from './routes/admin/disputes/$disputeId'
 import { Route as AdminMerchantsIndexRouteImport } from './routes/admin/merchants/index'
 import { Route as AdminMerchantsMerchantIdRouteImport } from './routes/admin/merchants/$merchantId'
 import { Route as AdminMerchantsNewRouteImport } from './routes/admin/merchants/new'
@@ -33,12 +30,10 @@ import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/
 import { Route as MerchantCatalogIndexRouteImport } from './routes/merchant/catalog/index'
 import { Route as MerchantCatalogProductIdRouteImport } from './routes/merchant/catalog/$productId'
 import { Route as MerchantCatalogNewRouteImport } from './routes/merchant/catalog/new'
-import { Route as MerchantEarningsIndexRouteImport } from './routes/merchant/earnings/index'
 import { Route as MerchantMenuIndexRouteImport } from './routes/merchant/menu/index'
 import { Route as MerchantMenuProductIdRouteImport } from './routes/merchant/menu/$productId'
 import { Route as MerchantMenuNewRouteImport } from './routes/merchant/menu/new'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/merchant/orders/index'
-import { Route as MerchantReviewsIndexRouteImport } from './routes/merchant/reviews/index'
 import { Route as MerchantSettingsIndexRouteImport } from './routes/merchant/settings/index'
 import { Route as MerchantStoreIndexRouteImport } from './routes/merchant/store/index'
 import { Route as MerchantStoreStoreIdRouteImport } from './routes/merchant/store/$storeId'
@@ -68,11 +63,6 @@ const MerchantRouteRoute = MerchantRouteRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminRouteRoute,
-} as any)
-const AdminDisputesRouteRoute = AdminDisputesRouteRouteImport.update({
-  id: '/disputes',
-  path: '/disputes',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminMerchantsRouteRoute = AdminMerchantsRouteRouteImport.update({
@@ -109,16 +99,6 @@ const AdminCustomersIndexRoute = AdminCustomersIndexRouteImport.update({
   id: '/customers/',
   path: '/customers/',
   getParentRoute: () => AdminRouteRoute,
-} as any)
-const AdminDisputesIndexRoute = AdminDisputesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AdminDisputesRouteRoute,
-} as any)
-const AdminDisputesDisputeIdRoute = AdminDisputesDisputeIdRouteImport.update({
-  id: '/$disputeId',
-  path: '/$disputeId',
-  getParentRoute: () => AdminDisputesRouteRoute,
 } as any)
 const AdminMerchantsIndexRoute = AdminMerchantsIndexRouteImport.update({
   id: '/',
@@ -167,11 +147,6 @@ const MerchantCatalogNewRoute = MerchantCatalogNewRouteImport.update({
   path: '/new',
   getParentRoute: () => MerchantCatalogRouteRoute,
 } as any)
-const MerchantEarningsIndexRoute = MerchantEarningsIndexRouteImport.update({
-  id: '/earnings/',
-  path: '/earnings/',
-  getParentRoute: () => MerchantRouteRoute,
-} as any)
 const MerchantMenuIndexRoute = MerchantMenuIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -190,11 +165,6 @@ const MerchantMenuNewRoute = MerchantMenuNewRouteImport.update({
 const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
-  getParentRoute: () => MerchantRouteRoute,
-} as any)
-const MerchantReviewsIndexRoute = MerchantReviewsIndexRouteImport.update({
-  id: '/reviews/',
-  path: '/reviews/',
   getParentRoute: () => MerchantRouteRoute,
 } as any)
 const MerchantSettingsIndexRoute = MerchantSettingsIndexRouteImport.update({
@@ -229,7 +199,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteRouteWithChildren
   '/merchant': typeof MerchantRouteRouteWithChildren
   '/login': typeof LoginRoute
-  '/admin/disputes': typeof AdminDisputesRouteRouteWithChildren
   '/admin/merchants': typeof AdminMerchantsRouteRouteWithChildren
   '/admin/riders': typeof AdminRidersRouteRouteWithChildren
   '/merchant/catalog': typeof MerchantCatalogRouteRouteWithChildren
@@ -237,7 +206,6 @@ export interface FileRoutesByFullPath {
   '/merchant/store': typeof MerchantStoreRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
-  '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
   '/admin/merchants/$merchantId': typeof AdminMerchantsMerchantIdRouteWithChildren
   '/admin/merchants/new': typeof AdminMerchantsNewRoute
   '/admin/riders/new': typeof AdminRidersNewRoute
@@ -248,15 +216,12 @@ export interface FileRoutesByFullPath {
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
   '/admin/customers/': typeof AdminCustomersIndexRoute
-  '/admin/disputes/': typeof AdminDisputesIndexRoute
   '/admin/merchants/': typeof AdminMerchantsIndexRoute
   '/admin/riders/': typeof AdminRidersIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/merchant/catalog/': typeof MerchantCatalogIndexRoute
-  '/merchant/earnings/': typeof MerchantEarningsIndexRoute
   '/merchant/menu/': typeof MerchantMenuIndexRoute
   '/merchant/orders/': typeof MerchantOrdersIndexRoute
-  '/merchant/reviews/': typeof MerchantReviewsIndexRoute
   '/merchant/settings/': typeof MerchantSettingsIndexRoute
   '/merchant/store/': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
@@ -266,7 +231,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
-  '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
   '/admin/merchants/$merchantId': typeof AdminMerchantsMerchantIdRouteWithChildren
   '/admin/merchants/new': typeof AdminMerchantsNewRoute
   '/admin/riders/new': typeof AdminRidersNewRoute
@@ -277,15 +241,12 @@ export interface FileRoutesByTo {
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
   '/admin/customers': typeof AdminCustomersIndexRoute
-  '/admin/disputes': typeof AdminDisputesIndexRoute
   '/admin/merchants': typeof AdminMerchantsIndexRoute
   '/admin/riders': typeof AdminRidersIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/merchant/catalog': typeof MerchantCatalogIndexRoute
-  '/merchant/earnings': typeof MerchantEarningsIndexRoute
   '/merchant/menu': typeof MerchantMenuIndexRoute
   '/merchant/orders': typeof MerchantOrdersIndexRoute
-  '/merchant/reviews': typeof MerchantReviewsIndexRoute
   '/merchant/settings': typeof MerchantSettingsIndexRoute
   '/merchant/store': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
@@ -296,7 +257,6 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteRouteWithChildren
   '/merchant': typeof MerchantRouteRouteWithChildren
   '/login': typeof LoginRoute
-  '/admin/disputes': typeof AdminDisputesRouteRouteWithChildren
   '/admin/merchants': typeof AdminMerchantsRouteRouteWithChildren
   '/admin/riders': typeof AdminRidersRouteRouteWithChildren
   '/merchant/catalog': typeof MerchantCatalogRouteRouteWithChildren
@@ -304,7 +264,6 @@ export interface FileRoutesById {
   '/merchant/store': typeof MerchantStoreRouteRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
-  '/admin/disputes/$disputeId': typeof AdminDisputesDisputeIdRoute
   '/admin/merchants/$merchantId': typeof AdminMerchantsMerchantIdRouteWithChildren
   '/admin/merchants/new': typeof AdminMerchantsNewRoute
   '/admin/riders/new': typeof AdminRidersNewRoute
@@ -315,15 +274,12 @@ export interface FileRoutesById {
   '/merchant/store/$storeId': typeof MerchantStoreStoreIdRoute
   '/merchant/store/new': typeof MerchantStoreNewRoute
   '/admin/customers/': typeof AdminCustomersIndexRoute
-  '/admin/disputes/': typeof AdminDisputesIndexRoute
   '/admin/merchants/': typeof AdminMerchantsIndexRoute
   '/admin/riders/': typeof AdminRidersIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/merchant/catalog/': typeof MerchantCatalogIndexRoute
-  '/merchant/earnings/': typeof MerchantEarningsIndexRoute
   '/merchant/menu/': typeof MerchantMenuIndexRoute
   '/merchant/orders/': typeof MerchantOrdersIndexRoute
-  '/merchant/reviews/': typeof MerchantReviewsIndexRoute
   '/merchant/settings/': typeof MerchantSettingsIndexRoute
   '/merchant/store/': typeof MerchantStoreIndexRoute
   '/admin/merchants/$merchantId/edit': typeof AdminMerchantsMerchantIdEditRoute
@@ -335,7 +291,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/login'
-    | '/admin/disputes'
     | '/admin/merchants'
     | '/admin/riders'
     | '/merchant/catalog'
@@ -343,7 +298,6 @@ export interface FileRouteTypes {
     | '/merchant/store'
     | '/admin/'
     | '/merchant/'
-    | '/admin/disputes/$disputeId'
     | '/admin/merchants/$merchantId'
     | '/admin/merchants/new'
     | '/admin/riders/new'
@@ -354,15 +308,12 @@ export interface FileRouteTypes {
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
     | '/admin/customers/'
-    | '/admin/disputes/'
     | '/admin/merchants/'
     | '/admin/riders/'
     | '/admin/settings/'
     | '/merchant/catalog/'
-    | '/merchant/earnings/'
     | '/merchant/menu/'
     | '/merchant/orders/'
-    | '/merchant/reviews/'
     | '/merchant/settings/'
     | '/merchant/store/'
     | '/admin/merchants/$merchantId/edit'
@@ -372,7 +323,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin'
     | '/merchant'
-    | '/admin/disputes/$disputeId'
     | '/admin/merchants/$merchantId'
     | '/admin/merchants/new'
     | '/admin/riders/new'
@@ -383,15 +333,12 @@ export interface FileRouteTypes {
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
     | '/admin/customers'
-    | '/admin/disputes'
     | '/admin/merchants'
     | '/admin/riders'
     | '/admin/settings'
     | '/merchant/catalog'
-    | '/merchant/earnings'
     | '/merchant/menu'
     | '/merchant/orders'
-    | '/merchant/reviews'
     | '/merchant/settings'
     | '/merchant/store'
     | '/admin/merchants/$merchantId/edit'
@@ -401,7 +348,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/login'
-    | '/admin/disputes'
     | '/admin/merchants'
     | '/admin/riders'
     | '/merchant/catalog'
@@ -409,7 +355,6 @@ export interface FileRouteTypes {
     | '/merchant/store'
     | '/admin/'
     | '/merchant/'
-    | '/admin/disputes/$disputeId'
     | '/admin/merchants/$merchantId'
     | '/admin/merchants/new'
     | '/admin/riders/new'
@@ -420,15 +365,12 @@ export interface FileRouteTypes {
     | '/merchant/store/$storeId'
     | '/merchant/store/new'
     | '/admin/customers/'
-    | '/admin/disputes/'
     | '/admin/merchants/'
     | '/admin/riders/'
     | '/admin/settings/'
     | '/merchant/catalog/'
-    | '/merchant/earnings/'
     | '/merchant/menu/'
     | '/merchant/orders/'
-    | '/merchant/reviews/'
     | '/merchant/settings/'
     | '/merchant/store/'
     | '/admin/merchants/$merchantId/edit'
@@ -476,13 +418,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
-    '/admin/disputes': {
-      id: '/admin/disputes'
-      path: '/disputes'
-      fullPath: '/admin/disputes'
-      preLoaderRoute: typeof AdminDisputesRouteRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/merchants': {
@@ -533,20 +468,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/customers/'
       preLoaderRoute: typeof AdminCustomersIndexRouteImport
       parentRoute: typeof AdminRouteRoute
-    }
-    '/admin/disputes/': {
-      id: '/admin/disputes/'
-      path: '/'
-      fullPath: '/admin/disputes/'
-      preLoaderRoute: typeof AdminDisputesIndexRouteImport
-      parentRoute: typeof AdminDisputesRouteRoute
-    }
-    '/admin/disputes/$disputeId': {
-      id: '/admin/disputes/$disputeId'
-      path: '/$disputeId'
-      fullPath: '/admin/disputes/$disputeId'
-      preLoaderRoute: typeof AdminDisputesDisputeIdRouteImport
-      parentRoute: typeof AdminDisputesRouteRoute
     }
     '/admin/merchants/': {
       id: '/admin/merchants/'
@@ -611,13 +532,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantCatalogNewRouteImport
       parentRoute: typeof MerchantCatalogRouteRoute
     }
-    '/merchant/earnings/': {
-      id: '/merchant/earnings/'
-      path: '/earnings'
-      fullPath: '/merchant/earnings/'
-      preLoaderRoute: typeof MerchantEarningsIndexRouteImport
-      parentRoute: typeof MerchantRouteRoute
-    }
     '/merchant/menu/': {
       id: '/merchant/menu/'
       path: '/'
@@ -644,13 +558,6 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/merchant/orders/'
       preLoaderRoute: typeof MerchantOrdersIndexRouteImport
-      parentRoute: typeof MerchantRouteRoute
-    }
-    '/merchant/reviews/': {
-      id: '/merchant/reviews/'
-      path: '/reviews'
-      fullPath: '/merchant/reviews/'
-      preLoaderRoute: typeof MerchantReviewsIndexRouteImport
       parentRoute: typeof MerchantRouteRoute
     }
     '/merchant/settings/': {
@@ -690,19 +597,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface AdminDisputesRouteRouteChildren {
-  AdminDisputesDisputeIdRoute: typeof AdminDisputesDisputeIdRoute
-  AdminDisputesIndexRoute: typeof AdminDisputesIndexRoute
-}
-
-const AdminDisputesRouteRouteChildren: AdminDisputesRouteRouteChildren = {
-  AdminDisputesDisputeIdRoute: AdminDisputesDisputeIdRoute,
-  AdminDisputesIndexRoute: AdminDisputesIndexRoute,
-}
-
-const AdminDisputesRouteRouteWithChildren =
-  AdminDisputesRouteRoute._addFileChildren(AdminDisputesRouteRouteChildren)
 
 interface AdminMerchantsMerchantIdRouteChildren {
   AdminMerchantsMerchantIdEditRoute: typeof AdminMerchantsMerchantIdEditRoute
@@ -747,7 +641,6 @@ const AdminRidersRouteRouteWithChildren =
   AdminRidersRouteRoute._addFileChildren(AdminRidersRouteRouteChildren)
 
 interface AdminRouteRouteChildren {
-  AdminDisputesRouteRoute: typeof AdminDisputesRouteRouteWithChildren
   AdminMerchantsRouteRoute: typeof AdminMerchantsRouteRouteWithChildren
   AdminRidersRouteRoute: typeof AdminRidersRouteRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
@@ -756,7 +649,6 @@ interface AdminRouteRouteChildren {
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
-  AdminDisputesRouteRoute: AdminDisputesRouteRouteWithChildren,
   AdminMerchantsRouteRoute: AdminMerchantsRouteRouteWithChildren,
   AdminRidersRouteRoute: AdminRidersRouteRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
@@ -818,9 +710,7 @@ interface MerchantRouteRouteChildren {
   MerchantMenuRouteRoute: typeof MerchantMenuRouteRouteWithChildren
   MerchantStoreRouteRoute: typeof MerchantStoreRouteRouteWithChildren
   MerchantIndexRoute: typeof MerchantIndexRoute
-  MerchantEarningsIndexRoute: typeof MerchantEarningsIndexRoute
   MerchantOrdersIndexRoute: typeof MerchantOrdersIndexRoute
-  MerchantReviewsIndexRoute: typeof MerchantReviewsIndexRoute
   MerchantSettingsIndexRoute: typeof MerchantSettingsIndexRoute
 }
 
@@ -829,9 +719,7 @@ const MerchantRouteRouteChildren: MerchantRouteRouteChildren = {
   MerchantMenuRouteRoute: MerchantMenuRouteRouteWithChildren,
   MerchantStoreRouteRoute: MerchantStoreRouteRouteWithChildren,
   MerchantIndexRoute: MerchantIndexRoute,
-  MerchantEarningsIndexRoute: MerchantEarningsIndexRoute,
   MerchantOrdersIndexRoute: MerchantOrdersIndexRoute,
-  MerchantReviewsIndexRoute: MerchantReviewsIndexRoute,
   MerchantSettingsIndexRoute: MerchantSettingsIndexRoute,
 }
 

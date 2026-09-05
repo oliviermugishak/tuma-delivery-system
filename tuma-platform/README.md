@@ -29,11 +29,10 @@ src/
     settings-screen.tsx   shared Settings (both wings, P16)
   features/
     admin/        Overview · Merchants(+detail, forms) · Riders ·
-                  Customers · Disputes(+resolve)
+                  Customers
     merchant/     Overview · Orders(board+history) · Catalog ·
                   Menu(+attach/edit) · Stores(+form, pin picker) ·
-                  Store detail · Earnings · Reviews
-    demo/seed.ts  demo rows for screens awaiting backend endpoints
+                  Store detail
     auth/         login
   lib/            format.ts (money/dates) · status.ts (dot+text vocabulary)
                   · session.ts · csv.ts · handoff-log.ts
@@ -47,15 +46,14 @@ src/
 One fact, one place · never render unknown data (no `—`, no `N/A`, no raw
 IDs) · pages over modals (the only centered dialogs are P10 guard confirms)
 · one accent button per view, carrying the amount when money moves · status
-is dot + text · every table/chart has skeleton, empty, error, and content
-states · no purple, no shadows, no gradients beyond skeleton shimmer and
-≤10% chart fills · tokens live only in `src/styles.css`.
+is dot + text · every table has skeleton, empty, error, and content
+states · no purple, no shadows, no gradients beyond skeleton shimmer ·
+tokens live only in `src/styles.css`.
 
 ## Honesty notes
 
-- Screens whose endpoints don't exist yet are marked `BACKEND GAP (Gn)` in
-  code and catalogued with the needed contract in `BACKEND-GAPS.md`. They
-  render demo rows from `src/features/demo/seed.ts` and their mutations
-  stay client-side — nothing pretends to be server truth.
+- Every screen renders only real server data; screens whose endpoints
+  don't exist yet are not built at all (disputes, earnings/payouts,
+  reviews, metrics charts — each returns with its endpoint slice).
 - The server owns truth: prices, statuses, totals are formatted, never
   recomputed; money is integer RWF.

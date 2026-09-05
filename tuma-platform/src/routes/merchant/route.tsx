@@ -15,8 +15,8 @@ export const Route = createFileRoute('/merchant')({
 })
 
 /**
- * Merchant nav (constitution Part 4): OPERATE / STORE / MONEY. The
- * Orders badge counts the operator's open stores' in-flight orders
+ * Merchant nav (constitution Part 4): OPERATE / STORE. The Orders badge
+ * counts the operator's open stores' in-flight orders
  * (placed/accepted/preparing) — "to accept" lives on the board itself.
  */
 const navGroups: NavGroup[] = [
@@ -35,17 +35,6 @@ const navGroups: NavGroup[] = [
       { to: '/merchant/store', label: 'Stores', icon: 'storefront' },
     ],
   },
-  {
-    title: 'Money',
-    items: [
-      {
-        to: '/merchant/earnings',
-        label: 'Earnings & Payouts',
-        icon: 'payments',
-      },
-      { to: '/merchant/reviews', label: 'Reviews', icon: 'reviews' },
-    ],
-  },
 ]
 
 const staticPalette: PaletteItem[] = [
@@ -54,15 +43,13 @@ const staticPalette: PaletteItem[] = [
   { id: 'nav-catalog', group: 'Go to', label: 'Catalog', icon: 'nutrition', to: '/merchant/catalog' },
   { id: 'nav-menu', group: 'Go to', label: 'Menu', icon: 'restaurant_menu', to: '/merchant/menu' },
   { id: 'nav-stores', group: 'Go to', label: 'Stores', icon: 'storefront', to: '/merchant/store' },
-  { id: 'nav-earnings', group: 'Go to', label: 'Earnings & Payouts', icon: 'payments', to: '/merchant/earnings' },
-  { id: 'nav-reviews', group: 'Go to', label: 'Reviews', icon: 'reviews', to: '/merchant/reviews' },
 ]
 
 function MerchantWing() {
   const { data: user } = useSession()
   // Palette searches the operator's live operational data: orders by
   // number, stores by name (V1 size fits the client; a server-side
-  // search endpoint is in BACKEND-GAPS.md).
+  // search endpoint does not exist yet).
   const stores = useQuery({ ...listOwnStoresOptions(), staleTime: 60_000 })
   const orders = useQuery({
     ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),

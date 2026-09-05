@@ -6,8 +6,8 @@
  * "Add rider" = page.
  *
  * Live data: /v1/admin/riders. Deliveries-today / on-time % / live
- * "On delivery" status need the rider-stats endpoint (G10) — those
- * columns render their designed empty state in words until then.
+ * "On delivery" status need the rider-stats endpoint — those columns
+ * render their designed empty state in words until it exists.
  */
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
@@ -385,7 +385,7 @@ function RiderDrawer({
           <DrawerSection label="Delivery history">
             <div className="text-[13px] text-text2">
               Delivery counts and on-time numbers arrive with the rider
-              stats slice (BACKEND-GAPS.md G10) — after their first run.
+              stats endpoint — after their first run.
             </div>
           </DrawerSection>
 

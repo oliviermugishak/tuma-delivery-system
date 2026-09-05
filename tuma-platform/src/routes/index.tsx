@@ -7,7 +7,7 @@ export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
     let user
     try {
-      user = await context.queryClient.ensureQueryData(sessionQueryOptions())
+      user = await context.queryClient.query(sessionQueryOptions())
     } catch {
       user = undefined
     }
