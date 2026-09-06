@@ -135,6 +135,7 @@ admin (platform)  → POST /v1/admin/merchants {name, email, password, phone?}
 ### 5.4 Logout semantics
 
 - **Web:** logout revokes the refresh row and clears both cookies. The 15-min access JWT dies quickly on its own.
+- **Password change** revokes ALL of the account's web refresh tokens in the same transaction — every session (including the one that changed the password) dies at its next silent refresh; already-minted access JWTs fade within their 15-minute TTL.
 - **Mobile:** logout deletes the token from secure storage. The stateless JWT remains technically valid until expiry (30 days max) — acceptable for V1; server-side revocation is an extension point (§14).
 
 ## 6. OTP rules

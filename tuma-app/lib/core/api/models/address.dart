@@ -2,11 +2,15 @@
 /// checkout and the profile's "Delivery locations" list. Checkout
 /// snapshots the chosen address onto the order; the row is a source,
 /// never a live reference.
+///
+/// `addressText` is server-owned: the backend derives the place name
+/// from the pin (reverse geocoding, cached by the pin) when the address
+/// is saved — the client never sends it, only renders what comes back.
 class Address {
   Address({
     required this.id,
     required this.label,
-    required this.addressText,
+    this.addressText = '',
     required this.isDefault,
     required this.kind,
     this.note,
@@ -16,6 +20,7 @@ class Address {
 
   final String id;
   final String label;
+  /// The server-derived place name — display-only, read from responses.
   final String addressText;
   final double? lat;
   final double? lng;
@@ -37,9 +42,9 @@ class Address {
         note: json['note'] as String?,
       );
 
+  /// No `address_text` outbound — the server derives it from the pin.
   Map<String, dynamic> toCreateJson() => {
         'label': label,
-        'address_text': addressText,
         'lat': lat,
         'lng': lng,
         'is_default': isDefault,

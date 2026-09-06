@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT display FROM geocoding.cache WHERE pin_key = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "display",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "geocoding.cache",
+            "name": "display"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9210b8d4def4dc58710c2c181e98174cc63c4c9d06d9f1f2c000930390a226d9"
+}

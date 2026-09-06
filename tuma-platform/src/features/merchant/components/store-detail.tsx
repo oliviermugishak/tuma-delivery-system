@@ -39,7 +39,7 @@ import {
 import { FileDrop } from '@/components/file-drop'
 import { PinPicker } from './pin-picker'
 import { date, dateTime, num, rwf } from '@/lib/format'
-import { storeStatusLabel, storeStatusTone } from '@/lib/status'
+import { storeStatusLabel, storeStatusTone, LIVE_ORDER_STATUSES } from '@/lib/status'
 import { ApiError } from '@/api/client'
 
 const routeApi = getRouteApi('/merchant/store/$storeId')
@@ -47,7 +47,6 @@ const routeApi = getRouteApi('/merchant/store/$storeId')
 interface StoreFormState {
   name: string
   description: string
-  address: string
   category: string
   fee: string
   open: boolean
@@ -61,7 +60,7 @@ export function StoreDetailScreen() {
   const store = useQuery(getOwnStoreOptions({ path: { id: storeId } }))
   const products = useQuery(listStoreProductsOptions())
   const orders = useQuery({
-    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: LIVE_ORDER_STATUSES } }),
     refetchInterval: 15_000,
   })
 
@@ -163,7 +162,6 @@ export function StoreDetailScreen() {
   const server: StoreFormState = {
     name: s.name,
     description: s.description ?? '',
-    address: s.address_text ?? '',
     category: s.category ?? '',
     fee: String(s.delivery_fee),
     open: s.is_open,
@@ -175,19 +173,19 @@ export function StoreDetailScreen() {
     form != null &&
     (form.name !== server.name ||
       form.description !== server.description ||
-      form.address !== server.address ||
       form.category !== server.category ||
       form.fee !== server.fee ||
       form.open !== server.open ||
       JSON.stringify(form.pin) !== JSON.stringify(server.pin))
 
   const submit = () => {
+    // The pin names the place: address_text is derived server-side from
+    // the (possibly moved) pin — the merchant never types an address.
     save.mutate({
       path: { id: storeId },
       body: {
         name: cur.name.trim() || s.name,
         description: cur.description.trim() || null,
-        address_text: cur.address.trim() || null,
         category: cur.category.trim() || null,
         delivery_fee: Number(cur.fee) || 0,
         is_open: cur.open,
@@ -269,12 +267,6 @@ export function StoreDetailScreen() {
                   value={cur.description}
                   onChange={(e) => set({ description: e.target.value })}
                   placeholder="What customers should know about this branch"
-                />
-              </Field>
-              <Field label="Address">
-                <Input
-                  value={cur.address}
-                  onChange={(e) => set({ address: e.target.value })}
                 />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">

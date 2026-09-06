@@ -16,6 +16,8 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(default)]
     pub routing: RoutingConfig,
+    #[serde(default)]
+    pub geocoding: GeocodingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -149,6 +151,10 @@ pub struct RoutingConfig {
     /// slices land. Absent/empty is valid while backend is `none`.
     #[serde(default)]
     pub api_key: Option<SecretString>,
+    /// Optional region bias passed to Google (e.g. "rw"). Absent = omit —
+    /// a fully multinational deployment sends no region.
+    #[serde(default)]
+    pub region: Option<String>,
 }
 
 impl Default for RoutingConfig {
@@ -156,6 +162,46 @@ impl Default for RoutingConfig {
         Self {
             backend: RoutingBackend::None,
             api_key: None,
+            region: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GeocodingBackend {
+    #[default]
+    None,
+    Google,
+    /// Deterministic test backend — answers "Test place N" per call, so
+    /// integration tests can prove the cache (a repeated pin must never
+    /// reach the provider twice). Mirrors storage's memory backend.
+    Memory,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GeocodingConfig {
+    #[serde(default)]
+    pub backend: GeocodingBackend,
+    /// The Geocoding API key — server-only. Reverse geocoding is a
+    /// SAVE-TIME enrichment (one call per newly saved pin): the display
+    /// text of an address/store is derived from its pin, cached in
+    /// `geocoding.cache`, and never typed by anyone. `none` (or a
+    /// provider failure) degrades honestly — the save lands and the text
+    /// falls back to the label word. Never a client-side key.
+    #[serde(default)]
+    pub api_key: Option<SecretString>,
+    /// Optional region bias passed to Google (e.g. "rw"). Absent = omit.
+    #[serde(default)]
+    pub region: Option<String>,
+}
+
+impl Default for GeocodingConfig {
+    fn default() -> Self {
+        Self {
+            backend: GeocodingBackend::None,
+            api_key: None,
+            region: None,
         }
     }
 }

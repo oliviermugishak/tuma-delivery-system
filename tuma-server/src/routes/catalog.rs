@@ -318,7 +318,11 @@ pub struct CreateStoreProductInput {
     /// Which of the operator's stores sells it.
     pub store_id: Uuid,
     /// Integer RWF, the store's own price for this product.
-    #[validate(range(min = 0, message = "price must be 0 or more"))]
+    #[validate(range(
+        min = 0,
+        max = 1_000_000,
+        message = "price must be between 0 and 1,000,000 RWF"
+    ))]
     pub price: i64,
     /// `null` (or absent) = untracked. A number is the on-hand count the
     /// checkout reserves.
@@ -468,7 +472,11 @@ where
 /// keep their value.
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateStoreProductInput {
-    #[validate(range(min = 0, message = "price must be 0 or more"))]
+    #[validate(range(
+        min = 0,
+        max = 1_000_000,
+        message = "price must be between 0 and 1,000,000 RWF"
+    ))]
     pub price: Option<i64>,
     /// Absent = keep, `null` = untracked, a number = the on-hand count.
     #[serde(default, deserialize_with = "deserialize_stock")]

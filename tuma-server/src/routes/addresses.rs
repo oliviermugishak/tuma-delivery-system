@@ -56,8 +56,6 @@ fn address_response(address: Address) -> AddressResponse {
 pub struct CreateAddressInput {
     #[validate(length(min = 1, max = 60, message = "label must be 1-60 characters"))]
     pub label: String,
-    #[validate(length(min = 1, max = 300, message = "address must be 1-300 characters"))]
-    pub address_text: String,
     #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<f64>,
     #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
@@ -78,8 +76,6 @@ pub struct CreateAddressInput {
 pub struct UpdateAddressInput {
     #[validate(length(min = 1, max = 60, message = "label must be 1-60 characters"))]
     pub label: Option<String>,
-    #[validate(length(min = 1, max = 300, message = "address must be 1-300 characters"))]
-    pub address_text: Option<String>,
     #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<Option<f64>>,
     #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
@@ -89,6 +85,28 @@ pub struct UpdateAddressInput {
     pub kind: Option<String>,
     #[validate(length(max = 140, message = "note must be at most 140 characters"))]
     pub note: Option<String>,
+}
+
+/// The pin names the place: with a pin, `address_text` is derived by the
+/// geocoder (cached by the pin) and the caller's fallback is the label
+/// word; without a pin, the label IS the honest name. Text is never
+/// client-authored and can never be a coordinate pair.
+async fn derive_address_text(
+    app: &AppState,
+    conn: &mut sqlx::PgConnection,
+    label: &str,
+    pin: Option<(f64, f64)>,
+) -> Result<String, AppError> {
+    match pin {
+        Some((lat, lng)) => Ok(geocoding::place_name(
+            conn,
+            app.geocoding.as_ref(),
+            geocoding::Coord { lat, lng },
+            label,
+        )
+        .await?),
+        None => Ok(label.to_string()),
+    }
 }
 
 #[utoipa::path(
@@ -134,12 +152,17 @@ pub async fn create_address(
 ) -> AppResult<(StatusCode, Json<AddressResponse>)> {
     let user_id = address_id(&context)?;
     let mut conn = app.db_pool.acquire().await?;
+    let pin = match (input.lat, input.lng) {
+        (Some(lat), Some(lng)) => Some((lat, lng)),
+        _ => None,
+    };
+    let address_text = derive_address_text(&app, &mut conn, &input.label, pin).await?;
     let address = addresses::create(
         &mut conn,
         user_id,
         addresses::NewAddress {
             label: &input.label,
-            address_text: &input.address_text,
+            address_text: &address_text,
             lat: input.lat,
             lng: input.lng,
             is_default: input.is_default,
@@ -180,13 +203,32 @@ pub async fn update_address(
 ) -> AppResult<Json<AddressResponse>> {
     let user_id = address_id(&context)?;
     let mut conn = app.db_pool.acquire().await?;
+    // The final pin under the patch's provided-overwrites semantics
+    // (absent keeps, explicit null clears) — the text re-derives from it.
+    let current = addresses::by_id(&mut conn, user_id, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("address not found".into()))?;
+    let final_lat = match input.lat {
+        None => current.lat,
+        Some(lat) => lat,
+    };
+    let final_lng = match input.lng {
+        None => current.lng,
+        Some(lng) => lng,
+    };
+    let pin = match (final_lat, final_lng) {
+        (Some(lat), Some(lng)) => Some((lat, lng)),
+        _ => None,
+    };
+    let effective_label = input.label.as_deref().unwrap_or(&current.label);
+    let address_text = derive_address_text(&app, &mut conn, effective_label, pin).await?;
     let address = addresses::update(
         &mut conn,
         user_id,
         id,
         addresses::AddressPatch {
             label: input.label.as_deref(),
-            address_text: input.address_text.as_deref(),
+            address_text: Some(&address_text),
             lat: input.lat,
             lng: input.lng,
             is_default: input.is_default,

@@ -67,6 +67,10 @@ pub struct AppState {
     /// Road routing (slice D2): the Directions adapter behind config —
     /// `NoRouting` until a key is configured, the honest no-route answer.
     pub routing: Arc<dyn routing::RoutingProvider>,
+    /// Reverse geocoding (geocoding-rebuild slice): the save-time
+    /// enrichment that names a pin. `NoGeocoding` until a key is
+    /// configured — every caller carries its own honest fallback.
+    pub geocoding: Arc<dyn geocoding::GeocodingProvider>,
 }
 
 impl AppState {
@@ -79,6 +83,7 @@ impl AppState {
         cookie_secure: bool,
         storage: storage::StorageService,
         routing: Arc<dyn routing::RoutingProvider>,
+        geocoding: Arc<dyn geocoding::GeocodingProvider>,
     ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
@@ -88,6 +93,7 @@ impl AppState {
             cookie_secure,
             storage: Arc::new(storage),
             routing,
+            geocoding,
         }
     }
 }

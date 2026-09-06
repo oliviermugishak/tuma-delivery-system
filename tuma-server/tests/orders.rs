@@ -1200,6 +1200,65 @@ async fn checkout_caps_the_cart_at_fifty_lines(pool: sqlx::PgPool) {
     );
 }
 
+/// The quantity ceiling: one line never buys more than 99 units. One over
+/// is a 422 naming the cap; the ceiling itself checks out fine.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_quantity_above_the_ceiling_is_refused(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000017").await;
+
+    // 100 units of one line is a 422 whose error names the cap.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KG 7 Ave, Remera",
+                "items": [line(rice_sp, 100)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        422,
+        "quantity over the ceiling is refused"
+    );
+    let body: Value = response.json().await.unwrap();
+    let messages: Vec<String> = body["details"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["message"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        messages.iter().any(|m| m.contains("99")),
+        "the error names the cap: {messages:?}"
+    );
+
+    // 99 is the legal ceiling: the checkout lands.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KG 7 Ave, Remera",
+                "items": [line(rice_sp, 99)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201, "the ceiling itself is legal");
+}
+
 #[sqlx::test(migrator = "MIGRATOR")]
 async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
     let app = spawn_app(pool).await;
@@ -1245,6 +1304,25 @@ async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
+
+    // The customer's typed reason is no longer discarded — it lands on
+    // the cancelled store order.
+    let detail: Value = chantal
+        .get(&format!("/v1/orders/{group_id}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let cancelled = detail["store_orders"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["status"] == "cancelled")
+        .expect("a cancelled store order exists");
+    assert_eq!(cancelled["cancel_reason"], "changed my mind");
 
     let (stock_after_cancel,): (i64,) = sqlx::query_as(
         "SELECT stock FROM marketplace.store_products WHERE id = $1",
@@ -1369,13 +1447,13 @@ async fn a_merchant_reject_restores_stock_and_settles_the_ledger(pool: sqlx::PgP
         .unwrap()
         .to_string();
 
-    // The reject: cancelled straight from placed — legal, and previously
-    // a bare status write.
+    // The reject: cancelled straight from placed, WITH a reason — the
+    // why travels with the status now.
     let response = aline
         .client
         .patch_json(
             &format!("/v1/merchant/store-orders/{order_a}"),
-            json!({ "status": "cancelled" }),
+            json!({ "status": "cancelled", "reason": "customer changed the order" }),
         )
         .bearer_auth(&aline.token)
         .send()
@@ -1386,6 +1464,19 @@ async fn a_merchant_reject_restores_stock_and_settles_the_ledger(pool: sqlx::PgP
         response.json::<Value>().await.unwrap()["status"],
         "cancelled"
     );
+
+    // The fulfillment sheet carries the reason to the operator.
+    let sheet: Value = aline
+        .client
+        .get(&format!("/v1/merchant/store-orders/{order_a}"))
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(sheet["cancel_reason"], "customer changed the order");
 
     // The ledger half 1: the 2 reserved units are back on the shelf.
     let (stock,): (i64,) =
@@ -1456,4 +1547,280 @@ async fn a_merchant_reject_restores_stock_and_settles_the_ledger(pool: sqlx::PgP
         payment, "collected",
         "a rejected sibling must not strand the group's cash"
     );
+}
+
+// ---------------------------------------------------------------------------
+// The delivery line is server-owned (geocoding-rebuild slice): with a pin,
+// `order_groups.address_text` is derived from the pin and the client's
+// text is a fallback at best — a coordinate pair is never a name. Without
+// a pin, the client's own line is required, as always.
+// ---------------------------------------------------------------------------
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn checkout_with_a_pin_derives_the_place_and_never_trusts_coordinates(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 12000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000015").await;
+    // The client "sends" a coordinate pair as its text — the exact abuse
+    // the old contract allowed. The pin wins: the derived place name is
+    // what gets snapshotted.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "-1.9449, 30.0619",
+                "address_lat": -1.9449,
+                "address_lng": 30.0619,
+                "items": [line(rice_sp, 1)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(
+        body["address_text"], "Test place 1",
+        "the pin names the place — coordinates are never display text"
+    );
+}
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_pin_less_checkout_still_needs_the_customers_own_line(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 12000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000016").await;
+    // No pin and no text: nothing honest to render — refused.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "items": [line(rice_sp, 1)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 400, "no pin and no line is refused");
+
+    // With a line, the pin-less checkout lands as it always has.
+    let response = chantal
+        .post_json(
+            "/v1/orders",
+            json!({
+                "address_text": "KG 7 Ave, Remera",
+                "items": [line(rice_sp, 1)],
+            }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(body["address_text"], "KG 7 Ave, Remera");
+}
+
+/// The board feed takes a status filter (W1.5): the Live board asks for
+/// the in-flight statuses, History for the settled ones, and absent means
+/// every status — the pre-filter behavior, unchanged.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn the_board_feed_filters_by_status(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let (chantal, token) = customer_session(&app, "+250780000018").await;
+
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let board = |query: &str| {
+        aline
+            .client
+            .get(&format!("/v1/merchant/orders{query}"))
+            .bearer_auth(&aline.token)
+    };
+
+    // First checkout: stays placed. Second: accepted by the merchant.
+    let first: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let placed_id = first["store_orders"][0]["id"].as_str().unwrap();
+
+    let second: Value = checkout(
+        &chantal,
+        &token,
+        "KN 4 Ave, Kigali",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let accepted_id = second["store_orders"][0]["id"].as_str().unwrap();
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-orders/{accepted_id}"),
+            json!({ "status": "accepted" }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Third checkout: handoff to a rider, then delivered (picked_up is
+    // the handoff's door only — a bare advance is refused).
+    let third: Value = checkout(
+        &chantal,
+        &token,
+        "KK 40 Street, Kigali",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let settled_id = third["store_orders"][0]["id"].as_str().unwrap();
+    let rider = seed_rider(&app.pool, "Jean", "+250780000019").await;
+    for step in [
+        (
+            "patch",
+            format!("/v1/merchant/store-orders/{settled_id}"),
+            json!({ "status": "accepted" }),
+        ),
+        (
+            "patch",
+            format!("/v1/merchant/store-orders/{settled_id}"),
+            json!({ "status": "preparing" }),
+        ),
+        (
+            "post",
+            format!("/v1/merchant/store-orders/{settled_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        ),
+        (
+            "patch",
+            format!("/v1/merchant/store-orders/{settled_id}"),
+            json!({ "status": "delivered" }),
+        ),
+    ] {
+        let response = match step.0 {
+            "patch" => aline.client.patch_json(&step.1, step.2),
+            _ => aline.client.post_json(&step.1, step.2),
+        }
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+        assert_eq!(response.status(), 200, "the settle walk must be legal");
+    }
+
+    // The live filter: only in-flight orders.
+    let response = board("?status=placed,accepted,preparing,picked_up")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let live: Value = response.json().await.unwrap();
+    let live_statuses: Vec<&str> = live
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["status"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        live_statuses.len(),
+        2,
+        "placed + accepted only: {live_statuses:?}"
+    );
+    assert!(live_statuses.contains(&"placed"));
+    assert!(live_statuses.contains(&"accepted"));
+
+    // The history filter: only the settled order.
+    let response = board("?status=delivered,cancelled").send().await.unwrap();
+    assert_eq!(response.status(), 200);
+    let history: Value = response.json().await.unwrap();
+    let history_rows = history.as_array().unwrap();
+    assert_eq!(history_rows.len(), 1);
+    assert_eq!(history_rows[0]["status"], "delivered");
+    assert_eq!(history_rows[0]["id"], settled_id);
+
+    // A single status narrows to exactly that status.
+    let response = board("?status=placed").send().await.unwrap();
+    let placed_only: Value = response.json().await.unwrap();
+    let rows = placed_only.as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["id"], placed_id);
+
+    // Unknown statuses are refused at the door.
+    let response = board("?status=bogus").send().await.unwrap();
+    assert_eq!(response.status(), 400, "an unknown status label is a 400");
+
+    // No filter = every status, the pre-existing behavior.
+    let response = board("").send().await.unwrap();
+    let everything: Value = response.json().await.unwrap();
+    assert_eq!(everything.as_array().unwrap().len(), 3);
+}
+
+/// The cancel reason is bounded: a 500-character wall of text is a 422,
+/// not an unbounded note field.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_cancel_reason_over_five_hundred_chars_is_refused(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    let (chantal, token) = customer_session(&app, "+250780000020").await;
+    let group: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let order_id = group["store_orders"][0]["id"].as_str().unwrap();
+
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-orders/{order_id}"),
+            json!({ "status": "cancelled", "reason": "x".repeat(501) }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "an over-long reason is refused");
 }

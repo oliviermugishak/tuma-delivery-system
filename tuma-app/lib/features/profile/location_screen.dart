@@ -70,7 +70,6 @@ class _DeliveryLocationScreenState
   LatLng _target = LatLng(kigaliCenter.lat, kigaliCenter.lng);
   CustomerLocation? _desktopPin;
 
-  late final TextEditingController _addressCtrl;
   late final TextEditingController _noteCtrl;
 
   String _kind = 'home';
@@ -90,11 +89,9 @@ class _DeliveryLocationScreenState
       if (edit.lat != null && edit.lng != null) {
         _target = LatLng(edit.lat!, edit.lng!);
       }
-      _addressCtrl = TextEditingController(text: edit.addressText);
       _noteCtrl = TextEditingController(text: edit.note ?? '');
       _kind = _kinds.any((k) => k.kind == edit.kind) ? edit.kind : 'other';
     } else {
-      _addressCtrl = TextEditingController();
       _noteCtrl = TextEditingController();
       if (!widget.fresh) unawaited(_loadAddresses());
     }
@@ -103,7 +100,6 @@ class _DeliveryLocationScreenState
   @override
   void dispose() {
     _map?.dispose();
-    _addressCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -232,15 +228,8 @@ class _DeliveryLocationScreenState
     } else {
       pin = _desktopPin;
     }
-    final addressText = _addressCtrl.text.trim();
     if (pin == null) {
       setState(() => _editorError = 'Drop the pin first — paste coordinates above.');
-      return;
-    }
-    if (addressText.isEmpty) {
-      setState(
-        () => _editorError = 'Name the spot — the rider needs a line to read.',
-      );
       return;
     }
     setState(() {
@@ -252,7 +241,9 @@ class _DeliveryLocationScreenState
       final address = Address(
         id: widget.edit?.id ?? '',
         label: label,
-        addressText: addressText,
+        // No text from the client: the server derives the place name
+        // from the pin (reverse geocoding, cached by the pin).
+        addressText: '',
         lat: pin.lat,
         lng: pin.lng,
         isDefault: widget.edit?.isDefault ?? false,
@@ -290,8 +281,6 @@ class _DeliveryLocationScreenState
   Future<void> _onDesktopPin(CustomerLocation pin) async {
     setState(() {
       _desktopPin = pin;
-      _addressCtrl.text =
-          '${pin.lat.toStringAsFixed(6)}, ${pin.lng.toStringAsFixed(6)}';
     });
   }
 
@@ -494,7 +483,6 @@ class _DeliveryLocationScreenState
                 ),
                 const SizedBox(height: 10),
                 _SaveCard(
-                  addressCtrl: _addressCtrl,
                   noteCtrl: _noteCtrl,
                   kind: _kind,
                   onKind: (kind) => setState(() => _kind = kind),
@@ -757,7 +745,6 @@ class _LocateFab extends StatelessWidget {
 
 class _SaveCard extends StatelessWidget {
   const _SaveCard({
-    required this.addressCtrl,
     required this.noteCtrl,
     required this.kind,
     required this.onKind,
@@ -768,7 +755,6 @@ class _SaveCard extends StatelessWidget {
     required this.textTheme,
   });
 
-  final TextEditingController addressCtrl;
   final TextEditingController noteCtrl;
   final String kind;
   final ValueChanged<String> onKind;
@@ -805,24 +791,9 @@ class _SaveCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: addressCtrl,
-                    style: AppTheme.hd(textTheme)
-                        .copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    decoration: InputDecoration(
-                      hintText: 'Street, building, landmark…',
-                      isDense: true,
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+            // No address field: the server names the place from the pin
+            // (reverse geocoding, cached) — the derived name shows on the
+            // book card after saving. The chips + note are the human part.
             Wrap(
               spacing: 8,
               runSpacing: 8,

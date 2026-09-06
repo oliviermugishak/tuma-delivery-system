@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce.store_orders SET status = 'cancelled'\n        WHERE id = $1 AND status IN ('placed', 'accepted', 'preparing')\n        RETURNING id, order_group_id, merchant_id, store_id, number,\n                  status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n                  created_at, updated_at\n        ",
+  "query": "\n        SELECT id, order_group_id, merchant_id, store_id, number,\n               status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n               cancel_reason, created_at, updated_at\n        FROM commerce.store_orders\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -118,6 +118,17 @@
       },
       {
         "ordinal": 9,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -128,7 +139,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -154,9 +165,10 @@
       false,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "5c5c9fd7d08b61d9bf55ac5f27afdec6373a7c3ee204d8f53f44ceb80e72c491"
+  "hash": "257eaa4bd12354b5b59301af2cd9c0180b1b97b85b554f5af2cbd6e752c0ddd6"
 }

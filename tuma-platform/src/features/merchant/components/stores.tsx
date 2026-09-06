@@ -25,14 +25,14 @@ import {
   Status,
 } from '@/components/ds'
 import { num, rwf } from '@/lib/format'
-import { storeStatusLabel, storeStatusTone } from '@/lib/status'
+import { storeStatusLabel, storeStatusTone, LIVE_ORDER_STATUSES } from '@/lib/status'
 
 export function StoresScreen() {
   const navigate = useNavigate()
   const stores = useQuery(listOwnStoresOptions())
   const products = useQuery(listStoreProductsOptions())
   const orders = useQuery({
-    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: LIVE_ORDER_STATUSES } }),
     refetchInterval: 15_000,
   })
 

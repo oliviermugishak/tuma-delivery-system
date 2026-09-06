@@ -13,6 +13,14 @@ export type Tone = 'accent' | 'success' | 'warning' | 'danger' | 'muted'
  * derived "delayed" presentation, which the UI computes from a missed
  * promise and always renders with a revised promise (P11).
  */
+/**
+ * The server's `?status=` filter, as the merchant surface consumes it:
+ * the Live feed (board, badge, overview, stores) wants the in-flight
+ * statuses; History wants the settled ones. One fact, one place.
+ */
+export const LIVE_ORDER_STATUSES = 'placed,accepted,preparing,picked_up'
+export const SETTLED_ORDER_STATUSES = 'delivered,cancelled'
+
 export type OrderStatus =
   | 'placed'
   | 'accepted'

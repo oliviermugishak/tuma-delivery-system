@@ -323,7 +323,7 @@ pub async fn handoff(
         r#"
         SELECT id, order_group_id, merchant_id, store_id, number,
                status AS "status: OrderStatus", subtotal, delivery_fee, total,
-               created_at, updated_at
+               cancel_reason, created_at, updated_at
         FROM commerce.store_orders
         WHERE id = $1
         "#,
@@ -584,7 +584,7 @@ pub async fn mark_delivered(
         r#"
         SELECT id, order_group_id, merchant_id, store_id, number,
                status AS "status: OrderStatus", subtotal, delivery_fee, total,
-               created_at, updated_at
+               cancel_reason, created_at, updated_at
         FROM commerce.store_orders
         WHERE id = $1
         "#,

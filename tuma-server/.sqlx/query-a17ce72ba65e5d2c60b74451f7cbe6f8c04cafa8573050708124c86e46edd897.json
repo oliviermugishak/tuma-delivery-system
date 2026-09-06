@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT so.id, so.order_group_id, so.merchant_id, so.store_id, so.number,\n               so.status AS \"status: OrderStatus\", so.subtotal, so.delivery_fee,\n               so.total, so.created_at, so.updated_at,\n               s.name AS store_name,\n               s.contact_phone AS store_contact_phone,\n               s.contact_email AS store_contact_email\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        WHERE so.order_group_id = $1\n        ORDER BY so.created_at\n        ",
+  "query": "\n        UPDATE commerce.store_orders\n        SET status = $2, cancel_reason = $4\n        WHERE id = $1 AND status = $3\n        RETURNING id, order_group_id, merchant_id, store_id, number,\n                  status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n                  cancel_reason, created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -118,6 +118,17 @@
       },
       {
         "ordinal": 9,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -128,7 +139,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -137,44 +148,42 @@
             "name": "updated_at"
           }
         }
-      },
-      {
-        "ordinal": 11,
-        "name": "store_name",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "marketplace.stores",
-            "name": "name"
-          }
-        }
-      },
-      {
-        "ordinal": 12,
-        "name": "store_contact_phone",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "marketplace.stores",
-            "name": "contact_phone"
-          }
-        }
-      },
-      {
-        "ordinal": 13,
-        "name": "store_contact_email",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "marketplace.stores",
-            "name": "contact_email"
-          }
-        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Text"
       ]
     },
     "nullable": [
@@ -187,12 +196,10 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
       true,
-      true
+      false,
+      false
     ]
   },
-  "hash": "a5c075ddaa281ac5e8e8f1d8de85c0a9f727000a685d4df0c7fd5e87340652b0"
+  "hash": "a17ce72ba65e5d2c60b74451f7cbe6f8c04cafa8573050708124c86e46edd897"
 }

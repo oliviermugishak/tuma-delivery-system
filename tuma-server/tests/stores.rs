@@ -40,7 +40,6 @@ fn store_input() -> Value {
     json!({
         "name": "Aline's Kitchen",
         "description": "Fresh food, fast.",
-        "address_text": "KN 4 Ave, Kigali",
         "lat": -1.9512,
         "lng": 30.0623,
         "category": "Grill",
@@ -79,7 +78,7 @@ async fn owner_creates_a_store(pool: sqlx::PgPool) {
     let body: Value = response.json().await.unwrap();
     assert_eq!(body["name"], "Aline's Kitchen");
     assert_eq!(body["description"], "Fresh food, fast.");
-    assert_eq!(body["address_text"], "KN 4 Ave, Kigali");
+    assert_eq!(body["address_text"], "Test place 1"); // derived from the pin
     assert_eq!(body["lat"], json!(-1.9512));
     assert_eq!(body["lng"], json!(30.0623));
     assert_eq!(body["category"], "Grill");
@@ -220,7 +219,9 @@ async fn owner_updates_their_store(pool: sqlx::PgPool) {
     assert_eq!(body["category"], "Grill House");
     assert_eq!(body["delivery_fee"], 2000);
     assert_eq!(body["is_open"], true);
-    assert_eq!(body["address_text"], "KN 4 Ave, Kigali");
+    // The pin didn't move, so the derived name replays from the cache —
+    // the client no longer authors this field at all.
+    assert_eq!(body["address_text"], "Test place 1");
     assert_eq!(body["lat"], json!(-1.9512));
 
     // Another business cannot update it.
@@ -1113,4 +1114,54 @@ async fn a_stale_store_patch_is_a_conflict_not_a_silent_overwrite(pool: sqlx::Pg
         Some("Hijacked by the second writer"),
         "the stale PATCH must not land"
     );
+}
+
+/// The founder's ceiling: no delivery fee above 100,000 RWF. One franc
+/// over is refused at the door; the ceiling itself is legal.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_delivery_fee_above_the_ceiling_is_refused(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com").await;
+
+    // Create one franc over the ceiling: a 422.
+    let response = aline
+        .client
+        .post_json(
+            "/v1/merchant/stores",
+            json!({ "name": "Pricey", "delivery_fee": 100_001 }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422);
+
+    // The ceiling itself is legal.
+    let response = aline
+        .client
+        .post_json(
+            "/v1/merchant/stores",
+            json!({ "name": "Ceiling", "delivery_fee": 100_000 }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 201);
+    let body: Value = response.json().await.unwrap();
+    let store_id: Uuid = body["id"].as_str().unwrap().parse().unwrap();
+    assert_eq!(body["delivery_fee"], 100_000);
+
+    // PATCHing the fee over the ceiling is a 422 too.
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/stores/{store_id}"),
+            json!({ "delivery_fee": 100_001 }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "PATCH over the ceiling is refused");
 }

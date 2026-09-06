@@ -1191,6 +1191,15 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Comma-separated status filter (placed,accepted,preparing,picked_up,delivered,cancelled). Absent = every status.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2819,6 +2828,13 @@
           "status"
         ],
         "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the order is being cancelled — stored only on the cancel\ntransition, rendered to the customer, the merchant sheet, and the\nreceipt. Other advances ignore it."
+          },
           "status": {
             "type": "string"
           }
@@ -2854,7 +2870,6 @@
       "CheckoutInput": {
         "type": "object",
         "required": [
-          "address_text",
           "items"
         ],
         "properties": {
@@ -2873,7 +2888,11 @@
             "format": "double"
           },
           "address_text": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The delivery line is server-owned: with a pin, the text is derived\nfrom it (cached) and whatever the client sent is a fallback at\nbest — a coordinate pair is never accepted as a name. Only a\npin-less checkout still requires the client's own line."
           },
           "customer_note": {
             "type": [
@@ -2918,13 +2937,9 @@
       "CreateAddressInput": {
         "type": "object",
         "required": [
-          "label",
-          "address_text"
+          "label"
         ],
         "properties": {
-          "address_text": {
-            "type": "string"
-          },
           "is_default": {
             "type": "boolean"
           },
@@ -3032,12 +3047,6 @@
           "name"
         ],
         "properties": {
-          "address_text": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "category": {
             "type": [
               "string",
@@ -3766,6 +3775,13 @@
           "address_text": {
             "type": "string"
           },
+          "cancel_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the order died — set at the cancel moment, shown on the\nfulfillment sheet and the History receipt."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -4491,6 +4507,13 @@
           "items"
         ],
         "properties": {
+          "cancel_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the order died — set at the cancel moment (merchant reject or\ncustomer change-of-mind), rendered on the customer's order detail."
+          },
           "delivery_fee": {
             "type": "integer",
             "format": "int64"
@@ -4798,12 +4821,6 @@
       "UpdateAddressInput": {
         "type": "object",
         "properties": {
-          "address_text": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "is_default": {
             "type": [
               "boolean",
@@ -4959,12 +4976,6 @@
       "UpdateStoreInput": {
         "type": "object",
         "properties": {
-          "address_text": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "category": {
             "type": [
               "string",

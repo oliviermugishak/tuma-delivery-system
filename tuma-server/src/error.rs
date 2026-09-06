@@ -8,7 +8,7 @@ use marketplace::catalog::{ProductError, ProductImageError, StoreProductError};
 use marketplace::stores::StoreError;
 use serde::Serialize;
 use storage::StorageError;
-use validator::ValidationErrors;
+use validator::{ValidationErrors, ValidationErrorsKind};
 
 /// Uniform JSON error body returned by every failing endpoint.
 #[derive(Debug, Serialize)]
@@ -26,20 +26,43 @@ pub struct FieldError {
 }
 
 pub fn validation_errors_to_field_errors(errors: ValidationErrors) -> Vec<FieldError> {
-    errors
-        .field_errors()
-        .iter()
-        .flat_map(|(field, errors)| {
-            errors.iter().map(move |error| FieldError {
-                field: field.to_string(),
-                message: error
-                    .message
-                    .as_ref()
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| format!("invalid value for {}", field)),
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    flatten_errors(&errors, &mut out, "");
+    out
+}
+
+/// Walk the error tree to the leaves. `nested` validation (a Vec of
+/// validated structs, e.g. checkout lines) stores its children under
+/// `ValidationErrorsKind::List` keyed by index, and nested structs under
+/// `Struct` — `field_errors()` alone would drop them all on the floor.
+fn flatten_errors(errors: &ValidationErrors, out: &mut Vec<FieldError>, prefix: &str) {
+    for (field, kind) in errors.errors() {
+        let path = if prefix.is_empty() {
+            field.to_string()
+        } else {
+            format!("{prefix}.{field}")
+        };
+        match kind {
+            ValidationErrorsKind::Field(list) => {
+                for error in list {
+                    out.push(FieldError {
+                        field: path.clone(),
+                        message: error
+                            .message
+                            .as_ref()
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| format!("invalid value for {path}")),
+                    });
+                }
+            }
+            ValidationErrorsKind::Struct(nested) => flatten_errors(nested, out, &path),
+            ValidationErrorsKind::List(items) => {
+                for (index, nested) in items {
+                    flatten_errors(nested, out, &format!("{path}[{index}]"));
+                }
+            }
+        }
+    }
 }
 
 // Domain error → AppError conversions live here, one impl per domain error

@@ -42,6 +42,7 @@ async fn main() {
         config.application.cookie_secure,
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
+        geocoding::build_service(&config.geocoding).expect("Failed to build the geocoding backend"),
     );
     let app = build_app_with_state(app_state);
     let address = format!("{}:{}", config.application.host, config.application.port);

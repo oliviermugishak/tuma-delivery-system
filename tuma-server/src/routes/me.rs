@@ -170,6 +170,10 @@ pub async fn update_me(
         ));
     }
 
-    let authorization = accounts::authorization_for(&mut conn, user.id).await?;
+    // The account existed a few lines up (we hold its row); a missing row
+    // here is a mid-request delete race, same class as a missing context.
+    let (_, authorization) = accounts::authorization_for(&mut conn, user.id)
+        .await?
+        .ok_or_else(|| AppError::Internal("authenticated account without authorization".into()))?;
     Ok(Json(MeResponse::build(&user, &authorization)))
 }

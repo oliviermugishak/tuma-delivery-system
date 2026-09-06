@@ -173,6 +173,10 @@ pub struct StoreOrder {
     pub subtotal: i64,
     pub delivery_fee: i64,
     pub total: i64,
+    /// Set at the cancel moment (merchant reject or customer
+    /// change-of-mind) — why the order died, for the customer, the
+    /// merchant sheet, and the receipt. Null for every other status.
+    pub cancel_reason: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -601,6 +605,10 @@ pub async fn create_checkout(
     for store_id in order_by_store {
         let store_lines = &per_store[&store_id];
         let first = store_lines[0];
+        // Totals are overflow-safe by construction: the API doors cap price
+        // at 1,000,000 RWF, quantity at 99, lines at 50, and delivery_fee
+        // at 100,000 RWF — worst case grand_total ≈ 4.96e9, nine orders of
+        // magnitude below i64::MAX. No checked arithmetic needed.
         let store_subtotal: i64 = store_lines
             .iter()
             .map(|line| line.unit_price * i64::from(line.quantity))
@@ -615,7 +623,7 @@ pub async fn create_checkout(
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, order_group_id, merchant_id, store_id, number,
                       status AS "status: OrderStatus", subtotal, delivery_fee, total,
-                      created_at, updated_at
+                      cancel_reason, created_at, updated_at
             "#,
             group.id,
             first.merchant_id,
@@ -891,7 +899,7 @@ pub async fn group_detail_for_user(
         r#"
         SELECT so.id, so.order_group_id, so.merchant_id, so.store_id, so.number,
                so.status AS "status: OrderStatus", so.subtotal, so.delivery_fee,
-               so.total, so.created_at, so.updated_at,
+               so.total, so.cancel_reason, so.created_at, so.updated_at,
                s.name AS store_name,
                s.contact_phone AS store_contact_phone,
                s.contact_email AS store_contact_email
@@ -941,6 +949,7 @@ pub async fn group_detail_for_user(
                 subtotal: order.subtotal,
                 delivery_fee: order.delivery_fee,
                 total: order.total,
+                cancel_reason: order.cancel_reason,
                 created_at: order.created_at,
                 updated_at: order.updated_at,
             },
@@ -998,11 +1007,14 @@ pub async fn store_order_scope(
 
 /// Advance a store order along the six-value machine. The caller has
 /// already established ownership; this function owns the legality of the
-/// transition itself.
+/// transition itself. `reason` is honored only when `next` is Cancelled —
+/// the one transition that deserves a "why" (cancelled is terminal, so no
+/// prior reason can be overwritten).
 pub async fn advance_store_order_status(
     conn: &mut PgConnection,
     store_order_id: Uuid,
     next: OrderStatus,
+    reason: Option<&str>,
 ) -> Result<StoreOrder, TransitionError> {
     let mut tx = conn.begin().await?;
     let current = sqlx::query!(
@@ -1038,15 +1050,17 @@ pub async fn advance_store_order_status(
     let updated = sqlx::query_as!(
         StoreOrder,
         r#"
-        UPDATE commerce.store_orders SET status = $2
+        UPDATE commerce.store_orders
+        SET status = $2, cancel_reason = $4
         WHERE id = $1 AND status = $3
         RETURNING id, order_group_id, merchant_id, store_id, number,
                   status AS "status: OrderStatus", subtotal, delivery_fee, total,
-                  created_at, updated_at
+                  cancel_reason, created_at, updated_at
         "#,
         store_order_id,
         next as OrderStatus,
         current.status as OrderStatus,
+        reason,
     )
     .fetch_optional(&mut *tx)
     .await?
@@ -1128,6 +1142,7 @@ pub async fn cancel_own_store_order(
     user_id: Uuid,
     group_id: Uuid,
     store_order_id: Uuid,
+    reason: Option<&str>,
 ) -> Result<StoreOrder, CancelError> {
     // Everything below is ONE transaction: ownership, the status
     // compare-and-swap, stock restoration, and the allocation ledger move
@@ -1158,13 +1173,15 @@ pub async fn cancel_own_store_order(
     let cancelled = sqlx::query_as!(
         StoreOrder,
         r#"
-        UPDATE commerce.store_orders SET status = 'cancelled'
+        UPDATE commerce.store_orders
+        SET status = 'cancelled', cancel_reason = $2
         WHERE id = $1 AND status IN ('placed', 'accepted', 'preparing')
         RETURNING id, order_group_id, merchant_id, store_id, number,
                   status AS "status: OrderStatus", subtotal, delivery_fee, total,
-                  created_at, updated_at
+                  cancel_reason, created_at, updated_at
         "#,
         owned.id,
+        reason,
     )
     .fetch_optional(&mut *tx)
     .await?
@@ -1250,11 +1267,14 @@ pub struct MerchantStoreOrderRow {
 /// in `owner_merchant_ids`); a scoped manager grant admits exactly its
 /// stores (unioned into `scoped_store_ids`). A row matches either way;
 /// per-grant loops with a shared limit/offset could duplicate or skip
-/// pages, which is why this exists.
+/// pages, which is why this exists. An empty `statuses` slice means no
+/// status filter — otherwise only the named statuses come back (the
+/// board's live columns vs the History tab).
 pub async fn store_orders_for_grants(
     conn: &mut PgConnection,
     owner_merchant_ids: &[Uuid],
     scoped_store_ids: &[Uuid],
+    statuses: &[OrderStatus],
     limit: i64,
     offset: i64,
 ) -> Result<Vec<MerchantStoreOrderRow>, sqlx::Error> {
@@ -1267,13 +1287,16 @@ pub async fn store_orders_for_grants(
         FROM commerce.store_orders so
         JOIN marketplace.stores s ON s.id = so.store_id
         JOIN commerce.order_groups og ON og.id = so.order_group_id
-        WHERE (cardinality($1::uuid[]) > 0 AND s.merchant_id = ANY($1::uuid[]))
-           OR (cardinality($2::uuid[]) > 0 AND so.store_id = ANY($2::uuid[]))
+        WHERE ((cardinality($1::uuid[]) > 0 AND s.merchant_id = ANY($1::uuid[]))
+           OR (cardinality($2::uuid[]) > 0 AND so.store_id = ANY($2::uuid[])))
+          AND (cardinality($3::commerce.order_status[]) = 0
+               OR so.status = ANY($3::commerce.order_status[]))
         ORDER BY so.created_at DESC
-        LIMIT $3 OFFSET $4
+        LIMIT $4 OFFSET $5
         "#,
         owner_merchant_ids,
         scoped_store_ids,
+        statuses as &[OrderStatus],
         limit,
         offset,
     )
@@ -1320,6 +1343,7 @@ pub struct StoreOrderDetail {
     pub subtotal: i64,
     pub delivery_fee: i64,
     pub total: i64,
+    pub cancel_reason: Option<String>,
     pub address_text: String,
     pub address_lat: Option<f64>,
     pub address_lng: Option<f64>,
@@ -1342,7 +1366,7 @@ pub async fn store_order_detail(
         SELECT so.id, so.order_group_id, so.merchant_id, so.store_id,
                s.name AS store_name, so.number,
                so.status AS "status: OrderStatus", so.subtotal, so.delivery_fee,
-               so.total, og.address_text, og.address_lat, og.address_lng,
+               so.total, so.cancel_reason, og.address_text, og.address_lat, og.address_lng,
                c.name AS customer_name, u.phone AS customer_phone,
                p.status AS "payment_status: PaymentStatus",
                so.created_at, so.updated_at

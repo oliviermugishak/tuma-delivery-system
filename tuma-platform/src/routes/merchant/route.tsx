@@ -8,6 +8,7 @@ import {
 import { AppShell, type NavGroup, type PaletteItem } from '@/components/ds'
 import { useSession } from '@/hooks/use-session'
 import { requireWing } from '@/lib/session'
+import { LIVE_ORDER_STATUSES } from '@/lib/status'
 
 export const Route = createFileRoute('/merchant')({
   beforeLoad: requireWing('merchant'),
@@ -52,7 +53,7 @@ function MerchantWing() {
   // search endpoint does not exist yet).
   const stores = useQuery({ ...listOwnStoresOptions(), staleTime: 60_000 })
   const orders = useQuery({
-    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: LIVE_ORDER_STATUSES } }),
     refetchInterval: 15_000,
     staleTime: 10_000,
   })

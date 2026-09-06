@@ -6,10 +6,12 @@
 //! by a semaphore so a flood of login attempts cannot pin every worker
 //! thread. Callers (handlers, tests, bins) never touch argon2 directly.
 
+use crate::refresh_tokens;
 use crate::users::{self, Account};
 use argon2::Argon2;
 use password_hash::phc::PasswordHash;
 use password_hash::{PasswordHasher, PasswordVerifier};
+use sqlx::Acquire;
 use sqlx::PgConnection;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -144,8 +146,12 @@ impl AccountManager {
         }
     }
 
-    /// Self-service password change: verifies the current password, then
-    /// stores the new hash. OTP accounts have no password to change.
+    /// Self-service password change: verifies the current password, then —
+    /// in ONE transaction — stores the new hash and revokes every live web
+    /// refresh token for the account. Every web session dies at its next
+    /// silent refresh, including the one that changed the password;
+    /// already-minted access JWTs fade within their 15-minute TTL. OTP
+    /// accounts have no password to change.
     pub async fn change_password(
         &self,
         conn: &mut PgConnection,
@@ -163,7 +169,12 @@ impl AccountManager {
             return Err(ChangePasswordError::WrongCurrentPassword);
         }
         let new_hash = self.hash_password(new_password.to_string()).await?;
-        users::set_password(conn, account.id, &new_hash).await?;
+        // The password swap and the session revocations land together or
+        // not at all — a half-applied change must be impossible.
+        let mut tx = conn.begin().await?;
+        users::set_password(&mut tx, account.id, &new_hash).await?;
+        refresh_tokens::revoke_all_for_user(&mut tx, account.id).await?;
+        tx.commit().await?;
         Ok(())
     }
 }

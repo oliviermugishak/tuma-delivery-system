@@ -35,7 +35,8 @@ class AddressApi {
       '/addresses/${address.id}',
       body: {
         'label': address.label,
-        'address_text': address.addressText,
+        // No address_text: the server derives the place name from the
+        // (possibly moved) pin — the client never authors this field.
         'lat': address.lat,
         'lng': address.lng,
         'is_default': address.isDefault,

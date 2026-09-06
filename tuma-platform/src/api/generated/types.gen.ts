@@ -64,6 +64,12 @@ export type AdminSummaryResponse = {
 };
 
 export type AdvanceStatusInput = {
+    /**
+     * Why the order is being cancelled — stored only on the cancel
+     * transition, rendered to the customer, the merchant sheet, and the
+     * receipt. Other advances ignore it.
+     */
+    reason?: string | null;
     status: string;
 };
 
@@ -83,7 +89,13 @@ export type ChangePasswordInput = {
 export type CheckoutInput = {
     address_lat?: number | null;
     address_lng?: number | null;
-    address_text: string;
+    /**
+     * The delivery line is server-owned: with a pin, the text is derived
+     * from it (cached) and whatever the client sent is a fallback at
+     * best — a coordinate pair is never accepted as a name. Only a
+     * pin-less checkout still requires the client's own line.
+     */
+    address_text?: string | null;
     /**
      * The checkout's "Note for rider · optional" — one line the rider
      * sees on the Delivering card. Trimmed server-side; empty becomes
@@ -109,7 +121,6 @@ export type CheckoutLineInput = {
 };
 
 export type CreateAddressInput = {
-    address_text: string;
     is_default?: boolean;
     /**
      * Home / work / other — the save screen's label chips.
@@ -155,7 +166,6 @@ export type CreateRiderInput = {
 };
 
 export type CreateStoreInput = {
-    address_text?: string | null;
     /**
      * What the store sells, in one word or two (e.g. "Grill", "Bakery").
      */
@@ -426,6 +436,11 @@ export type MerchantStoreOrderDetailResponse = {
     address_lat?: number | null;
     address_lng?: number | null;
     address_text: string;
+    /**
+     * Why the order died — set at the cancel moment, shown on the
+     * fulfillment sheet and the History receipt.
+     */
+    cancel_reason?: string | null;
     created_at: string;
     customer_name?: string | null;
     customer_phone?: string | null;
@@ -671,6 +686,11 @@ export type SearchResponse = {
  * checkout, with its own status and totals.
  */
 export type StoreOrderResponse = {
+    /**
+     * Why the order died — set at the cancel moment (merchant reject or
+     * customer change-of-mind), rendered on the customer's order detail.
+     */
+    cancel_reason?: string | null;
     delivery_fee: number;
     id: string;
     items: Array<OrderItemResponse>;
@@ -773,7 +793,6 @@ export type TrailResponse = {
 };
 
 export type UpdateAddressInput = {
-    address_text?: string | null;
     is_default?: boolean | null;
     kind?: string | null;
     label?: string | null;
@@ -831,7 +850,6 @@ export type UpdateRiderInput = {
 };
 
 export type UpdateStoreInput = {
-    address_text?: string | null;
     category?: string | null;
     contact_email?: string | null;
     contact_phone?: string | null;
@@ -1872,6 +1890,10 @@ export type ListMerchantOrdersData = {
          * Rows to skip
          */
         offset?: number;
+        /**
+         * Comma-separated status filter (placed,accepted,preparing,picked_up,delivered,cancelled). Absent = every status.
+         */
+        status?: string;
     };
     url: '/v1/merchant/orders';
 };

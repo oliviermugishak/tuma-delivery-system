@@ -59,6 +59,10 @@ pub struct StoreOrderResponse {
     pub subtotal: i64,
     pub delivery_fee: i64,
     pub total: i64,
+    /// Why the order died — set at the cancel moment (merchant reject or
+    /// customer change-of-mind), rendered on the customer's order detail.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
     /// The store's phone — the Get help sheet's Call row (absent on the
     /// checkout response; the detail is the contact surface).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,6 +136,39 @@ impl PageQuery {
     }
 }
 
+/// The merchant board's paging plus the status filter: a comma-separated
+/// list of order statuses (`placed,accepted,preparing,picked_up` for the
+/// Live board, `delivered,cancelled` for History). Absent or empty = no
+/// filter — every status comes back, exactly as before this existed.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+pub struct MerchantOrdersQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub status: Option<String>,
+}
+
+impl MerchantOrdersQuery {
+    pub(crate) fn limit(&self) -> i64 {
+        self.limit.unwrap_or(50).clamp(1, 200)
+    }
+    pub(crate) fn offset(&self) -> i64 {
+        self.offset.unwrap_or(0).max(0)
+    }
+    pub(crate) fn statuses(&self) -> AppResult<Vec<OrderStatus>> {
+        match self.status.as_deref().map(str::trim) {
+            None | Some("") => Ok(Vec::new()),
+            Some(list) => list
+                .split(',')
+                .map(|label| {
+                    OrderStatus::from_label(label.trim()).ok_or_else(|| {
+                        AppError::BadRequest(format!("unknown order status: {label}"))
+                    })
+                })
+                .collect(),
+        }
+    }
+}
+
 /// The operator's merchant surface — already proven to exist by the guard.
 fn merchant_access(context: &UserContext) -> AppResult<crate::app::MerchantAccess> {
     context
@@ -173,8 +210,12 @@ async fn handoff_route(
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CheckoutInput {
-    #[validate(length(min = 1, max = 300, message = "delivery address must not be empty"))]
-    pub address_text: String,
+    /// The delivery line is server-owned: with a pin, the text is derived
+    /// from it (cached) and whatever the client sent is a fallback at
+    /// best — a coordinate pair is never accepted as a name. Only a
+    /// pin-less checkout still requires the client's own line.
+    #[validate(length(max = 300, message = "address must be at most 300 characters"))]
+    pub address_text: Option<String>,
     #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub address_lat: Option<f64>,
     #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
@@ -191,14 +232,19 @@ pub struct CheckoutInput {
     /// At least one line, at most fifty (review P12: an unbounded cart is
     /// a denial-of-wallet and a denial-of-database — 50 lines is generous
     /// for real baskets). Each carries the store_product id and quantity.
-    #[validate(length(min = 1, max = 50, message = "cart is limited to 50 items"))]
+    // `nested` runs each line's own validators — without it the Vec's
+    // length check is the only thing that fires.
+    #[validate(
+        length(min = 1, max = 50, message = "cart is limited to 50 items"),
+        nested
+    )]
     pub items: Vec<CheckoutLineInput>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CheckoutLineInput {
     pub store_product_id: Uuid,
-    #[validate(range(min = 1, message = "quantity must be at least 1"))]
+    #[validate(range(min = 1, max = 99, message = "quantity must be between 1 and 99"))]
     pub quantity: i32,
 }
 
@@ -228,11 +274,35 @@ pub async fn checkout(
         .ok_or_else(|| AppError::Authentication("Access denied".into()))?;
     // The client never sends totals — only ids and quantities.
     let mut conn = app.db_pool.acquire().await?;
+    // The delivery line is server-owned: with a pin, the place name is
+    // derived (a cache hit for a saved address) and the client's line is
+    // a fallback at best — a coordinate pair is never a name. Without a
+    // pin, the client's own line is the only honest thing available.
+    let client_text = input
+        .address_text
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .filter(|text| !geocoding::is_coordinate_pair(text));
+    let address_text = match (input.address_lat, input.address_lng) {
+        (Some(lat), Some(lng)) => {
+            geocoding::place_name(
+                &mut conn,
+                app.geocoding.as_ref(),
+                geocoding::Coord { lat, lng },
+                client_text.unwrap_or("Pinned location"),
+            )
+            .await?
+        }
+        _ => client_text
+            .map(str::to_string)
+            .ok_or_else(|| AppError::BadRequest("delivery address must not be empty".into()))?,
+    };
     match orders::create_checkout(
         &mut conn,
         user_id,
         NewCheckout {
-            address_text: input.address_text.trim().to_string(),
+            address_text,
             address_lat: input.address_lat,
             address_lng: input.address_lng,
             idempotency_key: input.idempotency_key.clone(),
@@ -308,6 +378,7 @@ fn group_response(created: orders::CheckoutCreated) -> OrderGroupResponse {
                 subtotal: slice.order.subtotal,
                 delivery_fee: slice.order.delivery_fee,
                 total: slice.order.total,
+                cancel_reason: slice.order.cancel_reason,
                 store_contact_phone: None,
                 store_contact_email: None,
                 items: slice
@@ -358,6 +429,7 @@ fn group_detail_response(detail: orders::GroupDetail) -> OrderGroupResponse {
                 subtotal: slice.order.subtotal,
                 delivery_fee: slice.order.delivery_fee,
                 total: slice.order.total,
+                cancel_reason: slice.order.cancel_reason,
                 store_contact_phone: slice.store_contact_phone,
                 store_contact_email: slice.store_contact_email,
                 items: slice
@@ -475,19 +547,27 @@ pub async fn cancel_store_order(
     State(app): State<AppState>,
     Extension(context): Extension<UserContext>,
     Path((id, store_order_id)): Path<(Uuid, Uuid)>,
-    ValidatedJson(_input): ValidatedJson<CancelInput>,
+    ValidatedJson(input): ValidatedJson<CancelInput>,
 ) -> AppResult<Json<StoreOrderResponse>> {
     let user_id = context
         .user_id()
         .ok_or_else(|| AppError::Authentication("Access denied".into()))?;
     let mut conn = app.db_pool.acquire().await?;
-    let _cancelled = orders::cancel_own_store_order(&mut conn, user_id, id, store_order_id)
-        .await
-        .map_err(|error| match error {
-            CancelError::NotFound => AppError::NotFound("order not found".into()),
-            CancelError::Illegal(transition) => transition.into(),
-            CancelError::Database(error) => AppError::Database(error),
-        })?;
+    // The reason the customer typed is no longer discarded — it lands on
+    // the row and rides the responses.
+    let _cancelled = orders::cancel_own_store_order(
+        &mut conn,
+        user_id,
+        id,
+        store_order_id,
+        input.reason.as_deref(),
+    )
+    .await
+    .map_err(|error| match error {
+        CancelError::NotFound => AppError::NotFound("order not found".into()),
+        CancelError::Illegal(transition) => transition.into(),
+        CancelError::Database(error) => AppError::Database(error),
+    })?;
 
     // Reload with the store name for the response.
     let detail = orders::group_detail_for_user(&mut conn, user_id, id)
@@ -507,6 +587,7 @@ pub async fn cancel_store_order(
         subtotal: slice.order.subtotal,
         delivery_fee: slice.order.delivery_fee,
         total: slice.order.total,
+        cancel_reason: slice.order.cancel_reason,
         store_contact_phone: slice.store_contact_phone,
         store_contact_email: slice.store_contact_email,
         items: slice
@@ -547,7 +628,8 @@ pub struct MerchantStoreOrderResponse {
     get,
     path = "/v1/merchant/orders",
     params(("limit" = Option<i64>, Query, description = "Page size, 1-200 (default 50)"),
-           ("offset" = Option<i64>, Query, description = "Rows to skip")),
+           ("offset" = Option<i64>, Query, description = "Rows to skip"),
+           ("status" = Option<String>, Query, description = "Comma-separated status filter (placed,accepted,preparing,picked_up,delivered,cancelled). Absent = every status.")),
     responses(
         (status = 200, description = "Incoming store orders across authorized stores, newest first", body = Vec<MerchantStoreOrderResponse>),
         (status = 401, description = "Not authenticated"),
@@ -559,9 +641,10 @@ pub struct MerchantStoreOrderResponse {
 pub async fn list_merchant_orders(
     State(app): State<AppState>,
     Extension(context): Extension<UserContext>,
-    Query(page): Query<PageQuery>,
+    Query(page): Query<MerchantOrdersQuery>,
 ) -> AppResult<Json<Vec<MerchantStoreOrderResponse>>> {
     let access = merchant_access(&context)?;
+    let statuses = page.statuses()?;
     let mut conn = app.db_pool.acquire().await?;
     // Owner grants admit whole merchants; scoped manager grants admit
     // exactly their stores — one paged query covers both (a per-grant
@@ -578,6 +661,7 @@ pub async fn list_merchant_orders(
         &mut conn,
         &owner_merchant_ids,
         &scoped_store_ids,
+        &statuses[..],
         page.limit(),
         page.offset(),
     )
@@ -598,9 +682,14 @@ pub async fn list_merchant_orders(
     ))
 }
 
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct AdvanceStatusInput {
     pub status: String,
+    /// Why the order is being cancelled — stored only on the cancel
+    /// transition, rendered to the customer, the merchant sheet, and the
+    /// receipt. Other advances ignore it.
+    #[validate(length(max = 500, message = "reason must be at most 500 characters"))]
+    pub reason: Option<String>,
 }
 
 /// One frozen line, with the line total the customer saw.
@@ -635,6 +724,10 @@ pub struct MerchantStoreOrderDetailResponse {
     pub subtotal: i64,
     pub delivery_fee: i64,
     pub total: i64,
+    /// Why the order died — set at the cancel moment, shown on the
+    /// fulfillment sheet and the History receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
     pub address_text: String,
     pub address_lat: Option<f64>,
     pub address_lng: Option<f64>,
@@ -692,6 +785,7 @@ pub async fn get_merchant_store_order(
         subtotal: detail.subtotal,
         delivery_fee: detail.delivery_fee,
         total: detail.total,
+        cancel_reason: detail.cancel_reason,
         address_text: detail.address_text,
         address_lat: detail.address_lat,
         address_lng: detail.address_lng,
@@ -728,11 +822,18 @@ pub async fn advance_store_order(
     State(app): State<AppState>,
     Extension(context): Extension<UserContext>,
     Path(id): Path<Uuid>,
-    axum::Json(input): axum::Json<AdvanceStatusInput>,
+    ValidatedJson(input): ValidatedJson<AdvanceStatusInput>,
 ) -> AppResult<Json<MerchantStoreOrderResponse>> {
     let access = merchant_access(&context)?;
     let next = OrderStatus::from_label(&input.status)
         .ok_or_else(|| AppError::BadRequest("invalid status value".into()))?;
+    // The reason rides only the cancel — the one transition that ends an
+    // order; every other advance ignores it.
+    let reason = if next == OrderStatus::Cancelled {
+        input.reason.as_deref()
+    } else {
+        None
+    };
 
     let mut conn = app.db_pool.acquire().await?;
     let (_, merchant_id, store_id) = orders::store_order_scope(&mut conn, id)
@@ -742,7 +843,7 @@ pub async fn advance_store_order(
         return Err(AppError::NotFound("order not found".into()));
     }
 
-    let order = orders::advance_store_order_status(&mut conn, id, next).await?;
+    let order = orders::advance_store_order_status(&mut conn, id, next, reason).await?;
     // (The cash settlement lives inside the domain advance's transaction —
     // delivery = payment, one atomic event, doc §5.)
     let row = orders::merchant_store_order_row(&mut conn, order.id)

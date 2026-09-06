@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO geocoding.cache (pin_key, display)\n                VALUES ($1, $2)\n                ON CONFLICT (pin_key) DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e0020f4129d7dd28f680a85aa794571dffd3b243b39be9f7d2060abc1d2e3db"
+}

@@ -53,30 +53,34 @@ import {
   orderStatusTone,
   paymentStatusLabel,
   paymentStatusTone,
+  LIVE_ORDER_STATUSES,
+  SETTLED_ORDER_STATUSES,
 } from '@/lib/status'
 import { ApiError } from '@/api/client'
+import { Textarea } from '@/components/ui/textarea'
 
 export function OrdersScreen() {
   const [tab, setTab] = useState<'board' | 'history'>('board')
-  const orders = useQuery({
-    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
+  // Two server-filtered feeds (W1.5): the Live board asks the server for
+  // the in-flight statuses, History for the settled ones — each is its
+  // own cache entry, and neither competes with the other for page space.
+  const liveOrders = useQuery({
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: LIVE_ORDER_STATUSES } }),
     refetchInterval: 10_000,
+  })
+  const settledOrders = useQuery({
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: SETTLED_ORDER_STATUSES } }),
+    refetchInterval: 30_000,
   })
 
   const live = useMemo(
     () =>
-      (orders.data ?? []).filter(
+      (liveOrders.data ?? []).filter(
         (o) => o.status !== 'delivered' && o.status !== 'cancelled',
       ),
-    [orders.data],
+    [liveOrders.data],
   )
-  const history = useMemo(
-    () =>
-      (orders.data ?? []).filter(
-        (o) => o.status === 'delivered' || o.status === 'cancelled',
-      ),
-    [orders.data],
-  )
+  const history = useMemo(() => settledOrders.data ?? [], [settledOrders.data])
 
   return (
     <div className="flex flex-col gap-5">
@@ -90,8 +94,8 @@ export function OrdersScreen() {
               Auto-updates ·{' '}
               <Freshness
                 updated={
-                  orders.dataUpdatedAt
-                    ? new Date(orders.dataUpdatedAt).toISOString()
+                  liveOrders.dataUpdatedAt
+                    ? new Date(liveOrders.dataUpdatedAt).toISOString()
                     : null
                 }
               />
@@ -109,17 +113,17 @@ export function OrdersScreen() {
         onChange={(k) => setTab(k as 'board' | 'history')}
       />
 
-      {orders.isError ? (
+      {liveOrders.isError ? (
         <div className="rounded-2xl border border-white/8 bg-surface">
-          <ErrorState onRetry={() => void orders.refetch()} />
+          <ErrorState onRetry={() => void liveOrders.refetch()} />
         </div>
       ) : tab === 'board' ? (
         <Board
           orders={live}
-          loading={orders.isLoading}
+          loading={liveOrders.isLoading}
         />
       ) : (
-        <History orders={history} loading={orders.isLoading} />
+        <History orders={history} loading={settledOrders.isLoading} />
       )}
     </div>
   )
@@ -560,6 +564,7 @@ function CancelGuard({
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
+  const [reason, setReason] = useState('')
   const cancel = useMutation({
     ...advanceStoreOrderMutation(),
     onSuccess: () => {
@@ -583,22 +588,34 @@ function CancelGuard({
   return (
     <GuardDialog
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        setReason('')
+        onClose()
+      }}
       title={number ? `Cancel order #${number}?` : 'Cancel this order?'}
       confirmLabel={`Cancel order · ${rwf(total)}`}
       pending={cancel.isPending}
       onConfirm={() => {
-        // The server takes {status} only — no reason field exists (the
-        // customer cancel route's reason has no merchant counterpart).
+        // The reason travels with the status and lands on the order —
+        // the customer's detail and the receipt both render it.
         cancel.mutate({
           path: { id: orderId },
-          body: { status: 'cancelled' },
+          body: { status: 'cancelled', reason: reason.trim() || null },
         })
       }}
       note="The customer is notified. Cash already taken must be returned — the order keeps its collection state. This can't be undone."
     >
-      This cancels the order worth <b>{rwf(total)}</b>. The customer is
-      told immediately, and the money returns to them.
+      <div className="flex flex-col gap-3">
+        This cancels the order worth <b>{rwf(total)}</b>. The customer is
+        told immediately, and the money returns to them.
+        <Textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          maxLength={500}
+          rows={3}
+          placeholder="Reason (optional) — the customer sees this, e.g. 'ran out of stock'"
+        />
+      </div>
     </GuardDialog>
   )
 }
@@ -782,6 +799,9 @@ function ReceiptDrawer({
               <div className="text-[13px] text-text2">
                 This order was cancelled. Cash taken for it must be returned
                 to the customer.
+                {d.cancel_reason ? (
+                  <div className="mt-1 text-text3">Why: “{d.cancel_reason}”</div>
+                ) : null}
               </div>
             ) : null}
           </DrawerSection>

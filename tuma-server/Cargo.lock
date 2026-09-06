@@ -1079,6 +1079,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "geocoding"
+version = "0.1.0"
+dependencies = [
+ "app-config",
+ "async-trait",
+ "reqwest 0.13.4",
+ "secrecy",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "gethostname"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3793,6 +3808,7 @@ dependencies = [
  "axum-extra",
  "commerce",
  "config",
+ "geocoding",
  "image",
  "marketplace",
  "reqwest 0.13.4",

@@ -748,3 +748,46 @@ async fn a_stale_store_product_patch_is_a_conflict_not_a_silent_overwrite(pool: 
             .unwrap();
     assert!(!is_available, "the stale PATCH must not land");
 }
+
+/// The founder's ceiling: no product sells above 1,000,000 RWF. One franc
+/// over the ceiling is refused at the door; the ceiling itself is legal.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn a_price_above_the_ceiling_is_refused(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG", true).await;
+
+    // Attach one franc over the ceiling: a 422.
+    let response = aline
+        .client
+        .post_json(
+            "/v1/merchant/store-products",
+            json!({
+                "product_id": rice,
+                "store_id": store,
+                "price": 1_000_001
+            }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "price over the ceiling is refused");
+
+    // The ceiling itself is legal.
+    let rice_sp = attach(&aline, store, rice, 1_000_000, json!(null)).await;
+
+    // PATCHing the price over the ceiling is a 422 too.
+    let response = aline
+        .client
+        .patch_json(
+            &format!("/v1/merchant/store-products/{rice_sp}"),
+            json!({ "price": 1_000_001 }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 422, "PATCH over the ceiling is refused");
+}

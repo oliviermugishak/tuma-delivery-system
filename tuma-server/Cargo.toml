@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-config", "accounts", "commerce", "marketplace", "routing", "storage"]
+members = ["app-config", "accounts", "commerce", "geocoding", "marketplace", "routing", "storage"]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,6 +15,7 @@ default-run = "tuma-server"
 accounts = { path = "accounts" }
 app-config = { path = "app-config" }
 commerce = { path = "commerce" }
+geocoding = { path = "geocoding" }
 marketplace = { path = "marketplace" }
 storage = { path = "storage" }
 routing = { path = "routing" }

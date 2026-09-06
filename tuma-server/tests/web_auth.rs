@@ -300,3 +300,69 @@ async fn change_password_rejects_accounts_without_a_password(pool: sqlx::PgPool)
         .unwrap();
     assert_eq!(response.status(), 400);
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn change_password_revokes_every_session(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    seed_merchant(&app.pool, "merchant@example.com", "Aline's Kitchen").await;
+
+    // Session A logs in; its refresh cookie is captured for later replay.
+    let client_a = TestClient::new(&app.address);
+    let response_a = login(&client_a, "merchant@example.com", "Password123").await;
+    assert_eq!(response_a.status(), 204);
+    let refresh_a = cookie_value(&response_a, REFRESH_COOKIE).expect("A's refresh cookie");
+
+    // Session B (the same account) changes the password.
+    let client_b = TestClient::new(&app.address);
+    let response_b = login(&client_b, "merchant@example.com", "Password123").await;
+    assert_eq!(response_b.status(), 204);
+    let refresh_b = cookie_value(&response_b, REFRESH_COOKIE).expect("B's refresh cookie");
+
+    let response = client_b
+        .post_json(
+            "/v1/auth/password",
+            json!({ "current_password": "Password123", "new_password": "NewPassword123" }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    // A's refresh token is dead: no silent refresh, no reminted access
+    // cookie — the session was revoked server-side with the change.
+    let fresh = TestClient::new(&app.address);
+    let response = fresh
+        .get("/v1/me")
+        .header("Cookie", format!("{REFRESH_COOKIE}={refresh_a}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+    assert!(
+        cookie_value(&response, AUTH_COOKIE).is_none(),
+        "no access cookie may be reminted from a revoked refresh token"
+    );
+
+    // B's own session died with the change too.
+    let fresh = TestClient::new(&app.address);
+    let response = fresh
+        .get("/v1/me")
+        .header("Cookie", format!("{REFRESH_COOKIE}={refresh_b}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+    assert!(cookie_value(&response, AUTH_COOKIE).is_none());
+
+    // The new password signs in.
+    assert_eq!(
+        login(
+            &TestClient::new(&app.address),
+            "merchant@example.com",
+            "NewPassword123"
+        )
+        .await
+        .status(),
+        204
+    );
+}

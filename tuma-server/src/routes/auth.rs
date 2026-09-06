@@ -116,7 +116,11 @@ pub async fn otp_verify(
     let token = jwt::generate(&claims, app.jwt_signing_key.expose_secret().as_bytes())
         .map_err(|e| AppError::Internal(format!("token generation failed: {e}")))?;
 
-    let authorization = authorization_for(&mut conn, sign_in.account.id).await?;
+    // The account row was just fetched or created by the sign-in; a missing
+    // row here is a mid-request delete race, not a client answer.
+    let (_, authorization) = authorization_for(&mut conn, sign_in.account.id)
+        .await?
+        .ok_or_else(|| AppError::Internal("account vanished during sign-in".into()))?;
     Ok(Json(OtpVerifyResponse {
         token,
         user: MeResponse::build(&sign_in.account, &authorization),
@@ -208,7 +212,9 @@ pub async fn login(
     // A password match alone is not platform entry: the account must be an
     // admin or hold a merchant membership. Customers (OTP accounts) have no
     // password and already failed above.
-    let authorization = authorization_for(&mut conn, account.id).await?;
+    let (_, authorization) = authorization_for(&mut conn, account.id)
+        .await?
+        .ok_or_else(|| AppError::Authentication(INVALID_CREDENTIALS.into()))?;
     if authorization.admin.is_none() && authorization.memberships.is_empty() {
         return Err(AppError::Authentication(INVALID_CREDENTIALS.into()));
     }

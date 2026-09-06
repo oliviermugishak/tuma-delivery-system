@@ -39,12 +39,14 @@ overrides the "what".
 | `MAPS_API_KEY` | `tuma-app/.env` (gitignored) | `run.sh` sources it → Gradle reads `System.getenv` at **configuration time** → `manifestPlaceholders` → `AndroidManifest.xml` meta-data `com.google.android.geo.API_KEY` → the native Maps SDK | Google Cloud key: Android-app restriction = package `com.tuma.tuma_app` + the **debug keystore SHA-1**, API restriction = **Maps SDK for Android** |
 | `TUMA_API_BASE_URL` | **NOT a file — a `--dart-define` at build time** | Baked into the binary. Nothing reads env at runtime. | n/a |
 | `APP_ROUTING__BACKEND` / `APP_ROUTING__API_KEY` | `tuma-server/.env` (gitignored) | dotenvy → `RoutingConfig` → the `routing` crate's Google Directions client (server-side only; the key NEVER reaches a client) | Google Cloud key: Directions API enabled |
+| `APP_GEOCODING__BACKEND` / `APP_GEOCODING__API_KEY` | `tuma-server/.env` (gitignored) | dotenvy → `GeocodingConfig` → the `geocoding` crate's reverse-geocoder: **save-time enrichment** — an address/store saved with a pin gets its display name derived from the pin, cached in `geocoding.cache` (4-decimal pin grid) | Google Cloud key: **Geocoding API** enabled. **Unset/`none` = saves still land; the text falls back to the label word (never coordinates).** |
 | `VITE_GOOGLE_MAPS_API_KEY` | `tuma-platform/.env` (gitignored) | Vite `import.meta.env` → the store pin picker's Maps JS SDK | Google Cloud key: Maps JavaScript API, localhost + deployed domains |
 | `APP_STORAGE__PUBLIC_BASE_URL` | `tuma-server/.env` or env var | Composed into every image URL as `{base}/{key}` | — |
 
-**No geocoding key exists anymore** (removed 2026-09-05): delivery
-locations are pins + a human-typed label; nothing geocodes address
-text anywhere in the system.
+**Geocoding is save-time enrichment, not a UX dependency** (rebuilt
+2026-09-05): an address/store saved with a pin gets its display name
+derived from the pin and cached — nobody types address text. Without
+the key, saves still land and the text falls back to the label word.
 
 **The debug keystore never changes.** `~/.android/debug.keystore` is created
 once and signs every debug build. Its SHA-1 (extract with

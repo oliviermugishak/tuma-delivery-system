@@ -80,19 +80,17 @@ pub async fn auth_context(
         Some(token) => match jwt::verify(token, secret) {
             Ok(claims) => {
                 let mut conn = app.db_pool.acquire().await?;
-                match accounts::users::by_id(&mut conn, claims.sub).await {
-                    Ok(Some(user)) if user.is_active => {
+                match accounts::authorization_for(&mut conn, claims.sub).await? {
+                    Some((user, authorization)) if user.is_active => {
                         context.user = Some(user);
-                        context.authorization =
-                            Some(accounts::authorization_for(&mut conn, claims.sub).await?);
+                        context.authorization = Some(authorization);
                     }
-                    Ok(Some(_)) => {
+                    Some(_) => {
                         tracing::debug!(account_id = %claims.sub, "token valid but account is inactive")
                     }
-                    Ok(None) => {
+                    None => {
                         tracing::debug!(account_id = %claims.sub, "token for a deleted account")
                     }
-                    Err(error) => return Err(AppError::Database(error)),
                 }
             }
             // An invalid *cookie* token may just be expired — try refresh.
@@ -100,8 +98,11 @@ pub async fn auth_context(
             Err(_) if bearer.is_none() => match silent_refresh(&app, &jar).await? {
                 Refresh::Renewed { user, access } => {
                     let mut conn = app.db_pool.acquire().await?;
-                    context.authorization =
-                        Some(accounts::authorization_for(&mut conn, user.id).await?);
+                    if let Some((_, authorization)) =
+                        accounts::authorization_for(&mut conn, user.id).await?
+                    {
+                        context.authorization = Some(authorization);
+                    }
                     context.user = Some(user);
                     remint = Some(access);
                 }
@@ -115,8 +116,11 @@ pub async fn auth_context(
         None => match silent_refresh(&app, &jar).await? {
             Refresh::Renewed { user, access } => {
                 let mut conn = app.db_pool.acquire().await?;
-                context.authorization =
-                    Some(accounts::authorization_for(&mut conn, user.id).await?);
+                if let Some((_, authorization)) =
+                    accounts::authorization_for(&mut conn, user.id).await?
+                {
+                    context.authorization = Some(authorization);
+                }
                 context.user = Some(user);
                 remint = Some(access);
             }

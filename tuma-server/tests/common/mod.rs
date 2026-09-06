@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use accounts::jwt;
+use app_config::GeocodingBackend;
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use sqlx::migrate::Migrator;
@@ -64,6 +65,10 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
     // Tests are hermetic: the in-memory backend, always — uploads never
     // touch the developer's disk and vanish with the test.
     config.storage.backend = tuma_server::config::StorageBackend::Memory;
+    // Geocoding too: the deterministic memory backend ("Test place N" per
+    // provider call) — derivation is exercised, the network is not, and a
+    // repeated pin reaching the provider twice would fail the cache test.
+    config.geocoding.backend = GeocodingBackend::Memory;
 
     let listener = tokio::net::TcpListener::bind(format!("{}:0", config.application.host))
         .await
@@ -79,6 +84,7 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
         config.application.cookie_secure,
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
+        geocoding::build_service(&config.geocoding).expect("Failed to build the geocoding backend"),
     );
     let app = build_app_with_state(state);
 

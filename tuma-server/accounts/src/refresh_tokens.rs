@@ -77,3 +77,23 @@ pub async fn revoke(conn: &mut PgConnection, token: &str) -> Result<bool, sqlx::
     .await?;
     Ok(result.rows_affected() > 0)
 }
+
+/// Revoke every live refresh token for a user (password change). Returns
+/// how many live sessions died. The `refresh_tokens_user_idx` index on
+/// `user_id` makes it one cheap indexed update.
+pub async fn revoke_all_for_user(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE accounts.refresh_tokens
+        SET revoked_at = now()
+        WHERE user_id = $1 AND revoked_at IS NULL
+        "#,
+        user_id,
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(result.rows_affected())
+}

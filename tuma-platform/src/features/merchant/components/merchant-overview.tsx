@@ -36,14 +36,14 @@ import {
   Status,
 } from '@/components/ds'
 import { num, rwf } from '@/lib/format'
-import { orderStatusLabel, orderStatusTone } from '@/lib/status'
+import { orderStatusLabel, orderStatusTone, LIVE_ORDER_STATUSES } from '@/lib/status'
 import { ApiError } from '@/api/client'
 
 export function MerchantOverview() {
   const queryClient = useQueryClient()
   const stores = useQuery({ ...listOwnStoresOptions(), staleTime: 60_000 })
   const orders = useQuery({
-    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0 } }),
+    ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: LIVE_ORDER_STATUSES } }),
     refetchInterval: 10_000,
   })
 

@@ -58,16 +58,26 @@ impl RoutingProvider for NoRouting {
 
 /// The Google Directions backend (tracking doc §4): our server calls
 /// Directions, the key stays here, and the encoded polyline travels
-/// verbatim to clients.
+/// verbatim to clients. The client is built ONCE (with a timeout — the
+/// per-call client and its unbounded hangs are the behavior this
+/// replaces) and shared across every call.
 #[derive(Debug)]
 pub struct GoogleRouting {
+    client: reqwest::Client,
     api_key: String,
+    region: Option<String>,
 }
 
 impl GoogleRouting {
-    pub fn new(api_key: &str) -> Self {
+    pub fn new(api_key: &str, region: Option<String>) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
         Self {
+            client,
             api_key: api_key.to_string(),
+            region,
         }
     }
 }
@@ -113,15 +123,22 @@ fn parse_directions_response(body: &serde_json::Value) -> Result<Option<Route>, 
 #[async_trait]
 impl RoutingProvider for GoogleRouting {
     async fn route(&self, from: Coord, to: Coord) -> Result<Option<Route>, RoutingError> {
-        let response = reqwest::Client::new()
-            .get("https://maps.googleapis.com/maps/api/directions/json")
-            .query(&[
-                ("origin", format!("{},{}", from.lat, from.lng)),
-                ("destination", format!("{},{}", to.lat, to.lng)),
-                ("mode", "driving".to_string()),
-                ("region", "rw".to_string()),
-                ("key", self.api_key.clone()),
-            ])
+        let mut url = reqwest::Url::parse("https://maps.googleapis.com/maps/api/directions/json")
+            .expect("static directions URL");
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("origin", &format!("{},{}", from.lat, from.lng));
+            query.append_pair("destination", &format!("{},{}", to.lat, to.lng));
+            query.append_pair("mode", "driving");
+            if let Some(region) = &self.region {
+                query.append_pair("region", region);
+            }
+            query.append_pair("key", &self.api_key);
+        }
+
+        let response = self
+            .client
+            .get(url)
             .send()
             .await
             .map_err(|error| RoutingError::Request(error.to_string()))?;
@@ -155,7 +172,10 @@ pub fn build_service(
                     "routing.backend = google requires routing.api_key".into(),
                 ));
             }
-            Ok(std::sync::Arc::new(GoogleRouting::new(key)))
+            Ok(std::sync::Arc::new(GoogleRouting::new(
+                key,
+                config.region.clone(),
+            )))
         }
     }
 }
@@ -185,6 +205,7 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::None,
                 api_key: None,
+                region: None,
             })
             .is_ok()
         );
@@ -194,6 +215,7 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: None,
+                region: None,
             })
             .is_err()
         );
@@ -201,6 +223,16 @@ mod tests {
             build_service(&RoutingConfig {
                 backend: app_config::RoutingBackend::Google,
                 api_key: Some(secrecy::SecretString::new("AIza-test".into())),
+                region: None,
+            })
+            .is_ok()
+        );
+        // A configured region rides along (multinational deployments omit it).
+        assert!(
+            build_service(&RoutingConfig {
+                backend: app_config::RoutingBackend::Google,
+                api_key: Some(secrecy::SecretString::new("AIza-test".into())),
+                region: Some("rw".into()),
             })
             .is_ok()
         );

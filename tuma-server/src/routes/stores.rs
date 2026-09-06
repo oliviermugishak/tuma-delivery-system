@@ -89,8 +89,6 @@ pub struct CreateStoreInput {
     pub description: Option<String>,
     #[validate(length(max = 500, message = "image_url must be at most 500 characters"))]
     pub image_url: Option<String>,
-    #[validate(length(max = 200, message = "address must be at most 200 characters"))]
-    pub address_text: Option<String>,
     #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<f64>,
     #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
@@ -99,7 +97,11 @@ pub struct CreateStoreInput {
     #[validate(length(max = 50, message = "category must be at most 50 characters"))]
     pub category: Option<String>,
     /// Integer RWF. Defaults to 0 (free delivery).
-    #[validate(range(min = 0, message = "delivery_fee must be 0 or more"))]
+    #[validate(range(
+        min = 0,
+        max = 100_000,
+        message = "delivery_fee must be between 0 and 100,000 RWF"
+    ))]
     pub delivery_fee: Option<i64>,
     /// The customer-facing contact surface (Get help / store info).
     #[validate(length(max = 30, message = "contact_phone must be at most 30 characters"))]
@@ -116,21 +118,46 @@ pub struct UpdateStoreInput {
     pub description: Option<String>,
     #[validate(length(max = 500, message = "image_url must be at most 500 characters"))]
     pub image_url: Option<String>,
-    #[validate(length(max = 200, message = "address must be at most 200 characters"))]
-    pub address_text: Option<String>,
     #[validate(range(min = -90.0, max = 90.0, message = "lat must be between -90 and 90"))]
     pub lat: Option<f64>,
     #[validate(range(min = -180.0, max = 180.0, message = "lng must be between -180 and 180"))]
     pub lng: Option<f64>,
     #[validate(length(max = 50, message = "category must be at most 50 characters"))]
     pub category: Option<String>,
-    #[validate(range(min = 0, message = "delivery_fee must be 0 or more"))]
+    #[validate(range(
+        min = 0,
+        max = 100_000,
+        message = "delivery_fee must be between 0 and 100,000 RWF"
+    ))]
     pub delivery_fee: Option<i64>,
     pub is_open: Option<bool>,
     #[validate(length(max = 30, message = "contact_phone must be at most 30 characters"))]
     pub contact_phone: Option<String>,
     #[validate(length(max = 200, message = "contact_email must be at most 200 characters"))]
     pub contact_email: Option<String>,
+}
+
+/// The pin names the place for a store too: with a pin, `address_text` is
+/// derived by the geocoder (cached by the pin); without one, the field
+/// stays null — "Address not set" is the honest rendering. A geocoding
+/// failure degrades to null; it never blocks the save.
+async fn derive_store_text(
+    app: &AppState,
+    conn: &mut sqlx::PgConnection,
+    pin: Option<(f64, f64)>,
+) -> Result<Option<String>, AppError> {
+    match pin {
+        Some((lat, lng)) => Ok(Some(
+            geocoding::place_name(
+                conn,
+                app.geocoding.as_ref(),
+                geocoding::Coord { lat, lng },
+                "",
+            )
+            .await?,
+        )),
+        None => Ok(None),
+    }
 }
 
 /// PATCH text semantics: provided overwrites (trimmed), an empty string
@@ -191,6 +218,11 @@ pub async fn create_own_store(
     }
 
     let mut conn = app.db_pool.acquire().await?;
+    let pin = match (input.lat, input.lng) {
+        (Some(lat), Some(lng)) => Some((lat, lng)),
+        _ => None,
+    };
+    let address_text = derive_store_text(&app, &mut conn, pin).await?;
     let store = stores::create_store(
         &mut conn,
         grant.merchant_id,
@@ -198,7 +230,7 @@ pub async fn create_own_store(
             name,
             description: merge_text(input.description, None),
             image_url: merge_text(input.image_url, None),
-            address_text: merge_text(input.address_text, None),
+            address_text,
             lat: input.lat,
             lng: input.lng,
             category: merge_text(input.category, None),
@@ -310,7 +342,17 @@ pub async fn update_own_store(
             .expect("current name is never empty"),
         description: merge_text(input.description, store.description),
         image_url: merge_text(input.image_url, store.image_url),
-        address_text: merge_text(input.address_text, store.address_text),
+        // The final pin under the merge names the place — the text is
+        // re-derived on every save, never client-authored.
+        address_text: derive_store_text(
+            &app,
+            &mut conn,
+            match (input.lat.or(store.lat), input.lng.or(store.lng)) {
+                (Some(lat), Some(lng)) => Some((lat, lng)),
+                _ => None,
+            },
+        )
+        .await?,
         lat: input.lat.or(store.lat),
         lng: input.lng.or(store.lng),
         category: merge_text(input.category, store.category),

@@ -36,7 +36,6 @@ function StoreForm() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [address, setAddress] = useState('')
   const [category, setCategory] = useState('')
   const [fee, setFee] = useState('')
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null)
@@ -60,18 +59,18 @@ function StoreForm() {
   const submit = () => {
     const next: Record<string, string> = {}
     if (!name.trim()) next.name = 'The store needs its name.'
-    if (!address.trim()) next.address = 'Customers need an address to find you.'
     if (fee === '' || Number.isNaN(Number(fee)))
       next.fee = 'Set the delivery fee in whole francs — 0 means free.'
     if (!pin) next.pin = 'Drop the pin so riders can find you.'
     setErrors(next)
     if (Object.keys(next).length > 0 || !pin) return
 
+    // The pin names the place: address_text is derived server-side from
+    // the pin — the merchant never types an address.
     create.mutate({
       body: {
         name: name.trim(),
         description: description.trim() || null,
-        address_text: address.trim(),
         category: category.trim() || null,
         delivery_fee: Number(fee),
         lat: pin.lat,
@@ -107,14 +106,6 @@ function StoreForm() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What makes this branch worth ordering from."
-            />
-          </Field>
-          <Field label="Address" error={errors.address}>
-            <Input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Street, sector, landmark people know"
-              invalid={!!errors.address}
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">

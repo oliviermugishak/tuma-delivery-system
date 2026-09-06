@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT so.id, so.order_group_id, so.merchant_id, so.store_id,\n               s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.subtotal, so.delivery_fee,\n               so.total, og.address_text, og.address_lat, og.address_lng,\n               c.name AS customer_name, u.phone AS customer_phone,\n               p.status AS \"payment_status: PaymentStatus\",\n               so.created_at, so.updated_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        LEFT JOIN accounts.customers c ON c.user_id = og.user_id\n        LEFT JOIN accounts.users u ON u.id = og.user_id\n        JOIN commerce.payments p ON p.order_group_id = og.id\n        WHERE so.id = $1\n        ",
+  "query": "\n        SELECT so.id, so.order_group_id, so.merchant_id, so.store_id,\n               s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.subtotal, so.delivery_fee,\n               so.total, so.cancel_reason, og.address_text, og.address_lat, og.address_lng,\n               c.name AS customer_name, u.phone AS customer_phone,\n               p.status AS \"payment_status: PaymentStatus\",\n               so.created_at, so.updated_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        LEFT JOIN accounts.customers c ON c.user_id = og.user_id\n        LEFT JOIN accounts.users u ON u.id = og.user_id\n        JOIN commerce.payments p ON p.order_group_id = og.id\n        WHERE so.id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -129,6 +129,17 @@
       },
       {
         "ordinal": 10,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "address_text",
         "type_info": "Text",
         "origin": {
@@ -139,7 +150,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "address_lat",
         "type_info": "Float8",
         "origin": {
@@ -150,7 +161,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "address_lng",
         "type_info": "Float8",
         "origin": {
@@ -161,7 +172,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "customer_name",
         "type_info": "Text",
         "origin": {
@@ -172,7 +183,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "customer_phone",
         "type_info": "Text",
         "origin": {
@@ -183,7 +194,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "payment_status: PaymentStatus",
         "type_info": {
           "Custom": {
@@ -205,7 +216,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -216,7 +227,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -243,6 +254,7 @@
       false,
       false,
       false,
+      true,
       false,
       true,
       true,
@@ -253,5 +265,5 @@
       false
     ]
   },
-  "hash": "d139b3d4203fea4adbbbcbf902f9ea5cf4b0b489a71d53f3807cb52328480c77"
+  "hash": "f71d8f9fbd1ed0dde3c43fb4b70b2af3d4ba1184ad536c024b4e853a8c8db362"
 }

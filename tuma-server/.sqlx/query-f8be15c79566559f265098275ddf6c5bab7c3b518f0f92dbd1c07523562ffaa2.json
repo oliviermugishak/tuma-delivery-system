@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, order_group_id, merchant_id, store_id, number,\n               status AS \"status: OrderStatus\", subtotal, delivery_fee, total,\n               created_at, updated_at\n        FROM commerce.store_orders\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT so.id, so.order_group_id, so.merchant_id, so.store_id, so.number,\n               so.status AS \"status: OrderStatus\", so.subtotal, so.delivery_fee,\n               so.total, so.cancel_reason, so.created_at, so.updated_at,\n               s.name AS store_name,\n               s.contact_phone AS store_contact_phone,\n               s.contact_email AS store_contact_email\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        WHERE so.order_group_id = $1\n        ORDER BY so.created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -118,6 +118,17 @@
       },
       {
         "ordinal": 9,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -128,13 +139,46 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
             "table": "commerce.store_orders",
             "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "store_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "store_contact_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "store_contact_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "marketplace.stores",
+            "name": "contact_email"
           }
         }
       }
@@ -154,9 +198,13 @@
       false,
       false,
       false,
+      true,
       false,
-      false
+      false,
+      false,
+      true,
+      true
     ]
   },
-  "hash": "dec89de43a19ed49811ceda2bf2b17cb0328f4c179f90ff14dbdb68a35bcc368"
+  "hash": "f8be15c79566559f265098275ddf6c5bab7c3b518f0f92dbd1c07523562ffaa2"
 }

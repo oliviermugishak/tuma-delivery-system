@@ -805,11 +805,13 @@ void main() {
     expect(find.text('Save location'), findsOneWidget);
     expect(find.text('Your saved locations'), findsNothing);
     expect(find.text('Update location'), findsNothing);
-    // The fields start empty: no address carried over from anywhere.
-    final addressField = tester.widget<TextField>(
-      find.byType(TextField).first,
+    // The editor has no address field at all (the server names the place
+    // from the pin); the only text field is the optional rider note,
+    // which starts empty — nothing carried over from anywhere.
+    final noteField = tester.widget<TextField>(
+      find.widgetWithText(TextField, '').first,
     );
-    expect(addressField.controller?.text, isEmpty);
+    expect(noteField.controller?.text, isEmpty);
     expect(tester.takeException(), isNull);
 
     // Back from the editor returns to the list (it is still beneath).
@@ -837,15 +839,15 @@ void main() {
     // Home chip selected, and the update verb on the CTA.
     expect(find.text('Update location'), findsOneWidget);
     expect(find.text('Save location'), findsNothing);
-    // The address field carries the row's text; the note field carries
-    // the row's rider note. (Widget order varies by platform panels —
-    // assert on the CONTENT, whichever field holds it.)
+    // There is no address field anymore — the server derives the place
+    // name from the pin. The note field carries the row's rider note.
+    expect(find.text('Name this place'), findsNothing);
     final fieldTexts = tester
         .widgetList<TextField>(find.byType(TextField))
         .map((f) => f.controller?.text ?? '')
         .toList();
-    expect(fieldTexts, contains('KK 40 Street, Kigali'));
     expect(fieldTexts, contains('Gate on the left side'));
+    expect(fieldTexts, isNot(contains('KK 40 Street, Kigali')));
     expect(tester.takeException(), isNull);
   });
 
