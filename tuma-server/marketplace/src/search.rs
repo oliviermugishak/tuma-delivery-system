@@ -6,9 +6,10 @@
 //!
 //! - [`search_products`] matches catalog product names (the trigram index
 //!   from migration 06 keeps the ILIKE indexed at any catalog size).
-//! - [`popular_products`] ranks by real purchase counts from
-//!   `commerce.order_items` — deterministic "popular near you", no
-//!   simulation, no ML (blueprint §23). An item nobody ordered never
+//! - [`popular_products`] ranks by `commerce.product_popularity` — a
+//!   counter kept live by checkout (+1 per order line) and cancel (−1),
+//!   backfilled once by migration 14. Deterministic "popular near you",
+//!   no simulation, no ML (blueprint §23). An item nobody ordered never
 //!   shows up.
 //!
 //! The commerce-schema read is deliberate and read-only: popularity is a
@@ -77,9 +78,9 @@ pub async fn search_products(
 }
 
 /// The most-purchased products across open stores, by real order counts,
-/// best first. Grouping by the three table primary keys lets every
-/// selected column ride their functional dependencies. Cancelled orders
-/// are not purchases — their items must not feed the shelf.
+/// best first. The counter (migration 14) already excludes cancelled
+/// orders — a cancel decrements it — so the read is a plain join; the
+/// open-store rule stays a read-side fact. Ties break alphabetically.
 pub async fn popular_products(
     conn: &mut PgConnection,
     limit: i64,
@@ -98,14 +99,12 @@ pub async fn popular_products(
                 WHERE pi.product_id = sp.product_id ORDER BY pi.position, pi.id LIMIT 1) AS cover_key,
                s.lat AS store_lat,
                s.lng AS store_lng
-        FROM commerce.order_items oi
-        JOIN commerce.store_orders so ON so.id = oi.store_order_id
-        JOIN marketplace.store_products sp ON sp.id = oi.store_product_id
+        FROM commerce.product_popularity pp
+        JOIN marketplace.store_products sp ON sp.id = pp.store_product_id
         JOIN marketplace.products p ON p.id = sp.product_id
         JOIN marketplace.stores s ON s.id = sp.store_id
-        WHERE s.is_open AND sp.is_available AND so.status <> 'cancelled'
-        GROUP BY sp.id, p.id, s.id
-        ORDER BY COUNT(*) DESC, p.name
+        WHERE s.is_open AND sp.is_available AND pp.order_lines > 0
+        ORDER BY pp.order_lines DESC, p.name
         LIMIT $1
         "#,
         limit,

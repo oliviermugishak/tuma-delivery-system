@@ -13,6 +13,12 @@ database:
   password: password123
   database_name: tuma
   require_ssl: false
+  # Pool ceiling: Postgres caps total connections across ALL clients
+  # (default 100), so the server must not take them all. Production
+  # raises this (see production.yml).
+  max_connections: 10
+  # How long a request waits for a free pooled connection before failing.
+  acquire_timeout_secs: 10
 secret:
   # Generate with: openssl rand -base64 64
   jwt_signing_key: ""
@@ -33,3 +39,17 @@ storage:
     region: auto
     access_key_id: ""
     secret_access_key: ""
+jobs:
+  # The hourly maintenance prune (the server's only background job):
+  # GPS breadcrumbs older than the retention window and refresh tokens
+  # dead (expired or revoked) for longer than it. The first pass runs at
+  # startup.
+  prune_enabled: true
+  prune_retention_days: 30
+rate_limit:
+  # Per-IP rate limiting on the auth doors (/v1/auth/login,
+  # /v1/auth/otp/request) — sliding 60s windows, in-memory. The doors
+  # count attempts, not outcomes: a valid login spends the budget too.
+  enabled: true
+  login_per_minute: 10
+  otp_per_minute: 10

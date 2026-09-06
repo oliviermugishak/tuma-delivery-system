@@ -41,6 +41,7 @@ tower-http = { version = "0.7.0", features = ["request-id", "trace", "cors"] }
 utoipa = { version = "5", features = ["macros", "uuid", "time"] }
 # The dev simulator POSTs through the real HTTP endpoints (tracking doc §9).
 reqwest = { version = "0.13.4", features = ["json", "cookies", "multipart"] }
+governor = { version = "0.10.4", default-features = false, features = ["std"] }
 
 [dependencies.sqlx]
 version = "0.9.0"

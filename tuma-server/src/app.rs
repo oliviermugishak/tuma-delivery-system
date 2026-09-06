@@ -51,6 +51,8 @@ use validator::Validate;
 
 pub type AppResult<T> = Result<T, AppError>;
 
+use crate::config::RateLimitConfig;
+
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db_pool: Arc<PgPool>,
@@ -71,6 +73,10 @@ pub struct AppState {
     /// enrichment that names a pin. `NoGeocoding` until a key is
     /// configured — every caller carries its own honest fallback.
     pub geocoding: Arc<dyn geocoding::GeocodingProvider>,
+    /// Per-IP rate limiting on the auth doors: the buckets plus the
+    /// resolved limits/switch from `RateLimitConfig`.
+    pub rate_limiter: Arc<crate::rate_limit::RateLimiter>,
+    pub rate_limit: RateLimitConfig,
 }
 
 impl AppState {
@@ -84,6 +90,7 @@ impl AppState {
         storage: storage::StorageService,
         routing: Arc<dyn routing::RoutingProvider>,
         geocoding: Arc<dyn geocoding::GeocodingProvider>,
+        rate_limit: RateLimitConfig,
     ) -> Self {
         Self {
             db_pool: Arc::new(db_pool),
@@ -94,6 +101,11 @@ impl AppState {
             storage: Arc::new(storage),
             routing,
             geocoding,
+            rate_limiter: Arc::new(crate::rate_limit::RateLimiter::new(
+                rate_limit.login_per_minute,
+                rate_limit.otp_per_minute,
+            )),
+            rate_limit,
         }
     }
 }
@@ -418,13 +430,18 @@ pub fn build_app_with_state(state: AppState) -> Router {
         )
         .merge(authenticated);
 
-    // Layer order (outermost runs first): trace → auth context → CSRF → CORS.
-    // /api/health stays unversioned: it is an infra probe, not business API.
+    // Layer order (outermost runs first): trace → auth context → CSRF →
+    // rate limit → CORS. The limiter sits beside csrf: it needs no auth
+    // context, and the doors answer 429 before any session work happens.
     let api = Router::new()
         .route("/health", get(health_check))
         .nest("/v1", v1)
         .layer(cors_layer())
         .layer(middleware::from_fn(csrf_origin_check))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::rate_limit_middleware,
+        ))
         .layer(middleware::from_fn_with_state(state.clone(), auth_context))
         .layer(trace_layer)
         .with_state(state);
@@ -474,6 +491,8 @@ pub enum AppError {
     UnsupportedMediaType(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
     #[error("Internal server error")]
     Internal(String),
 }
@@ -504,6 +523,12 @@ impl IntoResponse for AppError {
             AppError::UnsupportedMediaType(msg) => (
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "unsupported_media_type",
+                msg,
+                None,
+            ),
+            AppError::TooManyRequests(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too_many_requests",
                 msg,
                 None,
             ),

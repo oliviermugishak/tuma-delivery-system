@@ -18,6 +18,10 @@ pub struct Config {
     pub routing: RoutingConfig,
     #[serde(default)]
     pub geocoding: GeocodingConfig,
+    #[serde(default)]
+    pub jobs: JobsConfig,
+    #[serde(default)]
+    pub rate_limit: RateLimitConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -206,6 +210,80 @@ impl Default for GeocodingConfig {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Background jobs — the server's first scheduler (main.rs runs the loop).
+// V1 has exactly one job: the maintenance prune. Breadcrumbs pile up on
+// every rider push and dead refresh tokens pile up on every logout/
+// password change; migration 07 promised the breadcrumbs would be pruned.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct JobsConfig {
+    /// Master switch for the hourly maintenance prune. Off = no background
+    /// task is spawned at all.
+    #[serde(default)]
+    pub prune_enabled: bool,
+    /// How long breadcrumbs and dead refresh tokens are kept before the
+    /// prune deletes them, in days.
+    #[serde(default = "default_prune_retention_days")]
+    pub prune_retention_days: i64,
+}
+
+impl Default for JobsConfig {
+    fn default() -> Self {
+        Self {
+            prune_enabled: true,
+            prune_retention_days: default_prune_retention_days(),
+        }
+    }
+}
+
+fn default_prune_retention_days() -> i64 {
+    30
+}
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiting on the auth doors (login, OTP request). In-memory
+// sliding windows in the server process; the doors are the only endpoints
+// where unlimited attempts become password grinding. Disabled in the test
+// harness (shared client IP, tiny limits).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RateLimitConfig {
+    /// Master switch. `false` = no request is ever limited.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Failed-door budget per IP per minute for `/v1/auth/login`.
+    #[serde(default = "default_login_per_minute")]
+    pub login_per_minute: u32,
+    /// Per-IP per-minute budget for `/v1/auth/otp/request`.
+    #[serde(default = "default_otp_per_minute")]
+    pub otp_per_minute: u32,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            login_per_minute: default_login_per_minute(),
+            otp_per_minute: default_otp_per_minute(),
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_login_per_minute() -> u32 {
+    10
+}
+
+fn default_otp_per_minute() -> u32 {
+    10
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
     #[serde(deserialize_with = "deserialize_number_from_string")]
@@ -226,10 +304,26 @@ pub struct DbConfig {
     pub password: SecretString,
     pub database_name: String,
     pub require_ssl: bool,
+    /// Pool ceiling. Postgres caps total connections (default 100) shared
+    /// by every client, so the server must not take them all.
+    #[serde(default = "default_max_connections")]
+    pub max_connections: u32,
+    /// How long a request waits for a free pooled connection before it
+    /// fails — bound the pileup instead of queueing forever.
+    #[serde(default = "default_acquire_timeout_secs")]
+    pub acquire_timeout_secs: u64,
 }
 
 fn default_secret() -> SecretString {
     SecretString::new(String::new().into())
+}
+
+fn default_max_connections() -> u32 {
+    10
+}
+
+fn default_acquire_timeout_secs() -> u64 {
+    10
 }
 
 impl DbConfig {

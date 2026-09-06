@@ -657,6 +657,22 @@ pub async fn create_checkout(
             .fetch_one(&mut *tx)
             .await?;
             items.push(item);
+
+            // The popularity counter (+1 per checkout LINE — quantities
+            // don't multiply it, mirroring the aggregate this replaces).
+            // Inside the tx: an idempotent retry returns early or loses the
+            // race and aborts, so this fires only on first creation.
+            sqlx::query!(
+                r#"
+                INSERT INTO commerce.product_popularity (store_product_id, order_lines)
+                VALUES ($1, 1)
+                ON CONFLICT (store_product_id) DO UPDATE
+                SET order_lines = product_popularity.order_lines + 1
+                "#,
+                line.store_product_id,
+            )
+            .execute(&mut *tx)
+            .await?;
         }
 
         sqlx::query!(
@@ -1094,6 +1110,21 @@ pub async fn advance_store_order_status(
         .execute(&mut *tx)
         .await?;
 
+        // A cancelled order is not a purchase: give the popularity
+        // counter its lines back (GREATEST guards against going negative
+        // if the backfill ever lags reality).
+        sqlx::query!(
+            r#"
+            UPDATE commerce.product_popularity pp
+            SET order_lines = GREATEST(0, pp.order_lines - 1)
+            FROM commerce.order_items oi
+            WHERE oi.store_order_id = $1 AND pp.store_product_id = oi.store_product_id
+            "#,
+            store_order_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+
         // This store's slice of the payment can never be collected now.
         sqlx::query!(
             r#"
@@ -1198,6 +1229,20 @@ pub async fn cancel_own_store_order(
         SET stock = sp.stock + oi.quantity
         FROM commerce.order_items oi
         WHERE oi.store_order_id = $1 AND sp.id = oi.store_product_id
+        "#,
+        store_order_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // A cancelled order is not a purchase: the popularity counter loses
+    // this store order's lines (GREATEST guards against going negative).
+    sqlx::query!(
+        r#"
+        UPDATE commerce.product_popularity pp
+        SET order_lines = GREATEST(0, pp.order_lines - 1)
+        FROM commerce.order_items oi
+        WHERE oi.store_order_id = $1 AND pp.store_product_id = oi.store_product_id
         "#,
         store_order_id,
     )

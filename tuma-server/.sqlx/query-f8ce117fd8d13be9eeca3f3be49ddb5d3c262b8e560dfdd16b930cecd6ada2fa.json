@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM commerce.delivery_locations\n        WHERE recorded_at < $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f8ce117fd8d13be9eeca3f3be49ddb5d3c262b8e560dfdd16b930cecd6ada2fa"
+}

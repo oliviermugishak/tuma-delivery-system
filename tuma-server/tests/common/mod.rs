@@ -69,6 +69,10 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
     // provider call) — derivation is exercised, the network is not, and a
     // repeated pin reaching the provider twice would fail the cache test.
     config.geocoding.backend = GeocodingBackend::Memory;
+    // The shared harness NEVER rate-limits: every test's traffic arrives
+    // from 127.0.0.1, so one suite's login calls must not starve another
+    // test's. The limiter has its own suite (tests/rate_limit.rs).
+    config.rate_limit.enabled = false;
 
     let listener = tokio::net::TcpListener::bind(format!("{}:0", config.application.host))
         .await
@@ -85,11 +89,16 @@ pub async fn spawn_app(pool: PgPool) -> TestApp {
         storage::build_service(&config.storage).expect("Failed to build the storage backend"),
         routing::build_service(&config.routing).expect("Failed to build the routing backend"),
         geocoding::build_service(&config.geocoding).expect("Failed to build the geocoding backend"),
+        config.rate_limit.clone(),
     );
     let app = build_app_with_state(state);
 
     std::mem::forget(tokio::spawn(async {
-        let _ = axum::serve(listener, app).await;
+        let _ = axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await;
     }));
 
     TestApp {

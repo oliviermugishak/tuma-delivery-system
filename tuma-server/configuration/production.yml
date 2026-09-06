@@ -3,6 +3,11 @@ application:
   cookie_secure: true
 database:
   require_ssl: true
+  # Postgres caps total connections across ALL clients (default 100); the
+  # server takes a fixed slice of that. Override with
+  # APP_DATABASE__MAX_CONNECTIONS if the deployment calls for a different
+  # slice.
+  max_connections: 50
 # Storage is configured entirely through APP_STORAGE__* env vars in
 # production (secrets never live in files): backend, public_base_url
 # (the R2 public/CDN URL), and s3 bucket/endpoint/region/credentials.

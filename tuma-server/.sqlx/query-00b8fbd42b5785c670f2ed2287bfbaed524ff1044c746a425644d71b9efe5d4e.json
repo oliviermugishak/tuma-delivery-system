@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO commerce.product_popularity (store_product_id, order_lines)\n                VALUES ($1, 1)\n                ON CONFLICT (store_product_id) DO UPDATE\n                SET order_lines = product_popularity.order_lines + 1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "00b8fbd42b5785c670f2ed2287bfbaed524ff1044c746a425644d71b9efe5d4e"
+}

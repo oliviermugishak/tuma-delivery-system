@@ -1824,3 +1824,64 @@ async fn a_cancel_reason_over_five_hundred_chars_is_refused(pool: sqlx::PgPool) 
         .unwrap();
     assert_eq!(response.status(), 422, "an over-long reason is refused");
 }
+
+/// The popularity counter (migration 14): a checkout line is +1 (per line,
+/// not per unit), a cancel gives the lines back — never below zero. This
+/// is the write-side twin of search's `empty_query_shows_popular_products_
+/// and_open_stores` contract.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn checkout_moves_the_popularity_counter(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let beans = create_product(&aline, "Beans 1KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    let beans_sp = attach(&aline, store, beans, 3500, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+
+    async fn order_lines(pool: &PgPool, store_product_id: Uuid) -> i64 {
+        sqlx::query_scalar(
+            "SELECT order_lines FROM commerce.product_popularity WHERE store_product_id = $1",
+        )
+        .bind(store_product_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    let (chantal, token) = customer_session(&app, "+250780000021").await;
+    let group: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 2), line(beans_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(group["store_orders"].as_array().unwrap().len(), 1);
+
+    // One counter row per checkout LINE, +1 each — the 2-unit rice line
+    // still counts once.
+    assert_eq!(order_lines(&app.pool, rice_sp).await, 1);
+    assert_eq!(order_lines(&app.pool, beans_sp).await, 1);
+
+    // Cancelling the store order takes both lines back, stopping at zero.
+    let group_id = group["id"].as_str().unwrap();
+    let order_id = group["store_orders"][0]["id"].as_str().unwrap();
+    let response = chantal
+        .post_json(
+            &format!("/v1/orders/{group_id}/store-orders/{order_id}/cancel"),
+            json!({ "reason": "changed my mind" }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(order_lines(&app.pool, rice_sp).await, 0);
+    assert_eq!(order_lines(&app.pool, beans_sp).await, 0);
+}

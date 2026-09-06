@@ -1,6 +1,6 @@
 pub use app_config::{
-    AppConfig, Config, DbConfig, Environment, RoutingBackend, RoutingConfig, StorageBackend,
-    StorageConfig,
+    AppConfig, Config, DbConfig, Environment, RateLimitConfig, RoutingBackend, RoutingConfig,
+    StorageBackend, StorageConfig,
 };
 use std::path::PathBuf;
 

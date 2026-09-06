@@ -254,6 +254,41 @@ capability_guard!(
     "rider"
 );
 
+/// Per-IP rate limiting on the auth doors — the only endpoints where
+/// unlimited attempts become password grinding. Everything else passes
+/// through untouched: the middleware classifies the path, and a request
+/// with no `ConnectInfo` (no IP fact to be fair to) fails open. The doors
+/// count ATTEMPTS, not outcomes — a failed login and a successful one
+/// both spend the budget, so a burst can't double-dip the window.
+pub async fn rate_limit_middleware(
+    State(app): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let config = &app.rate_limit;
+    if config.enabled
+        && let Some(ip) = request
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+            .map(|connect_info| connect_info.0.ip())
+    {
+        let class_limit = if request.uri().path().ends_with("/v1/auth/login") {
+            Some(crate::rate_limit::DoorClass::Login)
+        } else if request.uri().path().ends_with("/v1/auth/otp/request") {
+            Some(crate::rate_limit::DoorClass::Otp)
+        } else {
+            None
+        };
+        if let Some(class) = class_limit
+            && !app.rate_limiter.check(class, ip)
+        {
+            return AppError::TooManyRequests("too many attempts — try again in a minute".into())
+                .into_response();
+        }
+    }
+    next.run(request).await
+}
+
 /// CSRF defense for cookie sessions: a state-changing request coming from a
 /// browser must carry an `Origin` header on the allow list
 /// (`TUMA_CORS_ORIGIN`). Requests without an Origin header (mobile Bearer

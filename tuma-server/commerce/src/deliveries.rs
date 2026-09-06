@@ -428,6 +428,27 @@ pub async fn push_location(
     })
 }
 
+/// Delete breadcrumbs recorded before `cutoff`. Returns how many rows
+/// died. Migration 07 promised this: delivery_locations rows "are never
+/// updated, old ones are pruned" — until now nothing did. The hourly
+/// scheduler in `main.rs` calls this with the configured retention window;
+/// the tracking trail is a tail (see `TRAIL_TAIL_LEN`), not an archive.
+pub async fn prune_old_locations(
+    conn: &mut PgConnection,
+    cutoff: OffsetDateTime,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM commerce.delivery_locations
+        WHERE recorded_at < $1
+        "#,
+        cutoff,
+    )
+    .execute(conn)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Persist a re-fetched route on a delivery that strayed. A `None`
 /// polyline keeps the existing one (a backend outage must not erase a
 /// still-valid route — only the ETA is re-armed); `Some` overwrites in

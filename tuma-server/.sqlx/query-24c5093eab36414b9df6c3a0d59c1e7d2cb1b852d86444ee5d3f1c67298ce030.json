@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE commerce.product_popularity pp\n            SET order_lines = GREATEST(0, pp.order_lines - 1)\n            FROM commerce.order_items oi\n            WHERE oi.store_order_id = $1 AND pp.store_product_id = oi.store_product_id\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "24c5093eab36414b9df6c3a0d59c1e7d2cb1b852d86444ee5d3f1c67298ce030"
+}

@@ -78,6 +78,29 @@ pub async fn revoke(conn: &mut PgConnection, token: &str) -> Result<bool, sqlx::
     Ok(result.rows_affected() > 0)
 }
 
+/// Delete dead refresh tokens — expired, or revoked before `cutoff`.
+/// Returns how many rows died. A token is dead when `revoked_at IS NOT
+/// NULL OR expires_at <= now()` (the same definition [`validate`] uses to
+/// reject one); "before `cutoff`" keeps recently-dead rows around, so a
+/// still-cached cookie maps to a known-dead row instead of nothing. The
+/// hourly scheduler in `main.rs` calls this on the same retention window
+/// as the breadcrumb prune.
+pub async fn prune_dead_tokens(
+    conn: &mut PgConnection,
+    cutoff: OffsetDateTime,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM accounts.refresh_tokens
+        WHERE expires_at < $1 OR (revoked_at IS NOT NULL AND revoked_at < $1)
+        "#,
+        cutoff,
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Revoke every live refresh token for a user (password change). Returns
 /// how many live sessions died. The `refresh_tokens_user_idx` index on
 /// `user_id` makes it one cheap indexed update.
