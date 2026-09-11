@@ -675,6 +675,19 @@ pub async fn create_checkout(
             .await?;
         }
 
+        // The status event: the `placed` default written by the INSERT
+        // gets its memory row, same transaction (append-only trail).
+        crate::status_events::record_status_event(
+            &mut *tx,
+            store_order.id,
+            OrderStatus::Placed,
+            crate::status_events::Actor {
+                kind: crate::status_events::ActorKind::Customer,
+                id: user_id,
+            },
+        )
+        .await?;
+
         sqlx::query!(
             r#"INSERT INTO commerce.deliveries (store_order_id) VALUES ($1)"#,
             store_order.id,
@@ -1025,12 +1038,14 @@ pub async fn store_order_scope(
 /// already established ownership; this function owns the legality of the
 /// transition itself. `reason` is honored only when `next` is Cancelled —
 /// the one transition that deserves a "why" (cancelled is terminal, so no
-/// prior reason can be overwritten).
+/// prior reason can be overwritten). `actor` is who performed it — the
+/// merchant operator the handler authenticated.
 pub async fn advance_store_order_status(
     conn: &mut PgConnection,
     store_order_id: Uuid,
     next: OrderStatus,
     reason: Option<&str>,
+    actor: crate::status_events::Actor,
 ) -> Result<StoreOrder, TransitionError> {
     let mut tx = conn.begin().await?;
     let current = sqlx::query!(
@@ -1084,6 +1099,9 @@ pub async fn advance_store_order_status(
         from: current.status.label(),
         to: next.label(),
     })?;
+    // The event trail: the transition's memory, appended inside this same
+    // transaction — the status move and its fact commit together.
+    crate::status_events::record_status_event(&mut *tx, store_order_id, next, actor).await?;
     // The cash state (tracking doc §5): delivery = payment for cash-on-
     // delivery, whichever real actor drives the advance — the rider's
     // Delivered action and the merchant's PATCH are the same event to the
@@ -1220,6 +1238,19 @@ pub async fn cancel_own_store_order(
         from: "its current state",
         to: OrderStatus::Cancelled.label(),
     }))?;
+
+    // The event trail: the customer's cancel gets its memory row in the
+    // same transaction as the cancel itself.
+    crate::status_events::record_status_event(
+        &mut *tx,
+        store_order_id,
+        OrderStatus::Cancelled,
+        crate::status_events::Actor {
+            kind: crate::status_events::ActorKind::Customer,
+            id: user_id,
+        },
+    )
+    .await?;
 
     // The checkout reserved this store's stock; the cancel gives it back.
     // Untracked stock (NULL) was never decremented and stays NULL.

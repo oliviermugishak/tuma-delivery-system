@@ -14,7 +14,7 @@
  * items are done — the platform marks them ready by handing off, so the
  * board's third column shows preparing orders with the Hand off verb.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -48,6 +48,7 @@ import {
 import type { MerchantStoreOrderResponse } from '@/api/generated'
 import { dateTime, num, phone, rwf } from '@/lib/format'
 import { lookupHandoff, recordHandoff } from '@/lib/handoff-log'
+import { isMuted, notifyOrder, playPing, placedArrivals } from '@/lib/order-alerts'
 import {
   orderStatusLabel,
   orderStatusTone,
@@ -72,6 +73,32 @@ export function OrdersScreen() {
     ...listMerchantOrdersOptions({ query: { limit: 50, offset: 0, status: SETTLED_ORDER_STATUSES } }),
     refetchInterval: 30_000,
   })
+
+  // New-order arrivals (W3.1): the live board's poll is the detection
+  // surface. First load seeds the seen-set silently — never alert for
+  // orders already on the board; every later load diffs `placed` ids
+  // against it and announces each arrival (toast + mutable ping + pop-up
+  // when permission was granted).
+  const seenRef = useRef(new Set<string>())
+  const initializedRef = useRef(false)
+  useEffect(() => {
+    const data = liveOrders.data
+    if (data === undefined) return
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      for (const order of data) seenRef.current.add(order.id)
+      return
+    }
+    const arrivalIds = placedArrivals(data, seenRef.current)
+    for (const order of data) seenRef.current.add(order.id)
+    for (const id of arrivalIds) {
+      const order = data.find((o) => o.id === id)
+      if (!order) continue
+      toast.success(`New order #${order.number} — ${order.store_name}`)
+      if (!isMuted()) playPing()
+      notifyOrder('New Tuma order', `#${order.number} — ${order.store_name}`)
+    }
+  }, [liveOrders.data])
 
   const live = useMemo(
     () =>

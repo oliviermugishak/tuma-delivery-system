@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM commerce.deliveries d\n        JOIN commerce.store_orders so ON so.id = d.store_order_id\n        WHERE so.status = 'picked_up'\n          AND d.eta_target < now() - interval '15 minutes'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7a485f9b374512274aec4033a7017074bc177cc551aa445882adb59b96993bdf"
+}

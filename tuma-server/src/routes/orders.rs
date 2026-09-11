@@ -843,7 +843,19 @@ pub async fn advance_store_order(
         return Err(AppError::NotFound("order not found".into()));
     }
 
-    let order = orders::advance_store_order_status(&mut conn, id, next, reason).await?;
+    let order = orders::advance_store_order_status(
+        &mut conn,
+        id,
+        next,
+        reason,
+        commerce::status_events::Actor {
+            kind: commerce::status_events::ActorKind::Merchant,
+            id: context
+                .user_id()
+                .ok_or_else(|| AppError::Authentication("Access denied".into()))?,
+        },
+    )
+    .await?;
     // (The cash settlement lives inside the domain advance's transaction —
     // delivery = payment, one atomic event, doc §5.)
     let row = orders::merchant_store_order_row(&mut conn, order.id)
@@ -938,7 +950,21 @@ pub async fn handoff_store_order(
         None => None,
     };
 
-    let order = commerce::deliveries::handoff(&mut conn, id, rider.id, cached).await?;
+    let order = commerce::deliveries::handoff(
+        &mut conn,
+        id,
+        rider.id,
+        cached,
+        // The event's actor is the OPERATOR performing the handoff, not
+        // the rider being assigned.
+        commerce::status_events::Actor {
+            kind: commerce::status_events::ActorKind::Merchant,
+            id: context
+                .user_id()
+                .ok_or_else(|| AppError::Authentication("Access denied".into()))?,
+        },
+    )
+    .await?;
     let row = orders::merchant_store_order_row(&mut conn, order.id)
         .await?
         .ok_or_else(|| AppError::Internal("handed-over order disappeared".into()))?;

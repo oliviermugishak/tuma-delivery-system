@@ -216,6 +216,18 @@ async fn handoff_assigns_by_rider_number_and_picks_up(pool: PgPool) {
     assert!(handoff_at.is_some(), "handoff stamps the moment");
     assert!(eta.is_some(), "the ride-speed ETA is set without a key");
     assert!(polyline.is_none(), "no geometry is invented without a key");
+
+    // The event trail: the pickup is remembered as the merchant OPERATOR's
+    // act (they typed the number), not the rider's.
+    let (kind,): (String,) = sqlx::query_as(
+        "SELECT actor_kind::text FROM commerce.order_status_events \
+         WHERE store_order_id = $1 AND status = 'picked_up'",
+    )
+    .bind(Uuid::parse_str(&order_id).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(kind, "merchant");
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
@@ -274,12 +286,38 @@ async fn handoff_legality_reassignment_and_anti_probe(pool: PgPool) {
         "placed is not handable"
     );
 
-    // Re-assignment while picked_up: handoff simply runs again.
+    // The first success: preparing → picked_up, one event recorded.
     assert_eq!(
         handoff(&aline, &order_id, jean.rider.rider_number)
             .await
             .status(),
         200
+    );
+    // Re-assignment while picked_up: handoff simply runs again — and
+    // changes no status, so the event trail must not grow.
+    let (events_before,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM commerce.order_status_events WHERE store_order_id = $1",
+    )
+    .bind(Uuid::parse_str(&order_id).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        handoff(&aline, &order_id, jean.rider.rider_number)
+            .await
+            .status(),
+        200
+    );
+    let (events_after,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM commerce.order_status_events WHERE store_order_id = $1",
+    )
+    .bind(Uuid::parse_str(&order_id).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        events_after, events_before,
+        "a re-assignment records nothing — the status did not move"
     );
 }
 

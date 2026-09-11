@@ -12,6 +12,7 @@
 //!   collection action exists.
 
 use crate::orders::{AllocationStatus, OrderStatus, PaymentStatus, StoreOrder};
+use crate::status_events::{Actor, ActorKind, record_status_event};
 use sqlx::{Acquire, PgConnection};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -227,11 +228,15 @@ pub async fn route_context_for_delivery(
 /// delivery's assignment, route cache, and ETA target. The `picked_up`
 /// re-assignment compare-and-swaps the store order too: a concurrently
 /// committing `mark_delivered` must not lose its delivery to a reassign.
+/// `actor` is who performed the handoff — the merchant OPERATOR, not the
+/// rider; only the Preparing arm (a real status move) records an event,
+/// the PickedUp re-assignment changes no status and records nothing.
 pub async fn handoff(
     conn: &mut PgConnection,
     store_order_id: Uuid,
     rider_id: Uuid,
     cached: Option<CachedRoute>,
+    actor: Actor,
 ) -> Result<StoreOrder, DeliveryError> {
     let mut tx = conn.begin().await?;
     let current = sqlx::query!(
@@ -267,6 +272,10 @@ pub async fn handoff(
                     to: OrderStatus::PickedUp.label(),
                 });
             }
+            // The event trail: the handoff IS the pickup — the operator's
+            // act, appended in this same transaction. The re-assignment arm
+            // below changes no status and records nothing.
+            record_status_event(&mut *tx, store_order_id, OrderStatus::PickedUp, actor).await?;
         }
         OrderStatus::PickedUp => {
             // Re-assignment is still a claimed transition (review S30): a
@@ -598,6 +607,18 @@ pub async fn mark_delivered(
             to: OrderStatus::Delivered.label(),
         });
     }
+    // The event trail: the rider's Delivered action, appended in this same
+    // transaction before the settlement it precedes.
+    record_status_event(
+        &mut *tx,
+        row.store_order_id,
+        OrderStatus::Delivered,
+        Actor {
+            kind: ActorKind::Rider,
+            id: rider_id,
+        },
+    )
+    .await?;
     settle_delivery_cash(&mut tx, row.store_order_id).await?;
 
     let order = sqlx::query_as!(
@@ -800,6 +821,25 @@ pub async fn rider_today_tally(
     .fetch_one(&mut *conn)
     .await?;
     Ok((row.deliveries, row.collected))
+}
+
+/// Deliveries handed off and past their ETA + a 15-minute grace — nobody
+/// has marked them delivered. The admin summary's "needs attention" count:
+/// a rider stalled, a handoff typo'd, or a stop gone wrong. NULL
+/// eta_target rows self-filter out of the comparison (NULL < anything is
+/// NULL), so route-less handoffs never cry wolf.
+pub async fn count_stale_deliveries(conn: &mut PgConnection) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!"
+        FROM commerce.deliveries d
+        JOIN commerce.store_orders so ON so.id = d.store_order_id
+        WHERE so.status = 'picked_up'
+          AND d.eta_target < now() - interval '15 minutes'
+        "#,
+    )
+    .fetch_one(&mut *conn)
+    .await
 }
 
 /// The group's tracking snapshot — one entry per store-order delivery,

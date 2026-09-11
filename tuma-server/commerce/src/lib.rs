@@ -19,6 +19,7 @@
 pub mod addresses;
 pub mod deliveries;
 pub mod orders;
+pub mod status_events;
 
 pub use deliveries::{
     ActiveDelivery, BREADCRUMB_MIN_DISTANCE_M, BREADCRUMB_MIN_INTERVAL_SECS, CachedRoute,

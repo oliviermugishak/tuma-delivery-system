@@ -57,6 +57,11 @@ export type AdminSummaryResponse = {
      */
     products: number;
     /**
+     * Deliveries handed off and past their ETA + 15-minute grace —
+     * nobody has marked them delivered.
+     */
+    stale_deliveries: number;
+    /**
      * Store-level sellable items.
      */
     store_products: number;

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 
 import { initials } from '@/lib/format'
+import { isMuted, setMuted } from '@/lib/order-alerts'
 import type { SessionUser } from '@/types/session'
 import { useLogout } from '@/hooks/use-logout'
 import {
@@ -31,7 +32,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Avatar, Button, Icon } from './primitives'
+import { Avatar, Button, Icon, Toggle } from './primitives'
 import { CommandPalette, type PaletteItem } from './command-palette'
 
 export interface NavItem {
@@ -385,10 +386,18 @@ function UserMenu({
 /**
  * Notifications (coverage §7.19). The backend has no notifications feed
  * yet — the bell renders the drawer's designed empty state and never a
- * fake dot (P2): unread state can't be known.
+ * fake dot (P2): unread state can't be known. The Merchant wing adds two
+ * operator controls ABOVE the empty state (W3.1): the new-order sound
+ * toggle (persisted locally) and the one-time pop-up permission ask —
+ * requested ONLY from this click, never nagged, never a banner. The Admin
+ * wing stays the quiet empty state.
  */
 function NotificationsBell({ wing }: { wing: string }) {
   const [open, setOpen] = useState(false)
+  const [muted, setMutedState] = useState(() => isMuted())
+  const [popupPermission, setPopupPermission] = useState<'default' | 'granted' | 'denied'>(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  )
   const emptyHint = useMemo(
     () => 'New-order and delivery events will land here.',
     [],
@@ -426,6 +435,36 @@ function NotificationsBell({ wing }: { wing: string }) {
               <b className="text-sm">Notifications</b>
               <span className="ml-auto text-[11px] text-text3">{wing}</span>
             </div>
+            {wing === 'Merchant' ? (
+              <div className="flex flex-col gap-2.5 px-2.5 pb-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium text-text2">
+                    New-order sound
+                  </span>
+                  <Toggle
+                    on={!muted}
+                    label="New-order sound"
+                    onChange={(next) => {
+                      setMuted(!next)
+                      setMutedState(!next)
+                    }}
+                  />
+                </div>
+                {popupPermission === 'default' ? (
+                  <Button
+                    variant="outline"
+                    small
+                    onClick={() => {
+                      void Notification.requestPermission().then((permission) => {
+                        setPopupPermission(permission)
+                      })
+                    }}
+                  >
+                    Enable pop-up alerts
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
               <Icon
                 name="notifications_off"

@@ -751,3 +751,103 @@ async fn admin_lists_page_with_limit_and_offset(pool: sqlx::PgPool) {
     assert_eq!(riders.len(), 1);
     assert_eq!(riders[0]["name"], "Eric", "offset skips the oldest rider");
 }
+
+/// W3.5: the summary's stale-delivery count — picked_up orders whose ETA
+/// lapsed past the 15-minute grace with nobody marking them delivered.
+/// The operator's "needs attention" line on the overview.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn admin_summary_counts_stale_deliveries(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let client = admin_client(&app, "admin@example.com").await;
+    let one = seed_merchant(&app.pool, "one@example.com", "One Business").await;
+
+    // Stock the business's store, open it, and take one real order.
+    let store = common::seed_store(&app.pool, one.merchant.id, "One Kitchen", true).await;
+    let owner_client = TestClient::new(&app.address);
+    assert_eq!(
+        login(&owner_client, "one@example.com", "Password123")
+            .await
+            .status(),
+        204
+    );
+    let product = owner_client
+        .post_json("/v1/merchant/products", json!({ "name": "Rice 5KG" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(product.status(), 201);
+    let product_id: Uuid = product.json::<Value>().await.unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let attach = owner_client
+        .post_json(
+            "/v1/merchant/store-products",
+            json!({ "product_id": product_id, "store_id": store.id, "price": 5000, "stock": 5 }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(attach.status(), 201);
+    place_order_with_merchant(&app, one.merchant.id).await;
+
+    let (order_id,): (Uuid,) =
+        sqlx::query_as("SELECT id FROM commerce.store_orders ORDER BY created_at DESC LIMIT 1")
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+
+    // accepted → preparing, then handoff with a seeded rider: the order is
+    // out for delivery.
+    for status in ["accepted", "preparing"] {
+        let response = owner_client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{order_id}"),
+                json!({ "status": status }),
+            )
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200, "advance to {status}");
+    }
+    let rider = common::seed_rider(&app.pool, "Jean", "+250780003013").await;
+    let response = owner_client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{order_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Fresh handoff: nothing stale (the ETA is current, and a NULL
+    // route-less ETA self-filters out of the comparison either way).
+    let body: Value = client
+        .get("/v1/admin/summary")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(body["stale_deliveries"], 0);
+
+    // Backdate the ETA past the 15-minute grace (the direct-SQL fixture
+    // precedent): exactly one delivery needs attention.
+    sqlx::query("UPDATE commerce.deliveries SET eta_target = now() - interval '1 hour' WHERE store_order_id = $1")
+        .bind(order_id)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+    let body: Value = client
+        .get("/v1/admin/summary")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(body["stale_deliveries"], 1);
+}

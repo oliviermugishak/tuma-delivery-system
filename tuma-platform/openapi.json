@@ -2785,7 +2785,8 @@
           "open_stores",
           "products",
           "store_products",
-          "orders_in_progress"
+          "orders_in_progress",
+          "stale_deliveries"
         ],
         "properties": {
           "customers": {
@@ -2810,6 +2811,11 @@
             "type": "integer",
             "format": "int64",
             "description": "Merchant-level catalog products."
+          },
+          "stale_deliveries": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Deliveries handed off and past their ETA + 15-minute grace —\nnobody has marked them delivered."
           },
           "store_products": {
             "type": "integer",

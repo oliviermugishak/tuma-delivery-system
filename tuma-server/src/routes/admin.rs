@@ -379,6 +379,7 @@ pub async fn summary(
     let customer_count = customers::count(&mut conn).await?;
     let catalog = marketplace::stores::catalog_counts(&mut conn).await?;
     let orders_in_progress = commerce::orders::count_in_progress(&mut conn).await?;
+    let stale_deliveries = commerce::deliveries::count_stale_deliveries(&mut conn).await?;
     Ok(Json(AdminSummaryResponse {
         merchants: merchant_count,
         customers: customer_count,
@@ -387,6 +388,7 @@ pub async fn summary(
         products: catalog.products,
         store_products: catalog.store_products,
         orders_in_progress,
+        stale_deliveries,
     }))
 }
 
@@ -403,6 +405,9 @@ pub struct AdminSummaryResponse {
     pub store_products: i64,
     /// Store orders still moving (not delivered/cancelled).
     pub orders_in_progress: i64,
+    /// Deliveries handed off and past their ETA + 15-minute grace —
+    /// nobody has marked them delivered.
+    pub stale_deliveries: i64,
 }
 
 /// A customer account on the admin's list: the profile (name) joined with

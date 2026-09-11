@@ -43,7 +43,7 @@ export function AdminOverview() {
 
       {summary.isLoading ? (
         <KpiGrid>
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <KpiSkeleton key={i} />
           ))}
         </KpiGrid>
@@ -67,6 +67,11 @@ export function AdminOverview() {
             vs={`of ${num(summary.data.stores)} stores`}
           />
           <KpiCard label="Customers" value={num(summary.data.customers)} vs="accounts on the platform" />
+          <KpiCard
+            label="Deliveries needing attention"
+            value={num(summary.data.stale_deliveries)}
+            vs="handed off, past ETA + 15-minute grace"
+          />
         </KpiGrid>
       ) : null}
     </div>

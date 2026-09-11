@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO commerce.order_status_events (store_order_id, status, actor_kind, actor_id)\n        VALUES ($1, $2, $3, $4)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "commerce.order_status",
+            "kind": {
+              "Enum": [
+                "placed",
+                "accepted",
+                "preparing",
+                "picked_up",
+                "delivered",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "commerce.actor_kind",
+            "kind": {
+              "Enum": [
+                "customer",
+                "merchant",
+                "rider"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea2bad67c05920db9563d946e376f7c30713fc20ce11258432302bcc2847af27"
+}

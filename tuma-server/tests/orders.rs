@@ -1342,6 +1342,27 @@ async fn a_cancelled_order_gives_its_stock_back(pool: sqlx::PgPool) {
     .await
     .unwrap();
     assert_eq!(allocation, "refunded");
+
+    // The event trail: the checkout's `placed` opens it, the customer's
+    // cancel closes it — two events, both the customer's own acts.
+    let events: Vec<(String, String)> = sqlx::query_as(
+        "SELECT status::text, actor_kind::text \
+         FROM commerce.order_status_events \
+         WHERE store_order_id = $1 ORDER BY created_at, id",
+    )
+    .bind(order_id.parse::<uuid::Uuid>().unwrap())
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+    let mut sorted = events;
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        vec![
+            ("cancelled".to_string(), "customer".to_string()),
+            ("placed".to_string(), "customer".to_string()),
+        ]
+    );
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]
@@ -1477,6 +1498,28 @@ async fn a_merchant_reject_restores_stock_and_settles_the_ledger(pool: sqlx::PgP
         .await
         .unwrap();
     assert_eq!(sheet["cancel_reason"], "customer changed the order");
+
+    // The event trail: the reject is the MERCHANT's cancel, distinct from
+    // the customer's `placed` that opened the trail.
+    let events: Vec<(String, String)> = sqlx::query_as(
+        "SELECT status::text, actor_kind::text \
+         FROM commerce.order_status_events \
+         WHERE store_order_id = $1 ORDER BY created_at, id",
+    )
+    .bind(Uuid::parse_str(&order_a).unwrap())
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+    let mut sorted = events;
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        vec![
+            ("cancelled".to_string(), "merchant".to_string()),
+            ("placed".to_string(), "customer".to_string()),
+        ],
+        "the reject records a merchant cancel on top of the customer's placed"
+    );
 
     // The ledger half 1: the 2 reserved units are back on the shelf.
     let (stock,): (i64,) =
@@ -1884,4 +1927,115 @@ async fn checkout_moves_the_popularity_counter(pool: sqlx::PgPool) {
     assert_eq!(response.status(), 200);
     assert_eq!(order_lines(&app.pool, rice_sp).await, 0);
     assert_eq!(order_lines(&app.pool, beans_sp).await, 0);
+}
+
+/// The event trail (migration 15): every transition appends exactly one
+/// row — what happened, by whom — inside the change's own transaction.
+/// A full walk: placed (checkout) → accepted → preparing (merchant PATCH)
+/// → picked_up (handoff by the operator) → delivered (the rider's token).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn every_transition_leaves_an_event_trail(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+    let rider = seed_rider(&app.pool, "Jean", "+250780000002").await;
+
+    let (chantal, token) = customer_session(&app, "+250780000022").await;
+    let group: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let order_id = group["store_orders"][0]["id"].as_str().unwrap().to_string();
+
+    // accepted → preparing: the merchant operator's PATCH.
+    for status in ["accepted", "preparing"] {
+        let response = aline
+            .client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{order_id}"),
+                json!({ "status": status }),
+            )
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200, "advance to {status}");
+    }
+
+    // The handoff: the operator types the rider's number.
+    let response = aline
+        .client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{order_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Delivered by the RIDER's own token — a different actor, a real one.
+    let (delivery_id,): (Uuid,) =
+        sqlx::query_as("SELECT id FROM commerce.deliveries WHERE store_order_id = $1")
+            .bind(order_id.parse::<Uuid>().unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    let response = TestClient::new(&app.address)
+        .post(&format!("/v1/deliveries/{delivery_id}/delivered"))
+        .bearer_auth(token_for(&app, rider.account.id, 3600))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // The trail: five rows, one per transition. created_at has microsecond
+    // resolution, so the deterministic assertions are the COUNT, the
+    // multiset of (status, kind) pairs, and `placed` being the earliest.
+    let trail: Vec<(String, String)> = sqlx::query_as(
+        "SELECT status::text, actor_kind::text \
+         FROM commerce.order_status_events \
+         WHERE store_order_id = $1 ORDER BY created_at, id",
+    )
+    .bind(order_id.parse::<Uuid>().unwrap())
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(trail.len(), 5, "one event per transition: {trail:?}");
+    let mut sorted = trail;
+    sorted.sort();
+    let mut expected = vec![
+        ("placed".to_string(), "customer".to_string()),
+        ("accepted".to_string(), "merchant".to_string()),
+        ("preparing".to_string(), "merchant".to_string()),
+        ("picked_up".to_string(), "merchant".to_string()),
+        ("delivered".to_string(), "rider".to_string()),
+    ];
+    expected.sort();
+    assert_eq!(sorted, expected);
+    let (first_status, first_kind): (String, String) = sqlx::query_as(
+        "SELECT status::text, actor_kind::text \
+         FROM commerce.order_status_events \
+         WHERE store_order_id = $1 ORDER BY created_at, id LIMIT 1",
+    )
+    .bind(order_id.parse::<Uuid>().unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        (first_status, first_kind),
+        ("placed".to_string(), "customer".to_string()),
+        "the checkout's own `placed` event opens the trail"
+    );
 }
