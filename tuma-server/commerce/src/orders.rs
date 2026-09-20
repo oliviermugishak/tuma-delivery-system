@@ -16,7 +16,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::{Acquire, PgConnection};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -876,6 +876,10 @@ pub struct GroupStoreOrder {
     pub store_contact_phone: Option<String>,
     pub store_contact_email: Option<String>,
     pub items: Vec<OrderItem>,
+    /// The store order's status trail — the ledger's memory, in history
+    /// order. Empty for orders created before migration 15; that is
+    /// honest, not an error.
+    pub events: Vec<crate::status_events::StoredEvent>,
 }
 
 /// One of the customer's groups, fully loaded: store orders with their
@@ -961,6 +965,12 @@ pub async fn group_detail_for_user(
     .await?;
 
     let mut store_orders = Vec::with_capacity(orders.len());
+    // One batched trail query for the whole group — the reader side of
+    // the append-only ledger, re-joined to the store orders in memory.
+    let mut events_by_order: HashMap<Uuid, Vec<crate::status_events::StoredEvent>> = HashMap::new();
+    for (id, event) in crate::status_events::for_store_orders(&mut *conn, &store_order_ids).await? {
+        events_by_order.entry(id).or_default().push(event);
+    }
     for order in orders {
         let items: Vec<OrderItem> = all_items
             .iter()
@@ -986,6 +996,7 @@ pub async fn group_detail_for_user(
             store_contact_phone: order.store_contact_phone,
             store_contact_email: order.store_contact_email,
             items,
+            events: events_by_order.remove(&order.id).unwrap_or_default(),
         });
     }
     Ok(Some(GroupDetail {
@@ -1326,7 +1337,7 @@ pub async fn count_in_progress(conn: &mut PgConnection) -> Result<i64, sqlx::Err
 
 /// A merchant operator's incoming store orders, newest first, one page.
 /// Scoped like every merchant read: per-merchant, optionally per-store.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone)]
 pub struct MerchantStoreOrderRow {
     pub id: Uuid,
     pub store_id: Uuid,
@@ -1335,7 +1346,13 @@ pub struct MerchantStoreOrderRow {
     pub status: OrderStatus,
     pub total: i64,
     pub address_text: String,
+    /// Why the order died — set at the cancel moment, the History row's
+    /// second line under the status chip.
+    pub cancel_reason: Option<String>,
     pub created_at: OffsetDateTime,
+    /// The status trail — the ledger's memory, in history order. Attached
+    /// by the read paths only (the mutation path's row carries none).
+    pub events: Vec<crate::status_events::StoredEvent>,
 }
 
 /// The merchant board across ALL of an operator's grants in ONE paged
@@ -1354,12 +1371,11 @@ pub async fn store_orders_for_grants(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<MerchantStoreOrderRow>, sqlx::Error> {
-    sqlx::query_as!(
-        MerchantStoreOrderRow,
+    let rows = sqlx::query!(
         r#"
         SELECT so.id, so.store_id, s.name AS store_name, so.number,
                so.status AS "status: OrderStatus", so.total,
-               og.address_text, so.created_at
+               og.address_text, so.cancel_reason, so.created_at
         FROM commerce.store_orders so
         JOIN marketplace.stores s ON s.id = so.store_id
         JOIN commerce.order_groups og ON og.id = so.order_group_id
@@ -1377,21 +1393,45 @@ pub async fn store_orders_for_grants(
         offset,
     )
     .fetch_all(&mut *conn)
-    .await
+    .await?;
+
+    // One batched trail query for the whole page — the reader side of
+    // the append-only ledger, re-joined to the rows in memory.
+    let ids: Vec<Uuid> = rows.iter().map(|row| row.id).collect();
+    let mut events_by_order: HashMap<Uuid, Vec<crate::status_events::StoredEvent>> = HashMap::new();
+    for (id, event) in crate::status_events::for_store_orders(&mut *conn, &ids).await? {
+        events_by_order.entry(id).or_default().push(event);
+    }
+
+    Ok(rows
+        .into_iter()
+        .map(|row| MerchantStoreOrderRow {
+            id: row.id,
+            store_id: row.store_id,
+            store_name: row.store_name,
+            number: row.number,
+            status: row.status,
+            total: row.total,
+            address_text: row.address_text,
+            cancel_reason: row.cancel_reason,
+            created_at: row.created_at,
+            events: events_by_order.remove(&row.id).unwrap_or_default(),
+        })
+        .collect())
 }
 
 /// One board row by store-order id — the advance/handoff handlers' exact
-/// response without rescanning a page of the board.
+/// response without rescanning a page of the board. The trail attaches
+/// only on reads (the History detail); mutation responses carry none.
 pub async fn merchant_store_order_row(
     conn: &mut PgConnection,
     store_order_id: Uuid,
 ) -> Result<Option<MerchantStoreOrderRow>, sqlx::Error> {
-    sqlx::query_as!(
-        MerchantStoreOrderRow,
+    let row = sqlx::query!(
         r#"
         SELECT so.id, so.store_id, s.name AS store_name, so.number,
                so.status AS "status: OrderStatus", so.total,
-               og.address_text, so.created_at
+               og.address_text, so.cancel_reason, so.created_at
         FROM commerce.store_orders so
         JOIN marketplace.stores s ON s.id = so.store_id
         JOIN commerce.order_groups og ON og.id = so.order_group_id
@@ -1400,7 +1440,19 @@ pub async fn merchant_store_order_row(
         store_order_id,
     )
     .fetch_optional(&mut *conn)
-    .await
+    .await?;
+    Ok(row.map(|row| MerchantStoreOrderRow {
+        id: row.id,
+        store_id: row.store_id,
+        store_name: row.store_name,
+        number: row.number,
+        status: row.status,
+        total: row.total,
+        address_text: row.address_text,
+        cancel_reason: row.cancel_reason,
+        created_at: row.created_at,
+        events: Vec::new(),
+    }))
 }
 
 /// The merchant's view of one store order: what to prepare, where to

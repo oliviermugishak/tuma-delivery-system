@@ -71,6 +71,38 @@ pub struct StoreOrderResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_contact_email: Option<String>,
     pub items: Vec<OrderItemResponse>,
+    /// The status trail — the ledger's memory; absent while empty so the
+    /// checkout response's wire is unchanged.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = [StatusEventResponse])]
+    pub events: Vec<StatusEventResponse>,
+}
+
+/// One memory row of the status trail — the ledger's read shape, shared
+/// by the customer timeline and merchant History.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct StatusEventResponse {
+    #[schema(value_type = String)]
+    pub status: OrderStatus,
+    #[serde(with = "time::serde::rfc3339")]
+    pub at: OffsetDateTime,
+    /// Who acted — customer, merchant, or rider.
+    pub actor: String,
+}
+
+/// The trail as the wire carries it: one memory row per transition, in
+/// the ledger's own order.
+fn status_event_responses(
+    events: Vec<commerce::status_events::StoredEvent>,
+) -> Vec<StatusEventResponse> {
+    events
+        .into_iter()
+        .map(|event| StatusEventResponse {
+            status: event.status,
+            at: event.created_at,
+            actor: event.actor_kind.label().to_string(),
+        })
+        .collect()
 }
 
 /// The customer-facing purchase: one checkout, N store orders, one
@@ -392,6 +424,7 @@ fn group_response(created: orders::CheckoutCreated) -> OrderGroupResponse {
                         quantity: item.quantity,
                     })
                     .collect(),
+                events: Vec::new(),
             })
             .collect(),
     }
@@ -443,6 +476,7 @@ fn group_detail_response(detail: orders::GroupDetail) -> OrderGroupResponse {
                         quantity: item.quantity,
                     })
                     .collect(),
+                events: status_event_responses(slice.events),
             })
             .collect(),
     }
@@ -601,6 +635,8 @@ pub async fn cancel_store_order(
                 quantity: item.quantity,
             })
             .collect(),
+        // A mutation response — the trail attaches only on reads.
+        events: Vec::new(),
     }))
 }
 
@@ -620,8 +656,17 @@ pub struct MerchantStoreOrderResponse {
     pub status: OrderStatus,
     pub total: i64,
     pub address_text: String,
+    /// Why the order died — set at the cancel moment (the History row's
+    /// second line under the status chip).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    /// The status trail — the ledger's memory; absent while empty so the
+    /// mutation responses' wire is unchanged.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = [StatusEventResponse])]
+    pub events: Vec<StatusEventResponse>,
 }
 
 #[utoipa::path(
@@ -676,7 +721,9 @@ pub async fn list_merchant_orders(
                 status: row.status,
                 total: row.total,
                 address_text: row.address_text,
+                cancel_reason: row.cancel_reason,
                 created_at: row.created_at,
+                events: status_event_responses(row.events),
             })
             .collect(),
     ))
@@ -738,6 +785,11 @@ pub struct MerchantStoreOrderDetailResponse {
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub items: Vec<MerchantOrderItemResponse>,
+    /// The status trail — the ledger's memory; absent while empty (orders
+    /// created before migration 15 honestly have none).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = [StatusEventResponse])]
+    pub events: Vec<StatusEventResponse>,
 }
 
 /// One store order's detail — the fulfillment sheet: what to prepare, where
@@ -775,6 +827,13 @@ pub async fn get_merchant_store_order(
         .await?
         .ok_or_else(|| AppError::NotFound("order not found".into()))?;
     let items = orders::items_for_store_order(&mut conn, id).await?;
+    // The trail — the read path's memory of every transition.
+    let events: Vec<commerce::status_events::StoredEvent> =
+        commerce::status_events::for_store_orders(&mut conn, &[id])
+            .await?
+            .into_iter()
+            .map(|(_, event)| event)
+            .collect();
 
     Ok(Json(MerchantStoreOrderDetailResponse {
         id: detail.id,
@@ -797,6 +856,7 @@ pub async fn get_merchant_store_order(
             .into_iter()
             .map(MerchantOrderItemResponse::from)
             .collect(),
+        events: status_event_responses(events),
     }))
 }
 
@@ -869,7 +929,10 @@ pub async fn advance_store_order(
         status: row.status,
         total: row.total,
         address_text: row.address_text,
+        cancel_reason: row.cancel_reason,
         created_at: row.created_at,
+        // A mutation response — the trail attaches only on reads.
+        events: Vec::new(),
     }))
 }
 
@@ -976,6 +1039,9 @@ pub async fn handoff_store_order(
         status: row.status,
         total: row.total,
         address_text: row.address_text,
+        cancel_reason: row.cancel_reason,
         created_at: row.created_at,
+        // A mutation response — the trail attaches only on reads.
+        events: Vec::new(),
     }))
 }

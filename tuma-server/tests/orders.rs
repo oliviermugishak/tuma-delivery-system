@@ -2039,3 +2039,288 @@ async fn every_transition_leaves_an_event_trail(pool: sqlx::PgPool) {
         "the checkout's own `placed` event opens the trail"
     );
 }
+
+/// The ledger's first reader: the customer's group detail carries each
+/// store order's status trail in history order — the timeline's source of
+/// truth. The checkout response itself stays wire-unchanged (no events
+/// key while the trail is empty at that moment).
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn the_detail_response_carries_the_event_trail(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+    let rider = seed_rider(&app.pool, "Jean", "+250780000023").await;
+
+    let (chantal, token) = customer_session(&app, "+250780000024").await;
+    let response = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), 201);
+    let checkout_body: Value = response.json().await.unwrap();
+    // The checkout's wire is unchanged: no trail on a brand-new group.
+    assert!(
+        checkout_body["store_orders"][0].get("events").is_none(),
+        "the checkout response carries no events"
+    );
+
+    let group_id = checkout_body["id"].as_str().unwrap().to_string();
+    let order_id = checkout_body["store_orders"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // accepted → preparing: the merchant operator's PATCH.
+    for status in ["accepted", "preparing"] {
+        let response = aline
+            .client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{order_id}"),
+                json!({ "status": status }),
+            )
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200, "advance to {status}");
+    }
+
+    // The handoff: the operator types the rider's number.
+    let response = aline
+        .client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{order_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Delivered by the RIDER's own token — a different actor, a real one.
+    let (delivery_id,): (Uuid,) =
+        sqlx::query_as("SELECT id FROM commerce.deliveries WHERE store_order_id = $1")
+            .bind(order_id.parse::<Uuid>().unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    let response = TestClient::new(&app.address)
+        .post(&format!("/v1/deliveries/{delivery_id}/delivered"))
+        .bearer_auth(token_for(&app, rider.account.id, 3600))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // The customer's detail: the trail, in the history's order, with the
+    // wire labels and a timestamp per memory row.
+    let response = chantal
+        .get(&format!("/v1/orders/{group_id}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let detail: Value = response.json().await.unwrap();
+    let events = detail["store_orders"][0]["events"].as_array().unwrap();
+    let trail: Vec<(&str, &str)> = events
+        .iter()
+        .map(|event| {
+            (
+                event["status"].as_str().unwrap(),
+                event["actor"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        trail,
+        vec![
+            ("placed", "customer"),
+            ("accepted", "merchant"),
+            ("preparing", "merchant"),
+            ("picked_up", "merchant"),
+            ("delivered", "rider"),
+        ],
+        "the trail reads in history order: {trail:?}"
+    );
+    for event in events {
+        let at = event["at"].as_str().unwrap_or_default();
+        assert!(
+            !at.is_empty(),
+            "every memory row carries its moment: {event}"
+        );
+    }
+}
+
+/// Merchant History: the board rows carry the trail and the cancel
+/// reason — the receipt drawer's facts, read straight off the ledger.
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn merchant_history_rows_carry_the_trail_and_reason(pool: sqlx::PgPool) {
+    let app = spawn_app(pool).await;
+    let aline = owner(&app, "aline@example.com", "Aline's").await;
+    let store = create_store(&aline, "Aline Remera").await;
+    let rice = create_product(&aline, "Rice 5KG").await;
+    let rice_sp = attach(&aline, store, rice, 5000, json!(null)).await;
+    set_open(&app.pool, store, true).await;
+    let rider = seed_rider(&app.pool, "Jean", "+250780000025").await;
+
+    let (chantal, token) = customer_session(&app, "+250780000026").await;
+
+    // Order one: the customer cancels it with a reason while it is placed.
+    let first: Value = checkout(
+        &chantal,
+        &token,
+        "KG 7 Ave, Remera",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let group_id = first["id"].as_str().unwrap();
+    let cancelled_id = first["store_orders"][0]["id"].as_str().unwrap();
+    let response = chantal
+        .post_json(
+            &format!("/v1/orders/{group_id}/store-orders/{cancelled_id}/cancel"),
+            json!({ "reason": "changed my mind" }),
+        )
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // Order two: walked all the way to delivered by the rider's token.
+    let second: Value = checkout(
+        &chantal,
+        &token,
+        "KN 4 Ave, Kigali",
+        json!([line(rice_sp, 1)]),
+        None,
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    let delivered_id = second["store_orders"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for status in ["accepted", "preparing"] {
+        let response = aline
+            .client
+            .patch_json(
+                &format!("/v1/merchant/store-orders/{delivered_id}"),
+                json!({ "status": status }),
+            )
+            .bearer_auth(&aline.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200, "advance to {status}");
+    }
+    let response = aline
+        .client
+        .post_json(
+            &format!("/v1/merchant/store-orders/{delivered_id}/handoff"),
+            json!({ "rider_number": rider.rider.rider_number }),
+        )
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let (delivery_id,): (Uuid,) =
+        sqlx::query_as("SELECT id FROM commerce.deliveries WHERE store_order_id = $1")
+            .bind(delivered_id.parse::<Uuid>().unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    let response = TestClient::new(&app.address)
+        .post(&format!("/v1/deliveries/{delivery_id}/delivered"))
+        .bearer_auth(token_for(&app, rider.account.id, 3600))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    // The History filter: both settled orders, each with its trail.
+    let response = aline
+        .client
+        .get("/v1/merchant/orders?status=delivered,cancelled")
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let history: Value = response.json().await.unwrap();
+    let rows = history.as_array().unwrap();
+    assert_eq!(rows.len(), 2, "both settled orders: {rows:?}");
+
+    let cancelled_row = rows
+        .iter()
+        .find(|row| row["status"] == "cancelled")
+        .expect("the cancelled order is in History");
+    assert_eq!(cancelled_row["cancel_reason"], "changed my mind");
+    assert_eq!(cancelled_row["id"], cancelled_id);
+    let cancelled_trail = cancelled_row["events"].as_array().unwrap();
+    assert_eq!(
+        cancelled_trail
+            .iter()
+            .map(|event| (
+                event["status"].as_str().unwrap(),
+                event["actor"].as_str().unwrap()
+            ))
+            .collect::<Vec<_>>(),
+        vec![("placed", "customer"), ("cancelled", "customer")],
+        "the cancelled trail ends with the customer's cancel"
+    );
+
+    let delivered_row = rows
+        .iter()
+        .find(|row| row["status"] == "delivered")
+        .expect("the delivered order is in History");
+    assert!(
+        delivered_row.get("cancel_reason").is_none(),
+        "a living order has no reason to carry"
+    );
+    let delivered_trail = delivered_row["events"].as_array().unwrap();
+    let last = delivered_trail.last().unwrap();
+    assert_eq!(
+        (
+            last["status"].as_str().unwrap(),
+            last["actor"].as_str().unwrap()
+        ),
+        ("delivered", "rider")
+    );
+
+    // The fulfillment sheet: the detail response carries the trail too.
+    let response = aline
+        .client
+        .get(&format!("/v1/merchant/store-orders/{cancelled_id}"))
+        .bearer_auth(&aline.token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let detail: Value = response.json().await.unwrap();
+    let detail_trail = detail["events"].as_array().unwrap();
+    let last = detail_trail.last().unwrap();
+    assert_eq!(
+        (
+            last["status"].as_str().unwrap(),
+            last["actor"].as_str().unwrap()
+        ),
+        ("cancelled", "customer")
+    );
+    assert_eq!(detail["cancel_reason"], "changed my mind");
+}

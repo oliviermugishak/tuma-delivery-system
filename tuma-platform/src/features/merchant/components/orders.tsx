@@ -680,12 +680,34 @@ function History({
       cell: (o) => num(o.total),
     },
     {
+      key: 'settled',
+      header: 'Settled',
+      cell: (o) => {
+        const last = o.events?.[o.events.length - 1]
+        return last ? (
+          <span className="text-text2">{dateTime(last.at)}</span>
+        ) : (
+          <span className="text-text3">—</span>
+        )
+      },
+    },
+    {
       key: 'status',
       header: 'Status',
       cell: (o) => (
-        <Status tone={orderStatusTone(o.status)}>
-          {orderStatusLabel(o.status)}
-        </Status>
+        <div>
+          <Status tone={orderStatusTone(o.status)}>
+            {orderStatusLabel(o.status)}
+          </Status>
+          {o.status === 'cancelled' && o.cancel_reason ? (
+            <div
+              className="mt-0.5 max-w-[220px] truncate text-[11px] text-text3"
+              title={o.cancel_reason ?? undefined}
+            >
+              Why: “{o.cancel_reason}”
+            </div>
+          ) : null}
+        </div>
       ),
     },
     {
@@ -749,6 +771,11 @@ function ReceiptDrawer({
   if (id == null) return null
   const d = detail.data
   const assigned = d && d.status === 'picked_up' ? lookupHandoff(d.id) : null
+  // The settled moment comes off the ledger's trail (absent for orders
+  // created before migration 15).
+  const settledEvent = d?.events?.length ? d.events[d.events.length - 1] : null
+  const cancelledActor = d?.events?.find((event) => event.status === 'cancelled')
+    ?.actor
 
   return (
     <Drawer
@@ -757,7 +784,11 @@ function ReceiptDrawer({
       title={d ? <>Order <CopyableId id={d.number} /></> : 'Receipt'}
       subtitle={
         d
-          ? `${d.store_name} · Placed ${dateTime(d.created_at)} · Cash on delivery`
+          ? `${d.store_name} · Placed ${dateTime(d.created_at)}${
+              settledEvent
+                ? ` · ${settledEvent.status === 'delivered' ? 'Delivered' : 'Cancelled'} ${dateTime(settledEvent.at)}`
+                : ''
+            } · Cash on delivery`
           : undefined
       }
       status={
@@ -827,7 +858,10 @@ function ReceiptDrawer({
                 This order was cancelled. Cash taken for it must be returned
                 to the customer.
                 {d.cancel_reason ? (
-                  <div className="mt-1 text-text3">Why: “{d.cancel_reason}”</div>
+                  <div className="mt-1 text-text3">
+                    Why: “{d.cancel_reason}”
+                    {cancelledActor ? ` — cancelled by the ${cancelledActor}` : ''}
+                  </div>
                 ) : null}
               </div>
             ) : null}

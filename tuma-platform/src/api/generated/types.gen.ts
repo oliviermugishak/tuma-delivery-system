@@ -450,6 +450,11 @@ export type MerchantStoreOrderDetailResponse = {
     customer_name?: string | null;
     customer_phone?: string | null;
     delivery_fee: number;
+    /**
+     * The status trail — the ledger's memory; absent while empty (orders
+     * created before migration 15 honestly have none).
+     */
+    events?: Array<StatusEventResponse>;
     id: string;
     items: Array<MerchantOrderItemResponse>;
     number: number;
@@ -467,7 +472,17 @@ export type MerchantStoreOrderDetailResponse = {
  */
 export type MerchantStoreOrderResponse = {
     address_text: string;
+    /**
+     * Why the order died — set at the cancel moment (the History row's
+     * second line under the status chip).
+     */
+    cancel_reason?: string | null;
     created_at: string;
+    /**
+     * The status trail — the ledger's memory; absent while empty so the
+     * mutation responses' wire is unchanged.
+     */
+    events?: Array<StatusEventResponse>;
     id: string;
     number: number;
     status: string;
@@ -687,6 +702,19 @@ export type SearchResponse = {
 };
 
 /**
+ * One memory row of the status trail — the ledger's read shape, shared
+ * by the customer timeline and merchant History.
+ */
+export type StatusEventResponse = {
+    /**
+     * Who acted — customer, merchant, or rider.
+     */
+    actor: string;
+    at: string;
+    status: string;
+};
+
+/**
  * A store order as the customer sees it: one store's slice of the
  * checkout, with its own status and totals.
  */
@@ -697,6 +725,11 @@ export type StoreOrderResponse = {
      */
     cancel_reason?: string | null;
     delivery_fee: number;
+    /**
+     * The status trail — the ledger's memory; absent while empty so the
+     * checkout response's wire is unchanged.
+     */
+    events?: Array<StatusEventResponse>;
     id: string;
     items: Array<OrderItemResponse>;
     number: number;

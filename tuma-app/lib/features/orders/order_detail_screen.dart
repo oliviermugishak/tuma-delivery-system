@@ -13,6 +13,7 @@ import 'package:tuma_app/core/theme/app_theme.dart';
 import 'package:tuma_app/features/tracking/delivery_map.dart';
 import 'package:tuma_app/shared/widgets/design_system.dart';
 import 'package:tuma_app/core/utils/format_rwf.dart';
+import 'package:tuma_app/core/utils/format_time.dart';
 import 'package:tuma_app/shared/widgets/error_state.dart';
 import 'package:tuma_app/shared/widgets/show_app_snack.dart';
 import 'package:tuma_app/shared/widgets/store_contact_sheet.dart';
@@ -1030,6 +1031,26 @@ class _StoreDeliverySection extends StatelessWidget {
     };
   }
 
+  /// The milestone line — the ledger's memory of this store order, read
+  /// straight off the trail in its own order. Orders created before
+  /// migration 15 have no trail and render nothing; that is honest.
+  String? get _milestoneLine {
+    if (storeOrder.events.isEmpty) return null;
+    return storeOrder.events.map((event) {
+      final label = switch (event.status) {
+        'placed' => 'Placed',
+        'accepted' => 'Accepted',
+        'preparing' => 'Preparing',
+        'picked_up' => 'Picked up',
+        'delivered' => 'Delivered',
+        'cancelled' => 'Cancelled',
+        _ => event.status,
+      };
+      final at = event.at;
+      return at == null ? label : '$label ${clockTime(at)}';
+    }).join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -1087,6 +1108,17 @@ class _StoreDeliverySection extends StatelessWidget {
                   pulsing: _status.pulsing,
                 ),
               ),
+              // The milestones — the trail as it happened, one muted line
+              // (an empty trail, as for pre-migration-15 orders, renders
+              // nothing at all).
+              if (_milestoneLine case final line?)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 5, 14, 0),
+                  child: Text(
+                    line,
+                    style: AppTheme.sub(textTheme),
+                  ),
+                ),
               // THE MAP — this store's own delivery, its own map while
               // moving. No pin → the quiet nothing (P2), with the reason
               // said out loud only while the story is alive.

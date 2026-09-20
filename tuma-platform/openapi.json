@@ -3808,6 +3808,13 @@
             "type": "integer",
             "format": "int64"
           },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusEventResponse"
+            },
+            "description": "The status trail — the ledger's memory; absent while empty (orders\ncreated before migration 15 honestly have none)."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -3862,9 +3869,23 @@
           "address_text": {
             "type": "string"
           },
+          "cancel_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the order died — set at the cancel moment (the History row's\nsecond line under the status chip)."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusEventResponse"
+            },
+            "description": "The status trail — the ledger's memory; absent while empty so the\nmutation responses' wire is unchanged."
           },
           "id": {
             "type": "string",
@@ -4498,6 +4519,28 @@
           }
         }
       },
+      "StatusEventResponse": {
+        "type": "object",
+        "description": "One memory row of the status trail — the ledger's read shape, shared\nby the customer timeline and merchant History.",
+        "required": [
+          "status",
+          "at",
+          "actor"
+        ],
+        "properties": {
+          "actor": {
+            "type": "string",
+            "description": "Who acted — customer, merchant, or rider."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "StoreOrderResponse": {
         "type": "object",
         "description": "A store order as the customer sees it: one store's slice of the\ncheckout, with its own status and totals.",
@@ -4523,6 +4566,13 @@
           "delivery_fee": {
             "type": "integer",
             "format": "int64"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusEventResponse"
+            },
+            "description": "The status trail — the ledger's memory; absent while empty so the\ncheckout response's wire is unchanged."
           },
           "id": {
             "type": "string",

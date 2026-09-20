@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT so.id, so.store_id, s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.total,\n               og.address_text, so.created_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE so.id = $1\n        ",
+  "query": "\n        SELECT so.id, so.store_id, s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.total,\n               og.address_text, so.cancel_reason, so.created_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE so.id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -96,6 +96,17 @@
       },
       {
         "ordinal": 7,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -119,8 +130,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "297693caf47db6682b5b6b3408c5b4ee4ddef5dd546a610a6cd8cf469518ea59"
+  "hash": "e052cff4c8ecf6df02f61dade764030168dd31e4be9bca929cb810b209ce9621"
 }

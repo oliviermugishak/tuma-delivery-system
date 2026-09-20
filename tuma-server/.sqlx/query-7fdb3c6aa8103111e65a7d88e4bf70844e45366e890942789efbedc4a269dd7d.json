@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT so.id, so.store_id, s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.total,\n               og.address_text, so.created_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE ((cardinality($1::uuid[]) > 0 AND s.merchant_id = ANY($1::uuid[]))\n           OR (cardinality($2::uuid[]) > 0 AND so.store_id = ANY($2::uuid[])))\n          AND (cardinality($3::commerce.order_status[]) = 0\n               OR so.status = ANY($3::commerce.order_status[]))\n        ORDER BY so.created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
+  "query": "\n        SELECT so.id, so.store_id, s.name AS store_name, so.number,\n               so.status AS \"status: OrderStatus\", so.total,\n               og.address_text, so.cancel_reason, so.created_at\n        FROM commerce.store_orders so\n        JOIN marketplace.stores s ON s.id = so.store_id\n        JOIN commerce.order_groups og ON og.id = so.order_group_id\n        WHERE ((cardinality($1::uuid[]) > 0 AND s.merchant_id = ANY($1::uuid[]))\n           OR (cardinality($2::uuid[]) > 0 AND so.store_id = ANY($2::uuid[])))\n          AND (cardinality($3::commerce.order_status[]) = 0\n               OR so.status = ANY($3::commerce.order_status[]))\n        ORDER BY so.created_at DESC\n        LIMIT $4 OFFSET $5\n        ",
   "describe": {
     "columns": [
       {
@@ -96,6 +96,17 @@
       },
       {
         "ordinal": 7,
+        "name": "cancel_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "commerce.store_orders",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -144,8 +155,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "9521ddc996c9493ec9a9d9be32062c24b4c9d3ca1fdfdd3b01cdd3bf67da301d"
+  "hash": "7fdb3c6aa8103111e65a7d88e4bf70844e45366e890942789efbedc4a269dd7d"
 }

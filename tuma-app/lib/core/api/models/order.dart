@@ -39,6 +39,27 @@ class OrderItem {
       );
 }
 
+/// One memory row of the store order's status trail — the server's
+/// append-only ledger, read back as the timeline. `status` is one of the
+/// six wire labels; `at` and `actor` arrive with every real row but stay
+/// guarded the way the rest of this file reads optional facts.
+class OrderEvent {
+  OrderEvent({required this.status, this.at, this.actor});
+
+  /// One of: placed, accepted, preparing, picked_up, delivered, cancelled.
+  final String status;
+  /// The transition's moment (RFC-3339), null only if malformed.
+  final DateTime? at;
+  /// Who acted — customer, merchant, or rider.
+  final String? actor;
+
+  factory OrderEvent.fromJson(Map<String, dynamic> json) => OrderEvent(
+        status: json['status'] as String,
+        at: json['at'] is String ? DateTime.parse(json['at'] as String) : null,
+        actor: json['actor'] as String?,
+      );
+}
+
 /// One store's slice of the checkout — the unit a store fulfills,
 /// independently.
 class StoreOrder {
@@ -52,6 +73,7 @@ class StoreOrder {
     required this.deliveryFee,
     required this.total,
     required this.items,
+    required this.events,
     this.storeContactPhone,
     this.storeContactEmail,
   });
@@ -66,6 +88,11 @@ class StoreOrder {
   final int deliveryFee;
   final int total;
   final List<OrderItem> items;
+  /// The status trail — the ledger's memory. The detail response carries
+  /// it; mutation responses (checkout, cancel) leave it out, so absent
+  /// parses to an honest empty list. Orders from before migration 15 have
+  /// no trail at all.
+  final List<OrderEvent> events;
   /// The store's contact surface — the Get-help sheet's Call/Email rows.
   final String? storeContactPhone;
   final String? storeContactEmail;
@@ -85,6 +112,12 @@ class StoreOrder {
             .whereType<Map<String, dynamic>>()
             .map(OrderItem.fromJson)
             .toList(),
+        events: json['events'] is List
+            ? (json['events'] as List)
+                .whereType<Map<String, dynamic>>()
+                .map(OrderEvent.fromJson)
+                .toList()
+            : const [],
       );
 }
 

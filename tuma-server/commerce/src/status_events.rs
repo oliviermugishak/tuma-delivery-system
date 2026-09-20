@@ -7,6 +7,8 @@
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
+use crate::orders::OrderStatus;
+
 /// Who performed a transition. `customer` and `merchant` events carry
 /// `accounts.users` ids; `rider` events carry `commerce.riders` ids (the
 /// rider profile).
@@ -16,6 +18,27 @@ pub enum ActorKind {
     Customer,
     Merchant,
     Rider,
+}
+
+impl ActorKind {
+    /// The canonical snake_case label — the PostgreSQL enum value, the
+    /// JSON wire value, and this string are one spelling.
+    pub fn label(self) -> &'static str {
+        match self {
+            ActorKind::Customer => "customer",
+            ActorKind::Merchant => "merchant",
+            ActorKind::Rider => "rider",
+        }
+    }
+}
+
+/// One memory row of the append-only trail, as the readers carry it: what
+/// happened, by whom, and when (the history's ordering fact).
+#[derive(Debug, Clone, Copy)]
+pub struct StoredEvent {
+    pub status: OrderStatus,
+    pub actor_kind: ActorKind,
+    pub created_at: time::OffsetDateTime,
 }
 
 /// The actor behind a transition: their kind and their id (`accounts.users`
@@ -49,4 +72,44 @@ pub async fn record_status_event(
     .execute(executor)
     .await?;
     Ok(())
+}
+
+/// The reader side of the append-only trail: every event recorded for the
+/// named store orders, flattened as `(store_order_id, event)`. The
+/// ordering (created_at, then id as the tiebreaker) IS the history's
+/// order — readers join these back by id and keep it. Orders created
+/// before migration 15 simply have no rows, and honestly come back with
+/// none.
+pub async fn for_store_orders(
+    conn: &mut sqlx::PgConnection,
+    store_order_ids: &[Uuid],
+) -> sqlx::Result<Vec<(Uuid, StoredEvent)>> {
+    sqlx::query!(
+        r#"
+        SELECT store_order_id,
+               status AS "status: OrderStatus",
+               actor_kind AS "actor_kind: ActorKind",
+               created_at
+        FROM commerce.order_status_events
+        WHERE store_order_id = ANY($1)
+        ORDER BY created_at, id
+        "#,
+        store_order_ids,
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map(|rows| {
+        rows.into_iter()
+            .map(|row| {
+                (
+                    row.store_order_id,
+                    StoredEvent {
+                        status: row.status,
+                        actor_kind: row.actor_kind,
+                        created_at: row.created_at,
+                    },
+                )
+            })
+            .collect()
+    })
 }
