@@ -14,8 +14,11 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    # Paths are from the repository root. Root Directory on the service
+    # stays EMPTY so this file is the source of truth — adding the
+    # platform later is one more service block, no restructure.
+    dockerfilePath: tuma-server/Dockerfile
+    dockerContext: tuma-server
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
