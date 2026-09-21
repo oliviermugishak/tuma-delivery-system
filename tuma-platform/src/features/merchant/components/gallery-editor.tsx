@@ -7,7 +7,7 @@
  * The parent owns the listProductImages query and passes the images down;
  * every mutation invalidates that key so the parent refetches.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -35,6 +35,7 @@ export function GalleryEditor({
 }) {
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['listProductImages'] })
@@ -79,35 +80,45 @@ export function GalleryEditor({
     }
   }
 
+  const openPicker = () => fileInputRef.current?.click()
+
   // The cover is the server's position 0, not this array's index.
   const coverId = images.find((img) => img.position === 0)?.id
 
   return (
     <div className="mt-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          if (files.length > 0) uploadFiles(files)
+          e.target.value = ''
+        }}
+      />
       <FileDrop onFiles={uploadFiles} disabled={upload.isPending}>
-        <div className="flex h-24 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-line text-center text-[12.5px] text-text3">
+        <button
+          type="button"
+          onClick={openPicker}
+          disabled={upload.isPending}
+          className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-line text-center text-[12.5px] text-text3 hover:bg-high"
+        >
           <Icon name="upload" label="" size={20} />
-          {upload.isPending ? 'Uploading…' : 'Drop images here'}
-        </div>
+          {upload.isPending ? 'Uploading…' : 'Click or drop images'}
+        </button>
       </FileDrop>
       <div className="mt-2 flex justify-end">
-        <label className="cursor-pointer">
-          <span className="sr-only">Upload image</span>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? [])
-              if (files.length > 0) uploadFiles(files)
-              e.target.value = ''
-            }}
-          />
-          <Button small variant="outline">
-            Upload
-          </Button>
-        </label>
+        <Button
+          small
+          variant="outline"
+          disabled={upload.isPending}
+          onClick={openPicker}
+        >
+          Upload
+        </Button>
       </div>
 
       {images.length === 0 ? (
@@ -117,42 +128,37 @@ export function GalleryEditor({
           {images.map((img) => (
             <div
               key={img.id}
-              className="group relative overflow-hidden rounded-lg border border-line"
+              className="overflow-hidden rounded-lg border border-line bg-surface"
             >
               <img
                 src={img.image_url}
                 alt=""
                 className="aspect-square w-full object-cover"
               />
-              {img.id === coverId ? (
-                <span className="absolute top-1 left-1 rounded-full bg-high px-2 py-0.5 text-[10px] font-bold text-brand">
-                  Cover
-                </span>
-              ) : null}
-              <div className="absolute inset-x-0 bottom-0 hidden justify-center gap-1 bg-[rgba(3,7,17,0.6)] p-1 group-hover:flex">
-                {img.id !== coverId ? (
+              <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+                {img.id === coverId ? (
+                  <span className="text-[11px] font-semibold text-brand">
+                    Cover
+                  </span>
+                ) : (
                   <button
                     type="button"
-                    aria-label="Set as cover"
-                    title="Set as cover"
-                    className="grid size-7 place-items-center rounded text-foreground hover:text-brand"
+                    className="text-[11px] font-semibold text-text2 hover:text-foreground"
                     onClick={() =>
                       setCover.mutate({
                         path: { product_id: productId, image_id: img.id },
                       })
                     }
                   >
-                    <Icon name="star" label="" size={16} />
+                    Set cover
                   </button>
-                ) : null}
+                )}
                 <button
                   type="button"
-                  aria-label="Remove image"
-                  title="Remove image"
-                  className="grid size-7 place-items-center rounded text-foreground hover:text-danger"
+                  className="text-[11px] font-semibold text-danger hover:text-danger"
                   onClick={() => setDeleteTarget(img.id)}
                 >
-                  <Icon name="delete" label="" size={16} />
+                  Remove
                 </button>
               </div>
             </div>
