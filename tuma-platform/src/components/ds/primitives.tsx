@@ -265,8 +265,8 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-2xl bg-surface p-6',
-        tone === 'danger' && 'ring-1 ring-danger/28',
+        'rounded-2xl border border-line bg-surface p-6',
+        tone === 'danger' && 'border-danger/40',
         className,
       )}
     >
