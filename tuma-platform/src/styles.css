@@ -88,7 +88,7 @@ body {
 
 :root {
   /* Surfaces — Flutter AppColors.canvas / surface / fill / line */
-  --background: #f4f4f1;
+  --background: #e8e8e3;
   --foreground: #1c1d1a;
   --surface: #ffffff;
   --high: #efefec;
