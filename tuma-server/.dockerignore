@@ -1,0 +1,9 @@
+# Keep the build context to what the server actually compiles: the crate
+# workspace, its committed .sqlx cache, and the layered configuration.
+target
+data
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore

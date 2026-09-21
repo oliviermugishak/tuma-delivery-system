@@ -1,0 +1,72 @@
+# Render blueprint — the stakeholder-testing deployment.
+#
+# One web service running the Tuma API from tuma-server/Dockerfile. The
+# database is Neon: paste its connection string into DATABASE_URL and the
+# server uses it (DATABASE_URL wins over every APP_DATABASE__* field), and
+# migrations run automatically at boot because APP_ENV=production.
+#
+# The platform (admin + merchant console) runs locally for the demo — see
+# the founder checklist in MEMORY.md. The phones only ever need this URL.
+
+services:
+  - type: web
+    name: tuma-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Runs migrations at boot and selects configuration/production.yml.
+      - key: APP_ENV
+        value: production
+
+      # Neon connection string — set in the dashboard, never committed.
+      - key: DATABASE_URL
+        sync: false
+
+      # MUST be set for the demo: there is no SMS gateway yet, so without
+      # a fixed code nobody can log in. Absent in real production config
+      # (the code is random and undeliverable by design).
+      - key: APP_AUTH__DEV_OTP_CODE
+        value: "123456"
+
+      # Session signing — generate once with `openssl rand -base64 64`.
+      # Rotating it invalidates every session (fine; users re-login).
+      - key: APP_SECRET__JWT_SIGNING_KEY
+        sync: false
+
+      # Render terminates TLS; cookies must ride HTTPS only.
+      - key: APP_APPLICATION__COOKIE_SECURE
+        value: "true"
+
+      # Browser mutations from the locally-run platform. The Vite dev
+      # server's origin — the Origin header must match this allowlist or
+      # CSRF rejects the request.
+      - key: TUMA_CORS_ORIGIN
+        value: http://localhost:3000
+
+      # Pool ceiling. Neon's pooled endpoint handles this comfortably;
+      # a free Render instance stays well under it.
+      - key: APP_DATABASE__MAX_CONNECTIONS
+        value: "10"
+
+      # Directions + Geocoding (optional for the demo: without them the
+      # handoff falls back to a ride-speed ETA and address text falls back
+      # to the label word — both honest, both functional).
+      - key: APP_ROUTING__BACKEND
+        value: google
+      - key: APP_ROUTING__API_KEY
+        sync: false
+      - key: APP_GEOCODING__BACKEND
+        value: google
+      - key: APP_GEOCODING__API_KEY
+        sync: false
+
+      # Object storage. Drop these two lines to keep uploads on local disk
+      # (uploads then vanish on redeploy; seeded placeholder imagery is
+      # absolute URLs and unaffected).
+      - key: APP_STORAGE__BACKEND
+        value: local
