@@ -22,7 +22,13 @@ pub(crate) fn auth_cookie(token: String, secure: bool) -> Cookie<'static> {
     Cookie::build((AUTH_COOKIE.to_string(), token))
         .path(COOKIE_PATH)
         .http_only(true)
-        .same_site(SameSite::Lax)
+        // None: the stakeholder demo (and any later split of platform vs
+        // API across hosts) is cross-site; Lax cookies are stored and then
+        // silently dropped on the next /me. Secure is already required
+        // whenever cookie_secure is on — browsers refuse SameSite=None
+        // without it. Local Vite still proxies onto one origin, so this
+        // path is never hit in dev.
+        .same_site(SameSite::None)
         .secure(secure)
         .max_age(time::Duration::seconds(jwt::WEB_ACCESS_TTL_SECS as i64))
         .build()
@@ -34,7 +40,7 @@ pub(crate) fn refresh_cookie(token: String, secure: bool) -> Cookie<'static> {
     Cookie::build((REFRESH_COOKIE.to_string(), token))
         .path(COOKIE_PATH)
         .http_only(true)
-        .same_site(SameSite::Lax)
+        .same_site(SameSite::None)
         .secure(secure)
         .max_age(time::Duration::seconds(jwt::WEB_REFRESH_TTL_SECS as i64))
         .build()
