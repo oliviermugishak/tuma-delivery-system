@@ -20,7 +20,6 @@ import {
 } from '@/api/queries'
 import {
   Button,
-  BulkBar,
   Chip,
   DataTable,
   EmptyState,
@@ -58,7 +57,6 @@ export function MerchantsPage() {
   const merchants = useQuery(listMerchantsOptions({ query: { limit: 200 } }))
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [suspendTargets, setSuspendTargets] = useState<MerchantRow[] | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<MerchantRow | null>(null)
 
@@ -265,32 +263,8 @@ export function MerchantsPage() {
           rows={filtered}
           rowKey={(m) => m.id}
           onRowOpen={(m) => void navigate({ to: `/admin/merchants/${m.id}` })}
-          selectable
-          selected={selected}
-          onSelectedChange={setSelected}
         />
       ) : null}
-
-      <BulkBar
-        count={selected.size}
-        onClear={() => setSelected(new Set())}
-        note="Bulk actions apply to every selected merchant"
-      >
-        <Button variant="outline" small onClick={exportCsv}>
-          Export
-        </Button>
-        <Button
-          variant="dangerOutline"
-          small
-          onClick={() => {
-            setSuspendTargets(
-              filtered.filter((m) => selected.has(m.id) && m.status === 'active'),
-            )
-          }}
-        >
-          Suspend
-        </Button>
-      </BulkBar>
 
       {/* Suspend guard — restates scale (P10). */}
       <GuardDialog
@@ -312,7 +286,6 @@ export function MerchantsPage() {
             setStatus.mutate({ path: { id: m.id }, body: { status: 'suspended' } })
           })
           setSuspendTargets(null)
-          setSelected(new Set())
         }}
         note="Suspension is reversible — activate the merchant any time from their profile."
       >
