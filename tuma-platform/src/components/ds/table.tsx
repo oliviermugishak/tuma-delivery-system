@@ -174,7 +174,7 @@ export function CheckBox({
         'grid size-4 place-items-center rounded-md border-[1.5px] transition-colors duration-150',
         on || indeterminate
           ? 'border-brand bg-brand text-on-accent'
-          : 'border-line',
+          : 'border-[#9a9c95] bg-surface',
       )}
     >
       {on ? <Icon name="check" label="" size={13} filled /> : null}

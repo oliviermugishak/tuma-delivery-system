@@ -93,8 +93,8 @@ body {
   --surface: #ffffff;
   --high: #efefec;
   --line: #e5e5e0;
-  --text2: #7e8079;
-  --text3: #7e8079;
+  --text2: #5c5e57;
+  --text3: #6f716b;
   --accentc: #156b4c;
   --on-accent: #ffffff;
   --success: #156b4c;
@@ -117,7 +117,7 @@ body {
   --secondary: #efefec;
   --secondary-foreground: #1c1d1a;
   --muted: #efefec;
-  --muted-foreground: #7e8079;
+  --muted-foreground: #5c5e57;
   --accent: #e9f3ee;
   --accent-foreground: #156b4c;
   --destructive: #d64545;
