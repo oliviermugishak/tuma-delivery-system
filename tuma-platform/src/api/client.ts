@@ -28,10 +28,13 @@ export class ApiError extends Error {
   }
 }
 
-// The server mounts everything under /api; the dev proxy forwards /api to
-// the local server without stripping the prefix.
+// The server mounts everything under /api. Local Vite proxies `/api` onto
+// the same origin so cookies stay first-party. A hosted split (platform
+// on one host, API on another) must set VITE_API_BASE_URL to the API's
+// `/api` origin at build time — otherwise the browser posts login at the
+// static host and nothing happens.
 client.setConfig({
-  baseUrl: "/api",
+  baseUrl: import.meta.env.VITE_API_BASE_URL || "/api",
   credentials: "include",
 })
 
