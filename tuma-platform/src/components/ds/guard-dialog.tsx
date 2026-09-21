@@ -56,7 +56,7 @@ export function GuardDialog({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'relative w-full max-w-125 rounded-[20px] border border-white/8 bg-surface p-6',
+          'relative w-full max-w-125 rounded-[20px] border border-line bg-surface p-6',
         )}
       >
         <div className="flex items-start gap-3">
@@ -65,7 +65,7 @@ export function GuardDialog({
             type="button"
             aria-label="Close dialog"
             onClick={onClose}
-            className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-white/4 hover:text-foreground"
+            className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-high hover:text-foreground"
           >
             <Icon name="close" label="" size={18} />
           </button>

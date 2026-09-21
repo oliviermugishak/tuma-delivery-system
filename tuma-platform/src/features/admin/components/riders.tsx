@@ -176,17 +176,17 @@ export function RidersPage() {
       />
 
       {riders.isLoading ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <TableSkeleton rows={6} />
         </div>
       ) : null}
       {riders.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void riders.refetch()} />
         </div>
       ) : null}
       {riders.data && riders.data.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="two_wheeler"
             title="No riders yet"
@@ -202,7 +202,7 @@ export function RidersPage() {
         </div>
       ) : null}
       {riders.data && filtered.length === 0 && riders.data.length > 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="search_off"
             title="No riders match"

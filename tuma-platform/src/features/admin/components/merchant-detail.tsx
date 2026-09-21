@@ -76,14 +76,14 @@ export function MerchantDetailPage() {
 
   if (detail.isLoading) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-surface">
+      <div className="rounded-2xl border border-line bg-surface">
         <TableSkeleton rows={6} />
       </div>
     )
   }
   if (detail.isError || !detail.data) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-surface">
+      <div className="rounded-2xl border border-line bg-surface">
         <ErrorState
           onRetry={() => void detail.refetch()}
           title="Couldn't load this merchant"
@@ -159,7 +159,7 @@ export function MerchantDetailPage() {
               m.stores.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center gap-3 border-t border-white/8 px-6 py-3 text-[13.5px]"
+                  className="flex items-center gap-3 border-t border-line px-6 py-3 text-[13.5px]"
                 >
                   <span className="min-w-0 flex-1 truncate font-semibold">
                     {s.name}

@@ -20,11 +20,10 @@ body {
 }
 
 /*
- * Tuma Phase-2 design constitution (redesigns/dashboard_redesign.html).
- * Tokens live only here (P15/P16); no raw hex in components. The viz
- * palette (P14): accent amber, teal, blue, pink, lime — no purple, no
- * gradients (sole exceptions: skeleton shimmer, ≤10%-alpha chart fills).
- * Zero box-shadows anywhere (P6) — depth is surface steps + hairlines.
+ * Tuma v3 Light / Green — the same closed vocabulary as the Flutter app.
+ * Tokens live only here; no raw hex in components. Green = go / money /
+ * live. Orange = signal only. Red = destruction. Depth = white surfaces
+ * on the warm canvas; hairlines, not shadows (P6).
  */
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -87,58 +86,58 @@ body {
   --radius-4xl: 1.5rem;
 }
 
-:root,
-.dark {
-  --background: #0a1022;
-  --foreground: #f4f6fb;
-  --surface: #111a33;
-  --high: #1a2547;
-  --line: #2a3559;
-  --text2: #9aa6c0;
-  --text3: #5a6580;
-  --accentc: #fbbf24;
-  --on-accent: #0a1022;
-  --success: #2dd4bf;
-  --warning: #f59e0b;
-  --danger: #f87171;
+:root {
+  /* Surfaces — Flutter AppColors.canvas / surface / fill / line */
+  --background: #f4f4f1;
+  --foreground: #1c1d1a;
+  --surface: #ffffff;
+  --high: #efefec;
+  --line: #e5e5e0;
+  --text2: #7e8079;
+  --text3: #7e8079;
+  --accentc: #156b4c;
+  --on-accent: #ffffff;
+  --success: #156b4c;
+  --warning: #f08c22;
+  --danger: #d64545;
 
-  --viz1: #fbbf24;
-  --viz2: #2dd4bf;
-  --viz3: #60a5fa;
-  --viz4: #f472b6;
-  --viz5: #a3e635;
+  --viz1: #156b4c;
+  --viz2: #f08c22;
+  --viz3: #4d8f74;
+  --viz4: #c9cbc4;
+  --viz5: #e7e2d8;
 
-  /* shadcn semantics mapped onto the constitution */
-  --card: #111a33;
-  --card-foreground: #f4f6fb;
-  --popover: #1a2547;
-  --popover-foreground: #f4f6fb;
-  --primary: #fbbf24;
-  --primary-foreground: #0a1022;
-  --secondary: #1a2547;
-  --secondary-foreground: #f4f6fb;
-  --muted: #1a2547;
-  --muted-foreground: #9aa6c0;
-  --accent: #1a2547;
-  --accent-foreground: #f4f6fb;
-  --destructive: #f87171;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: #2a3559;
-  --ring: #fbbf24;
-  --chart-1: #fbbf24;
-  --chart-2: #2dd4bf;
-  --chart-3: #60a5fa;
-  --chart-4: #f472b6;
-  --chart-5: #a3e635;
-  --radius: 0.625rem;
-  --sidebar: #111a33;
-  --sidebar-foreground: #f4f6fb;
-  --sidebar-primary: #fbbf24;
-  --sidebar-primary-foreground: #0a1022;
-  --sidebar-accent: #1a2547;
-  --sidebar-accent-foreground: #f4f6fb;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #fbbf24;
+  /* shadcn semantics mapped onto the light vocabulary */
+  --card: #ffffff;
+  --card-foreground: #1c1d1a;
+  --popover: #ffffff;
+  --popover-foreground: #1c1d1a;
+  --primary: #156b4c;
+  --primary-foreground: #ffffff;
+  --secondary: #efefec;
+  --secondary-foreground: #1c1d1a;
+  --muted: #efefec;
+  --muted-foreground: #7e8079;
+  --accent: #e9f3ee;
+  --accent-foreground: #156b4c;
+  --destructive: #d64545;
+  --border: #e5e5e0;
+  --input: #e5e5e0;
+  --ring: #156b4c;
+  --chart-1: #156b4c;
+  --chart-2: #f08c22;
+  --chart-3: #4d8f74;
+  --chart-4: #c9cbc4;
+  --chart-5: #e7e2d8;
+  --radius: 0.875rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1d1a;
+  --sidebar-primary: #156b4c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9f3ee;
+  --sidebar-accent-foreground: #156b4c;
+  --sidebar-border: #e5e5e0;
+  --sidebar-ring: #156b4c;
 }
 
 @layer base {
@@ -152,7 +151,7 @@ body {
   html {
     @apply font-sans;
   }
-  /* The visible 2px accent focus ring with 2px offset — everywhere. */
+  /* The visible 2px green focus ring with 2px offset — everywhere. */
   :focus-visible {
     outline: 2px solid var(--accentc);
     outline-offset: 2px;
@@ -168,7 +167,7 @@ body {
 
 .tuma-sk {
   border-radius: 8px;
-  background: linear-gradient(90deg, #141f3e 30%, #1d2a52 50%, #141f3e 70%);
+  background: linear-gradient(90deg, #ecece8 30%, #f7f7f5 50%, #ecece8 70%);
   background-size: 200% 100%;
   animation: tuma-shimmer 1.4s linear infinite;
 }
@@ -199,12 +198,12 @@ body {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1.5px solid rgba(45, 212, 191, 0.55);
+  border: 1.5px solid rgba(21, 107, 76, 0.45);
   animation: tuma-pulse 1.7s ease-out infinite;
 }
 
 .pw.warn::after {
-  border-color: rgba(245, 158, 11, 0.55);
+  border-color: rgba(240, 140, 34, 0.45);
 }
 
 @keyframes tuma-pulse {

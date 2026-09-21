@@ -187,7 +187,7 @@ export function AppShell({
       </Sidebar>
 
       <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-white/8 bg-background px-6 max-md:px-4">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-background px-6 max-md:px-4">
           <SidebarTrigger aria-label="Toggle sidebar" />
           <button
             type="button"
@@ -209,7 +209,7 @@ export function AppShell({
             type="button"
             aria-label="Help"
             title="Help"
-            className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-white/4 hover:text-foreground"
+            className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-high hover:text-foreground"
             onClick={() => {
               window.location.href = 'mailto:support@tuma.rw'
             }}
@@ -346,21 +346,21 @@ function UserMenu({
         <Avatar text={initials(name, user.email)} />
       </button>
       {open ? (
-        <div className="absolute right-0 top-11 z-40 w-52 rounded-xl border border-white/8 bg-high p-1.5">
+        <div className="absolute right-0 top-11 z-40 w-52 rounded-xl border border-line bg-high p-1.5">
           <div className="px-2.5 py-2">
             <div className="truncate text-[13px] font-semibold">{name}</div>
             <div className="truncate text-[11.5px] text-text3">
               {wing} account
             </div>
           </div>
-          <div className="mx-1 border-t border-white/8" />
+          <div className="mx-1 border-t border-line" />
           <button
             type="button"
             onClick={() => {
               setOpen(false)
               void navigate({ to: settingsTo })
             }}
-            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-white/4 hover:text-foreground"
+            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-high hover:text-foreground"
           >
             <Icon name="settings" label="" size={17} />
             Settings
@@ -372,7 +372,7 @@ function UserMenu({
               setOpen(false)
               logout.mutate({})
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-white/4 hover:text-foreground"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-high hover:text-foreground"
           >
             <Icon name="logout" label="" size={17} />
             Sign out
@@ -419,7 +419,7 @@ function NotificationsBell({ wing }: { wing: string }) {
         aria-label="Notifications"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-white/4 hover:text-foreground"
+        className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-high hover:text-foreground"
       >
         <Icon name="notifications" label="" />
       </button>
@@ -430,7 +430,7 @@ function NotificationsBell({ wing }: { wing: string }) {
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-11 z-40 w-80 rounded-xl border border-white/8 bg-high p-2">
+          <div className="absolute right-0 top-11 z-40 w-80 rounded-xl border border-line bg-high p-2">
             <div className="flex items-center gap-2 px-2 py-2">
               <b className="text-sm">Notifications</b>
               <span className="ml-auto text-[11px] text-text3">{wing}</span>

@@ -343,7 +343,7 @@ function EditStoreProductForm({ storeProductId }: { storeProductId: string }) {
 
   if (!existing) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-surface">
+      <div className="rounded-2xl border border-line bg-surface">
         <div className="px-6 py-14 text-center">
           <div className="text-[15px] font-bold">Product not found</div>
           <div className="mt-1 text-[13px] text-text2">

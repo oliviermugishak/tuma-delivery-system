@@ -121,7 +121,7 @@ export function MerchantOverview() {
         </KpiGrid>
       )}
 
-      <div className="rounded-2xl border border-white/8 bg-surface p-6">
+      <div className="rounded-2xl border border-line bg-surface p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="text-[17px] font-bold">Live orders</div>
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text3">

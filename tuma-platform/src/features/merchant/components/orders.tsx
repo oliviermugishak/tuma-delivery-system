@@ -141,7 +141,7 @@ export function OrdersScreen() {
       />
 
       {liveOrders.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void liveOrders.refetch()} />
         </div>
       ) : tab === 'board' ? (
@@ -231,7 +231,7 @@ function Board({
             return (
               <div
                 key={col.key}
-                className="flex min-h-85 flex-col gap-2.5 rounded-2xl border border-white/8 bg-surface p-3.5"
+                className="flex min-h-85 flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3.5"
                 aria-label={col.title}
               >
                 <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.07em] uppercase text-text2">
@@ -336,7 +336,7 @@ function OrderCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter') onOpen()
       }}
-      className={`flex cursor-pointer flex-col gap-1.5 rounded-xl border p-3.5 text-left transition-colors duration-150 hover:bg-white/4 ${
+      className={`flex cursor-pointer flex-col gap-1.5 rounded-xl border p-3.5 text-left transition-colors duration-150 hover:bg-high ${
         order.status === 'placed'
           ? 'border-warning/50'
           : 'border-line bg-high'
@@ -492,7 +492,7 @@ function OrderDetail({
                 <span>Delivery fee</span>
                 <span>{num(d.delivery_fee)}</span>
               </div>
-              <div className="mt-1.5 flex justify-between border-t border-white/8 pt-3 text-[15px] font-bold">
+              <div className="mt-1.5 flex justify-between border-t border-line pt-3 text-[15px] font-bold">
                 <span>Total to collect</span>
                 <span className="text-brand">{rwf(d.total)}</span>
               </div>
@@ -732,11 +732,11 @@ function History({
   return (
     <>
       {loading ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <TableSkeleton rows={6} />
         </div>
       ) : orders.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="history"
             title="No finished orders yet"
@@ -833,7 +833,7 @@ function ReceiptDrawer({
               <span>Delivery fee</span>
               <span>{num(d.delivery_fee)}</span>
             </div>
-            <div className="mt-1.5 flex justify-between border-t border-white/8 pt-3 text-[15px] font-bold">
+            <div className="mt-1.5 flex justify-between border-t border-line pt-3 text-[15px] font-bold">
               <span>Total {d.payment_status === 'collected' ? 'collected' : 'to return'}</span>
               <span className="text-brand">{rwf(d.total)}</span>
             </div>

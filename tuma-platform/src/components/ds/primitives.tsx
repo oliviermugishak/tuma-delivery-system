@@ -161,11 +161,11 @@ const btnBase =
   'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-[14px] text-[15px] font-semibold whitespace-nowrap border border-transparent transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed'
 
 const btnVariants = {
-  primary: 'bg-brand text-on-accent hover:brightness-106',
-  outline: 'border-line text-foreground hover:bg-white/4',
-  ghost: 'text-text2 hover:bg-white/4 hover:text-foreground',
+  primary: 'bg-brand text-on-accent hover:brightness-95',
+  outline: 'border-line bg-surface text-foreground hover:bg-high',
+  ghost: 'text-text2 hover:bg-high hover:text-foreground',
   dangerOutline: 'border-danger/40 text-danger hover:bg-danger/8',
-  dangerFilled: 'bg-danger text-on-accent hover:brightness-106',
+  dangerFilled: 'bg-danger text-on-accent hover:brightness-95',
 }
 
 export interface ButtonProps
@@ -265,8 +265,8 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-white/8 bg-surface p-6',
-        tone === 'danger' && 'border-danger/28',
+        'rounded-2xl bg-surface p-6',
+        tone === 'danger' && 'ring-1 ring-danger/28',
         className,
       )}
     >
@@ -306,7 +306,7 @@ export function KpiCard({
   vs?: string
 }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-surface p-5">
+    <div className="rounded-2xl bg-surface p-5">
       <MicroLabel>{label}</MicroLabel>
       <div className="mt-2.5 flex items-baseline gap-1.5 text-[30px] leading-none font-extrabold tracking-tight">
         <span>{value}</span>
@@ -362,7 +362,7 @@ export function Field({
 }
 
 export const inputCls =
-  'h-10 w-full rounded-xl border border-line bg-high px-3 text-sm text-foreground placeholder:text-text3 focus:border-text3 focus:outline-none'
+  'h-10 w-full rounded-xl border-0 bg-high px-3 text-sm text-foreground placeholder:text-text3 focus:outline-none'
 
 export function Input(
   props: React.InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean },
@@ -603,7 +603,7 @@ export function Kebab({
           e.stopPropagation()
           open ? setOpen(false) : openMenu()
         }}
-        className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-white/4 hover:text-foreground"
+        className="grid size-9 place-items-center rounded-[10px] text-text2 hover:bg-high hover:text-foreground"
       >
         <Icon name="more_vert" label="" size={18} />
       </button>
@@ -613,7 +613,7 @@ export function Kebab({
               ref={menuRef}
               role="menu"
               style={{ top: pos.top, left: pos.left }}
-              className="fixed z-[70] min-w-50 rounded-xl border border-white/8 bg-high p-1.5 text-left"
+              className="fixed z-[70] min-w-50 rounded-xl bg-surface p-1.5 text-left shadow-sm"
             >
               {items.map((item) => (
                 <button
@@ -626,7 +626,7 @@ export function Kebab({
                     item.onSelect()
                   }}
                   className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-white/4 hover:text-foreground',
+                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium text-text2 hover:bg-high hover:text-foreground',
                     item.danger && 'text-danger hover:text-danger',
                   )}
                 >
@@ -721,7 +721,7 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
 
 export function KpiSkeleton() {
   return (
-    <div className="rounded-2xl border border-white/8 bg-surface p-5">
+    <div className="rounded-2xl bg-surface p-5">
       <Skeleton className="h-3 w-24" />
       <Skeleton className="mt-4 h-8 w-28" />
       <Skeleton className="mt-3 h-4 w-36" />
@@ -781,7 +781,7 @@ export function FactRow({
   accent?: boolean
 }) {
   return (
-    <div className="flex items-center gap-3 border-t border-white/8 py-2.5 text-[13.5px] first:border-t-0">
+    <div className="flex items-center gap-3 border-t border-line py-2.5 text-[13.5px] first:border-t-0">
       <span className="flex-1 text-text2">{label}</span>
       <span
         className={cn(

@@ -228,17 +228,17 @@ export function MerchantsPage() {
       </Toolbar>
 
       {merchants.isLoading ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <TableSkeleton rows={6} />
         </div>
       ) : null}
       {merchants.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void merchants.refetch()} />
         </div>
       ) : null}
       {merchants.data && filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="storefront"
             title={merchants.data.length === 0 ? 'No merchants yet' : 'No merchants match'}

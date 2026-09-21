@@ -144,17 +144,17 @@ export function CustomersPage() {
       />
 
       {customers.isLoading ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <TableSkeleton rows={8} />
         </div>
       ) : null}
       {customers.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void customers.refetch()} />
         </div>
       ) : null}
       {customers.data && customers.data.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="groups"
             title="No customers yet"
@@ -163,7 +163,7 @@ export function CustomersPage() {
         </div>
       ) : null}
       {customers.data && filtered.length === 0 && customers.data.length > 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="search_off"
             title="No customers match"

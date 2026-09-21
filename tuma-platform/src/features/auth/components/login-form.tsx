@@ -47,7 +47,7 @@ export function LoginForm() {
 
         <form
           onSubmit={submit}
-          className="flex flex-col gap-4 rounded-2xl border border-white/8 bg-surface p-6"
+          className="flex flex-col gap-4 rounded-2xl bg-surface p-6"
         >
           <Field
             label="Email"

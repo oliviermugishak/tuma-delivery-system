@@ -77,12 +77,12 @@ export function StoresScreen() {
         </div>
       ) : null}
       {stores.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void stores.refetch()} />
         </div>
       ) : null}
       {stores.data && stores.data.length === 0 ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <EmptyState
             icon="storefront"
             title="No stores yet"
@@ -109,7 +109,7 @@ export function StoresScreen() {
                 if (e.key === 'Enter')
                   void navigate({ to: `/merchant/store/${store.id}` })
               }}
-              className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-white/8 bg-surface p-5 transition-colors duration-150 hover:bg-white/4"
+              className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-line bg-surface p-5 transition-colors duration-150 hover:bg-high"
             >
               <div className="flex items-center gap-2.5">
                 <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-high text-text3">
@@ -148,7 +148,7 @@ export function StoresScreen() {
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-between border-t border-white/8 pt-3 text-[13px]">
+              <div className="mt-auto flex items-center justify-between border-t border-line pt-3 text-[13px]">
                 <span className="text-text3">Delivery fee</span>
                 <span className="font-semibold">
                   {store.delivery_fee === 0 ? 'Free delivery' : rwf(store.delivery_fee)}

@@ -177,7 +177,7 @@ function MerchantForm({
 
           {mode === 'create' ? (
             <>
-              <div className="mt-2 border-t border-white/8 pt-4 text-[15px] font-semibold">
+              <div className="mt-2 border-t border-line pt-4 text-[15px] font-semibold">
                 Owner account
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

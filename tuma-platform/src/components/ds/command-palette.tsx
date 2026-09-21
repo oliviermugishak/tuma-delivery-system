@@ -108,9 +108,9 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative mx-auto mt-24 w-full max-w-150 overflow-hidden rounded-2xl border border-white/8 bg-surface"
+        className="relative mx-auto mt-24 w-full max-w-150 overflow-hidden rounded-2xl border border-line bg-surface"
       >
-        <div className="flex items-center gap-2.5 border-b border-white/8 px-4">
+        <div className="flex items-center gap-2.5 border-b border-line px-4">
           <Icon name="search" label="" size={18} className="text-text3" />
           <input
             ref={inputRef}

@@ -148,7 +148,7 @@ export function StoreDetailScreen() {
   }
   if (store.isError || !s) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-surface p-6 text-center">
+      <div className="rounded-2xl border border-line bg-surface p-6 text-center">
         <div className="text-[15px] font-bold">Couldn't load this store</div>
         <div className="mt-2">
           <Button small onClick={() => void store.refetch()}>

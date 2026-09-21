@@ -49,7 +49,7 @@ export function AdminOverview() {
         </KpiGrid>
       ) : null}
       {summary.isError ? (
-        <div className="rounded-2xl border border-white/8 bg-surface">
+        <div className="rounded-2xl border border-line bg-surface">
           <ErrorState onRetry={() => void summary.refetch()} />
         </div>
       ) : null}

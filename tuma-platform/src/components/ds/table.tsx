@@ -64,7 +64,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/8 bg-surface">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           {/* Sticky headers need a deliberate scroll container — inside these
@@ -129,14 +129,14 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        'h-12 px-4 text-[13.5px] whitespace-nowrap align-middle border-t border-white/8 transition-colors duration-150 group-hover/row:bg-white/4',
+                        'h-12 px-4 text-[13.5px] whitespace-nowrap align-middle border-t border-line transition-colors duration-150 group-hover/row:bg-high',
                         col.numeric && 'text-right',
                       )}
                     >
                       {col.cell(row)}
                     </td>
                   ))}
-                  <td className="border-t border-white/8 group-hover/row:bg-white/4" />
+                  <td className="border-t border-line group-hover/row:bg-high" />
                 </tr>
               )
             })}
@@ -327,9 +327,9 @@ export function Drawer({
         ref={panel}
         role="dialog"
         aria-modal="true"
-        className="absolute top-0 right-0 bottom-0 flex w-full flex-col border-l border-white/8 bg-surface max-md:rounded-none md:w-[480px] md:rounded-l-2xl"
+        className="absolute top-0 right-0 bottom-0 flex w-full flex-col border-l border-line bg-surface max-md:rounded-none md:w-[480px] md:rounded-l-2xl"
       >
-        <div className="flex items-start gap-3 border-b border-white/8 px-6 py-5">
+        <div className="flex items-start gap-3 border-b border-line px-6 py-5">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-[17px] font-bold">
               {title}
@@ -343,7 +343,7 @@ export function Drawer({
             type="button"
             aria-label="Close panel"
             onClick={onClose}
-            className="grid size-9 shrink-0 place-items-center rounded-[10px] text-text2 hover:bg-white/4 hover:text-foreground"
+            className="grid size-9 shrink-0 place-items-center rounded-[10px] text-text2 hover:bg-high hover:text-foreground"
           >
             <Icon name="close" label="" size={18} />
           </button>
@@ -352,7 +352,7 @@ export function Drawer({
           {children}
         </div>
         {footer ? (
-          <div className="flex gap-3 border-t border-white/8 px-6 py-4">
+          <div className="flex gap-3 border-t border-line px-6 py-4">
             {footer}
           </div>
         ) : null}
@@ -392,7 +392,7 @@ export function Tabs({
   onChange: (key: string) => void
 }) {
   return (
-    <div role="tablist" className="flex gap-6 border-b border-white/8">
+    <div role="tablist" className="flex gap-6 border-b border-line">
       {tabs.map((tab) => (
         <button
           key={tab.key}
