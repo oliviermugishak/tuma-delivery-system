@@ -227,7 +227,7 @@ class _DeliveryMapState extends State<DeliveryMap>
               if (_followRider) setState(() => _followRider = false);
             },
             myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
+            zoomControlsEnabled: true,
             mapToolbarEnabled: false,
             compassEnabled: false,
           ),

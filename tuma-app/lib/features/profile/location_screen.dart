@@ -342,7 +342,7 @@ class _DeliveryLocationScreenState
                   CameraPosition(target: kigaliCenter.toLatLng(), zoom: 12),
               myLocationEnabled: false,
               myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
+              zoomControlsEnabled: true,
               mapToolbarEnabled: false,
               compassEnabled: false,
               liteModeEnabled: true,
@@ -449,7 +449,7 @@ class _DeliveryLocationScreenState
               onCameraMove: _onCameraMove,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
+              zoomControlsEnabled: true,
               mapToolbarEnabled: false,
               compassEnabled: false,
             )
