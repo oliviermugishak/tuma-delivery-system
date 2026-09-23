@@ -8,7 +8,7 @@
          APK would have had no network at all. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="tuma_app"
+        android:label="Tuma"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Slice D3: the tracking map world (google_maps_flutter reads
