@@ -93,8 +93,37 @@ class _DeliveryLocationScreenState
       _kind = _kinds.any((k) => k.kind == edit.kind) ? edit.kind : 'other';
     } else {
       _noteCtrl = TextEditingController();
-      if (!widget.fresh) unawaited(_loadAddresses());
+      if (!widget.fresh) {
+        unawaited(_loadAddresses());
+      } else {
+        unawaited(_seedEditorTarget());
+      }
     }
+  }
+
+  /// New editor: land on a known pin (persisted → GPS → Kigali), then
+  /// move the camera once the map exists so the first frame isn't stuck
+  /// downtown after a late fix.
+  Future<void> _seedEditorTarget() async {
+    final saved = ref.read(customerLocationProvider).asData?.value;
+    if (saved != null) {
+      _goTo(LatLng(saved.lat, saved.lng));
+      return;
+    }
+    try {
+      final fix = await ref.read(acquireLocationProvider)();
+      if (!mounted) return;
+      _goTo(LatLng(fix.lat, fix.lng));
+    } on Object {
+      // Kigali stays — the locate FAB is the explicit retry.
+    }
+  }
+
+  void _goTo(LatLng target, {double zoom = 17}) {
+    setState(() => _target = target);
+    final map = _map;
+    if (map == null) return;
+    unawaited(map.animateCamera(CameraUpdate.newLatLngZoom(target, zoom)));
   }
 
   @override
@@ -203,9 +232,14 @@ class _DeliveryLocationScreenState
     try {
       final fix = await ref.read(acquireLocationProvider)();
       if (!mounted) return;
-      await _map?.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(fix.lat, fix.lng), 17),
-      );
+      _goTo(LatLng(fix.lat, fix.lng));
+      if (_map == null) {
+        showAppSnack(
+          context,
+          'Map is not ready — try locate again.',
+          duration: const Duration(seconds: 2),
+        );
+      }
     } on Object {
       if (mounted) {
         showAppSnack(
@@ -404,7 +438,14 @@ class _DeliveryLocationScreenState
           if (mobile)
             GoogleMap(
               initialCameraPosition: CameraPosition(target: _target, zoom: 16),
-              onMapCreated: (controller) => _map = controller,
+              onMapCreated: (controller) {
+                _map = controller;
+                unawaited(
+                  controller.animateCamera(
+                    CameraUpdate.newLatLngZoom(_target, 16),
+                  ),
+                );
+              },
               onCameraMove: _onCameraMove,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
